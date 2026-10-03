@@ -1,0 +1,38 @@
+# User-supplied/copyrighted game data
+game/
+*.3ds
+*.cci
+*.cia
+*.cxi
+*.ncch
+*.romfs
+code.bin
+*.moflex
+*.fib
+
+# Local state / saves / captures
+state/
+saves/
+captures/
+*.wav
+
+# Builds
+build/
+build-*/
+out/
+bin/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# IDE / OS
+.vscode/
+.idea/
+.vs/
+.DS_Store
+Thumbs.db
+
+# Logs/temp
+*.log
+*.tmp
