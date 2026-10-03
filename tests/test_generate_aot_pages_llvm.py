@@ -95,6 +95,45 @@ class LlvmRecoveryTests(unittest.TestCase):
         self.assertEqual(words, {table, table + 4})
         self.assertEqual(sites, [site])
 
+    def test_inline_word_thunk_detection(self):
+        base = mod.BASE
+        inst = {
+            base: (0xE49E4004, "ldr", "r4, [lr], #4"),
+            base + 4: (0xE1A00000, "mov", "r0, r0"),
+        }
+        self.assertTrue(mod.inline_word_thunk(inst, base))
+        self.assertFalse(mod.inline_word_thunk(inst, base + 4))
+
+    def test_aligned_ascii_literals(self):
+        code = bytearray(mod.TEXT_ALLOCATED_BYTES)
+        text = b"Token_Test.tga\0"
+        code[:len(text)] = text
+        words = mod.aligned_ascii_literal_words(bytes(code))
+        self.assertIn(mod.BASE, words)
+        self.assertIn(mod.BASE + 4, words)
+        self.assertIn(mod.BASE + 8, words)
+
+    def test_absolute_switch_table_words(self):
+        base = mod.BASE
+        site = base + 0x20
+        table = site + 8
+        targets_expected = {base + 0x100, base + 0x104, base + 0x108}
+        code = bytearray(mod.TEXT_ALLOCATED_BYTES)
+        for index, target in enumerate(sorted(targets_expected)):
+            code[table - base + index * 4:table - base + index * 4 + 4] = target.to_bytes(4, "little")
+        inst = {
+            site - 4: (0xE3500003, "cmp", "r0, #3"),
+            site: (0x379FF100, "ldrlo", "pc, [pc, r0, lsl #2]"),
+        }
+        for target in targets_expected:
+            inst[target] = (0xE1A00000, "mov", "r0, r0")
+        words, targets, sites = mod.absolute_switch_table_words(
+            inst, bytes(code), {site - 4, site}
+        )
+        self.assertEqual(words, {table, table + 4, table + 8})
+        self.assertEqual(targets, targets_expected)
+        self.assertEqual(sites, [site])
+
     def test_block_split_at_guest_page_boundary(self):
         base = mod.BASE
         inst = {
