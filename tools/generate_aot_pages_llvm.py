@@ -436,7 +436,7 @@ def walk(
                 continue
             if mn=='blx':
                 target=direct_target(op)
-                if target is not None and BASE<=target<BASE+TEXT_BYTES and target%4==0 and target not in queued:
+                if target is not None and BASE<=target<BASE+TEXT_BYTES and target%4==0 and target not in queued and target not in literal:
                     todo.append(target);queued.add(target);starts.add(target)
                 pc+=4
                 if pc not in literal: starts.add(pc)
@@ -449,7 +449,7 @@ def walk(
                 cond=(raw>>28)&0xf
                 if cond not in (0xe,0xf):
                     fallthrough=pc+4
-                    if BASE<=fallthrough<BASE+TEXT_BYTES and fallthrough%4==0 and fallthrough not in queued:
+                    if BASE<=fallthrough<BASE+TEXT_BYTES and fallthrough%4==0 and fallthrough not in queued and fallthrough not in literal:
                         todo.append(fallthrough);queued.add(fallthrough);starts.add(fallthrough)
                 break
             pc+=4
@@ -550,7 +550,7 @@ def emit(code: bytes, inst:dict, flow:dict, init:list[int], pointers:set[int], o
         page_meta.append({'address':f'0x{address:08X}','source':path.name,'blocks':len(pblocks),'ops':sum(map(len,pblocks)),'sha256':hashlib.sha256(source.encode()).hexdigest()})
     categories={}
     for value in classified.values(): categories[value[3]]=categories.get(value[3],0)+1
-    meta={'format':'lego_chase_llvm_conservative_pages_v1','authority':'diagnostic conservative graph; not Recovery J equivalence','code_sha256':hashlib.sha256(code).hexdigest(),'roots':{'entry':1,'initializers':len(init),'observed_callbacks':len(OBSERVED_CALLBACKS),'aligned_absolute_code_pointer_targets':len(pointers)},'counts':{'instruction_slots':len(flow['seen']),'block_starts':len(flow['starts']),'emitted_blocks':len(blocks),'pages':TEXT_PAGES,'nonempty_pages':sum(bool(v) for v in bypage.values()),'unsupported_ops':sum(v[0]=='Unsupported' for v in classified.values()),'indirect_stops':len(flow['indirect']),'unknown_stops':len(set(flow['unknown']))},'categories':dict(sorted(categories.items())),'historical_intermediate_reference':{'instruction_slots':547756,'blocks':111312},'pages':page_meta}
+    meta={'format':'lego_chase_llvm_conservative_pages_v1','authority':'diagnostic conservative graph; not Recovery J equivalence','code_sha256':hashlib.sha256(code).hexdigest(),'roots':{'entry':1,'initializers':len(init),'observed_callbacks':len(OBSERVED_CALLBACKS),'aligned_absolute_code_pointer_targets':len(pointers)},'counts':{'instruction_slots':len(flow['seen']),'block_starts':len(flow['starts']),'emitted_blocks':len(blocks),'pages':TEXT_PAGES,'nonempty_pages':sum(bool(v) for v in bypage.values()),'unsupported_ops':sum(v[0]=='Unsupported' for v in classified.values()),'indirect_stops':len(flow['indirect']),'unknown_stops':len(set(flow['unknown'])),'explicit_lr_returns':len(flow.get('lr_returns',())),'base_relative_switch_sites':flow.get('base_relative_switch_sites',0),'base_relative_switch_targets':flow.get('base_relative_switch_targets',0),'absolute_switch_sites':flow.get('absolute_switch_sites',0),'absolute_switch_words':flow.get('absolute_switch_words',0),'ascii_literal_words':flow.get('ascii_literal_words',0)},'categories':dict(sorted(categories.items())),'historical_intermediate_reference':{'instruction_slots':547756,'blocks':111312},'pages':page_meta}
     (output/'lego_aot_pages.json').write_text(json.dumps(meta,indent=2)+'\n')
     records=[]
     for path in sorted(output.iterdir()):
