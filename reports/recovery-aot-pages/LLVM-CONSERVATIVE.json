@@ -1,0 +1,60 @@
+{
+  "format": "lego_chase_llvm_conservative_validation_v1",
+  "date": "2026-10-03",
+  "source_code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "generator_sha256": "ea2e38c3327053a0ec5ff69d0110c4449d317b3039281c3f5c485b2131f047e1",
+  "local_generated_manifest_sha256": "b1627cf5666357ccb4aea14cc104ddb02d0e7b511d3c2e9ff4b8e44d129ff8f6",
+  "local_page_metadata_sha256": "75aecc5de625a3465a49fe515f7704f15dcb1e04b493e476b8740c7a3da5080a",
+  "decode_mode": {
+    "compiler_target": "armv7a-none-eabi",
+    "fpu": "neon",
+    "reason": "This broad decode mode reproduces the previously validated LLVM conservative 524873-slot graph and is used only as a decoding aid; it is not a claim about retail hardware ISA extensions."
+  },
+  "roots": {
+    "entry": 1,
+    "initializer_roots": 296,
+    "observed_callback_roots": 3,
+    "aligned_absolute_code_pointer_targets": 5313
+  },
+  "output": {
+    "artifacts": 604,
+    "page_translation_units": 599,
+    "instruction_slots": 524873,
+    "block_starts": 106397,
+    "emitted_blocks": 106846,
+    "nonempty_pages": 589,
+    "unsupported_ops": 3819,
+    "indirect_stops": 10601,
+    "unknown_stops": 3
+  },
+  "categories": {
+    "fast_path": 343773,
+    "core_alu_candidate": 37157,
+    "core_memory": 55428,
+    "core_system": 9232,
+    "vfp_transport": 51836,
+    "vfp_scalar": 23628,
+    "unsupported_vfp_simd": 3816,
+    "unknown": 3
+  },
+  "build_validation": {
+    "representative_pages_compiled": true,
+    "focus_k01_pages_compiled": [
+      "lego_page_001C1.cpp",
+      "lego_page_00227.cpp",
+      "lego_page_0023F.cpp",
+      "lego_page_002CA.cpp"
+    ],
+    "all_599_page_translation_units_compiled": true,
+    "registry_and_functions_compiled": true,
+    "full_link_succeeded": true,
+    "linked_registry_shard_count": 599,
+    "linked_function_count": 300
+  },
+  "historical_intermediate_reference": {
+    "instruction_slots": 547756,
+    "blocks": 111312,
+    "note": "This September 21 adr-coverage count predates Recovery F/G/J and remains a comparison reference, not a final Recovery J identity."
+  },
+  "claim_boundary": "This is real game-derived conservative native page output, but it is not claimed equivalent to Recovery J. The 3819 uncertain ops remain explicit instead of being given fabricated semantics."
+}
