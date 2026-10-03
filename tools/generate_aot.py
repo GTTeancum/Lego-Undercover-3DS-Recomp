@@ -13,6 +13,7 @@ import argparse
 import csv
 import hashlib
 import json
+import struct
 import sys
 from pathlib import Path
 
@@ -28,6 +29,11 @@ HISTORICAL_BLOCKS = 111_312
 HISTORICAL_INSTRUCTION_SLOTS = 547_756
 HISTORICAL_EXPLICIT_TRAPS = 41
 HISTORICAL_PENDING_ROOTS = 0
+INITIALIZER_DISPATCHER = 0x001336CC
+INITIALIZER_TABLE_BEGIN = 0x0036A1A8
+INITIALIZER_TABLE_END = 0x0036A648
+INITIALIZER_COUNT = 296
+OBSERVED_CALLBACK_ROOTS = (0x002DEB78, 0x002FAC60, 0x003261EC)
 
 
 def sha256(path: Path) -> str:
@@ -38,8 +44,30 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def write_inputs(work: Path) -> tuple[Path, Path]:
+def initializer_roots(code: bytes) -> list[int]:
+    roots: list[int] = []
+    for slot in range(INITIALIZER_TABLE_BEGIN, INITIALIZER_TABLE_END, 4):
+        offset = slot - BASE
+        if offset < 0 or offset + 4 > len(code):
+            raise ValueError("initializer table lies outside code.bin")
+        raw = struct.unpack_from("<I", code, offset)[0]
+        displacement = raw - 0x1_0000_0000 if raw & 0x8000_0000 else raw
+        target = (slot + displacement) & 0xFFFF_FFFF
+        if target % 4 or not (BASE <= target < BASE + TEXT_BYTES):
+            raise ValueError(
+                f"initializer slot 0x{slot:08X} resolves outside text: 0x{target:08X}"
+            )
+        roots.append(target)
+    if len(roots) != INITIALIZER_COUNT:
+        raise ValueError(f"expected {INITIALIZER_COUNT} initializer roots, got {len(roots)}")
+    return roots
+
+
+def write_inputs(work: Path, code: bytes) -> tuple[Path, Path, list[int]]:
     work.mkdir(parents=True, exist_ok=True)
+    init_roots = initializer_roots(code)
+    roots = [BASE, *init_roots, *OBSERVED_CALLBACK_ROOTS]
+    unique_roots = list(dict.fromkeys(roots))
     inventory = work / "lego_function_inventory.csv"
     with inventory.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["entry", "size", "name"])
@@ -49,9 +77,19 @@ def write_inputs(work: Path) -> tuple[Path, Path]:
             "size": str(TEXT_BYTES),
             "name": "LEGOCITY_text",
         })
+        for index, entry in enumerate(unique_roots[1:]):
+            writer.writerow({
+                "entry": f"0x{entry:08X}",
+                "size": "4",
+                "name": (
+                    f"initializer_{index:03d}"
+                    if entry in init_roots
+                    else f"observed_callback_{entry:08X}"
+                ),
+            })
     audit = work / "lego_boundary_audit.csv"
     audit.write_text("entry\n", encoding="utf-8")
-    return inventory, audit
+    return inventory, audit, init_roots
 
 
 def main() -> int:
@@ -76,8 +114,9 @@ def main() -> int:
             parser.error("Capstone 5.0.7 is required (python -m pip install -r requirements-dev.txt)")
         raise
 
+    code_bytes = args.code.read_bytes()
     work = args.output.parent / "generation-inputs"
-    inventory, audit = write_inputs(work)
+    inventory, audit, init_roots = write_inputs(work, code_bytes)
     result = a32_cpp_aot.generate(
         code_path=args.code,
         inventory_path=inventory,
@@ -97,6 +136,13 @@ def main() -> int:
         "format": "lego_chase_aot_reconstruction_v1",
         "code_sha256": code_hash,
         "shard_size": args.shard_size,
+        "recovered_roots": {
+            "initializer_dispatcher": f"0x{INITIALIZER_DISPATCHER:08X}",
+            "initializer_table_begin": f"0x{INITIALIZER_TABLE_BEGIN:08X}",
+            "initializer_table_end": f"0x{INITIALIZER_TABLE_END:08X}",
+            "initializer_count": len(init_roots),
+            "observed_callback_roots": [f"0x{x:08X}" for x in OBSERVED_CALLBACK_ROOTS],
+        },
         "current": {
             "blocks": current_blocks,
             "instruction_slots": current_slots,
