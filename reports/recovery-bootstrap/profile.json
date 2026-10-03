@@ -1,0 +1,36 @@
+{
+  "revision": {
+    "cci_sha256": "3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525",
+    "decompressed_code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+    "title_id": "00040000000AD500",
+    "product_code": "CTR-P-AA8E",
+    "process_name": "LEGOCITY",
+    "partition_id": "00040000000AD500"
+  },
+  "main_ncch": {
+    "image_offset": 16384,
+    "size": 771014656,
+    "exheader_size": 1024,
+    "exefs_offset": 19456,
+    "exefs_size": 1829376,
+    "exefs_hash_region_size": 512
+  },
+  "segments": {
+    "text": {"address": 1048576, "size": 2450732, "pages": 599},
+    "rodata": {"address": 3502080, "size": 79432, "pages": 20},
+    "data": {"address": 3584000, "size": 112240, "pages": 28},
+    "bss": {"size": 2219880},
+    "stack": {"size": 65536}
+  },
+  "exefs_entries": [
+    {"name": ".code", "offset": 0, "size": 1701108},
+    {"name": "banner", "offset": 1701376, "size": 104696},
+    {"name": "icon", "offset": 1806336, "size": 14016},
+    {"name": "logo", "offset": 1820672, "size": 8192}
+  ],
+  "code": {
+    "compressed_size": 1701108,
+    "decompressed_size": 2650112,
+    "output": "code.bin"
+  }
+}
