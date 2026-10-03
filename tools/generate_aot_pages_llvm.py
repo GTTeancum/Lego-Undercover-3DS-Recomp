@@ -122,6 +122,169 @@ def indirect_terminator(mn: str, operand: str) -> bool:
     return dest=='pc' and base.startswith(('ldr','mov','mvn','add','sub','rsb','orr','eor','and','bic','adc','sbc','rsc'))
 
 
+def ror32(value: int, amount: int) -> int:
+    amount &= 31
+    value &= 0xFFFFFFFF
+    return value if amount == 0 else ((value >> amount) | (value << (32 - amount))) & 0xFFFFFFFF
+
+
+def simple_dp(raw: int):
+    if ((raw >> 28) & 15) != 14 or (raw & 0x0C000000) != 0:
+        return None
+    immediate = bool(raw & (1 << 25))
+    opcode = (raw >> 21) & 15
+    rn = (raw >> 16) & 15
+    rd = (raw >> 12) & 15
+    operand2 = raw & 0xFFF
+    if opcode not in (2, 4, 10, 13):
+        return None
+    if immediate:
+        imm = ror32(operand2 & 0xFF, ((operand2 >> 8) & 15) * 2)
+        return opcode, rd, rn, None, imm
+    if operand2 & 0xFF0:
+        return None
+    return opcode, rd, rn, operand2 & 15, None
+
+
+def conservative_writes(raw: int):
+    decoded = simple_dp(raw)
+    if decoded is not None:
+        opcode, rd, _, _, _ = decoded
+        return set() if opcode == 10 else {rd}
+    if (raw & 0x0C000000) == 0x04000000:
+        writes = set()
+        rn = (raw >> 16) & 15
+        rd = (raw >> 12) & 15
+        if raw & (1 << 20):
+            writes.add(rd)
+        if raw & (1 << 21) or not raw & (1 << 24):
+            writes.add(rn)
+        return writes
+    if (raw & 0x0E000000) == 0x08000000:
+        writes = set()
+        rn = (raw >> 16) & 15
+        if raw & (1 << 20):
+            writes.update(register for register in range(16) if raw & (1 << register))
+        if raw & (1 << 21):
+            writes.add(rn)
+        return writes
+    return None
+
+
+def static_register_before(
+    inst: dict[int, tuple[int, str, str]], reachable: set[int], pc: int, register: int
+) -> int | None:
+    adjustment = 0
+    for candidate in range(pc - 4, pc - 68, -4):
+        if candidate not in reachable or candidate not in inst:
+            break
+        raw, mn, operand = inst[candidate]
+        if branch_kind(mn) or mn == "blx" or indirect_terminator(mn, operand):
+            break
+        writes = conservative_writes(raw)
+        if writes is None or 15 in writes:
+            break
+        if register not in writes:
+            continue
+        decoded = simple_dp(raw)
+        if decoded is None:
+            break
+        opcode, _, rn, rm, imm = decoded
+        if opcode == 13:
+            if imm is not None:
+                return (imm + adjustment) & 0xFFFFFFFF
+            if rm == 15:
+                return (candidate + 8 + adjustment) & 0xFFFFFFFF
+            register = rm
+        elif opcode in (4, 2) and imm is not None:
+            adjustment += imm if opcode == 4 else -imm
+            if rn == 15:
+                return (candidate + 8 + adjustment) & 0xFFFFFFFF
+            register = rn
+        else:
+            break
+    return None
+
+
+def explicit_lr_return(
+    inst: dict[int, tuple[int, str, str]], reachable: set[int], pc: int
+) -> int | None:
+    target = static_register_before(inst, reachable, pc, 14)
+    return target if target in inst else None
+
+
+def base_relative_switch_targets(
+    inst: dict[int, tuple[int, str, str]], code: bytes, reachable: set[int]
+) -> tuple[set[int], set[int], list[int]]:
+    targets: set[int] = set()
+    table_words: set[int] = set()
+    sites: list[int] = []
+    for pc in sorted(reachable):
+        raw, _, _ = inst[pc]
+        decoded = simple_dp(raw)
+        if decoded is None:
+            continue
+        opcode, rd, rn, rm, imm = decoded
+        if opcode != 4 or rd != 15 or imm is not None:
+            continue
+        load_pc = None
+        load_raw = None
+        for candidate in range(pc - 4, pc - 36, -4):
+            if candidate not in reachable or candidate not in inst:
+                break
+            candidate_raw, _, _ = inst[candidate]
+            if (
+                (candidate_raw & 0x0FF00000) == 0x07900000
+                and not candidate_raw & 0x10
+                and ((candidate_raw >> 5) & 3) == 0
+                and ((candidate_raw >> 28) & 15) == 14
+            ):
+                load_pc = candidate
+                load_raw = candidate_raw
+                break
+            writes = conservative_writes(candidate_raw)
+            if writes is None or writes & {rn, rm, 15}:
+                break
+        if load_pc is None or load_raw is None:
+            continue
+        base_register = (load_raw >> 16) & 15
+        value_register = (load_raw >> 12) & 15
+        if {rn, rm} != {base_register, value_register} or base_register == value_register:
+            continue
+        base = static_register_before(inst, reachable, load_pc, base_register)
+        if base is None:
+            continue
+        words: list[int] = []
+        site_targets: list[int | None] = []
+        for word in range(base, base + 256 * 4, 4):
+            if not (BASE <= word < BASE + TEXT_ALLOCATED_BYTES) or word in reachable:
+                break
+            offset = struct.unpack_from("<I", code, word - BASE)[0]
+            if offset == 0:
+                words.append(word)
+                site_targets.append(None)
+                continue
+            target = (base + offset) & 0xFFFFFFFF
+            if (
+                not (BASE <= target < BASE + TEXT_ALLOCATED_BYTES)
+                or target == word
+                or target not in inst
+                or ((inst[target][0] >> 28) & 15) != 14
+                or inst[target][1] == "<unknown>"
+            ):
+                break
+            words.append(word)
+            site_targets.append(target)
+        while words and struct.unpack_from("<I", code, words[-1] - BASE)[0] == 0:
+            words.pop()
+            site_targets.pop()
+        if sum(target is not None for target in site_targets) >= 2 and len(words) < 256:
+            sites.append(pc)
+            table_words.update(words)
+            targets.update(target for target in site_targets if target is not None)
+    return targets, table_words, sites
+
+
 def initializer_roots(code: bytes) -> list[int]:
     roots=[]
     for slot in range(INIT_BEGIN,INIT_END,4):
@@ -143,7 +306,7 @@ def absolute_pointer_roots(code: bytes) -> set[int]:
 
 
 def walk(inst: dict[int,tuple[int,str,str]], roots: list[int]) -> dict:
-    todo=deque(roots); queued=set(roots); seen=set(); starts=set(); unknown=[]; indirect=[]; direct_edges=0
+    todo=deque(roots); queued=set(roots); seen=set(); starts=set(); unknown=[]; indirect=[]; direct_edges=0; lr_returns=set()
     while todo:
         start=todo.popleft()
         if start in seen or start not in inst: continue
@@ -166,6 +329,9 @@ def walk(inst: dict[int,tuple[int,str,str]], roots: list[int]) -> dict:
                 pc+=4; starts.add(pc); continue
             if indirect_terminator(mn,op):
                 indirect.append((pc,mn,op))
+                ret=explicit_lr_return(inst,seen,pc)
+                if ret is not None and ret not in queued:
+                    todo.append(ret);queued.add(ret);starts.add(ret);lr_returns.add(ret)
                 cond=(raw>>28)&0xf
                 if cond not in (0xe,0xf):
                     fallthrough=pc+4
@@ -174,7 +340,7 @@ def walk(inst: dict[int,tuple[int,str,str]], roots: list[int]) -> dict:
                 break
             pc+=4
     starts={x for x in starts if x in seen}
-    return {'seen':seen,'starts':starts,'unknown':unknown,'indirect':indirect,'direct_edges':direct_edges}
+    return {'seen':seen,'starts':starts,'unknown':unknown,'indirect':indirect,'direct_edges':direct_edges,'lr_returns':lr_returns}
 
 
 def classify(raw: int, mn: str) -> tuple[str,str,int,str]:
@@ -293,8 +459,13 @@ def main()->int:
     code=args.code.read_bytes(); init=initializer_roots(code); pointers=absolute_pointer_roots(code)
     with tempfile.TemporaryDirectory(prefix='lego-aot-llvm-') as tmp:
         dis=build_disassembly(args.code,Path(tmp),args.clang,args.llvm_objdump); inst=parse_disassembly(dis)
-    roots=[BASE,*init,*OBSERVED_CALLBACKS,*sorted(pointers)]
-    flow=walk(inst,list(dict.fromkeys(roots)))
+    roots=list(dict.fromkeys([BASE,*init,*OBSERVED_CALLBACKS,*sorted(pointers)]))
+    flow=walk(inst,roots)
+    switch_targets, switch_words, switch_sites = base_relative_switch_targets(inst,code,flow["seen"])
+    if switch_targets:
+        flow=walk(inst,list(dict.fromkeys([*roots,*sorted(switch_targets)])))
+    flow["base_relative_switch_sites"]=len(switch_sites)
+    flow["base_relative_switch_targets"]=len(switch_targets)
     manifest=emit(code,inst,flow,init,pointers,args.output)
     print(json.dumps({'files':manifest['generated_files_including_manifest'],'counts':manifest['counts'],'categories':manifest['categories']},indent=2))
     return 0
