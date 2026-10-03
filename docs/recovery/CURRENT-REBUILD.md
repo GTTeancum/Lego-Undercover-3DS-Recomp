@@ -33,9 +33,10 @@ not only documentation:
 - `tools/prepare_game.py` — CCI/NCCH/ExeFS/RomFS validation and preparation.
 - `tools/generate_aot.py` — AOT generation recovery tooling.
 - `tools/build_process_manifest.py` — process/translation manifest tooling.
-- `tests/test_prepare_game.py`
-- `tests/test_generate_inventory.py`
-- `tests/test_process_manifest.py`
+- `tools/build_aot_page_manifest.py` — verified 599-page text manifest.
+- `tools/generate_aot_pages.py` — reconstructed page-oriented C++ emitter.
+- `cmake/LEGOGeneratedAOT.cmake` — build integration with hard 599-page validation.
+- preparation, inventory/process, page-manifest, and page-emitter regression tests.
 - `config/supported_revision.json`
 - A pinned framework slice under `vendor/triaevum-a9b4477/`, including:
   - ARM decode/lift/IR and soft-float Python sources.
@@ -44,8 +45,8 @@ not only documentation:
   - framework provenance metadata.
 
 The LEGO-specific `src/*` directories still contain placeholders only; the
-original generated AOT pages and game-specific host/runtime implementation have
-not yet been restored there.
+actual generated game AOT page contents and game-specific host/runtime implementation
+have not yet been restored there.
 
 ## Preparation reproduced again in the current scratch
 
@@ -76,52 +77,50 @@ tree used generated AOT pages. The reconstruction must satisfy the later page-la
 evidence as well as the older coverage evidence before any claim that Recovery J
 has been restored.
 
-## Current boundary
+## AOT page reconstruction
 
-The exact game input, executable extraction, reconstruction tooling, tests, and
-a useful pinned TriAevum source subset are now safe in GitHub. The major remaining
-loss is the 604-file generated AOT tree plus the LEGO-specific native host/runtime,
-renderer, services, audio, and desktop frontend implementation.
+The later page layer now exists as working reconstruction source:
 
-No current commit is claimed to reproduce Recovery J gameplay yet.
+- Exactly **599 4-KiB guest text pages** are emitted as C++ translation units.
+- Blocks crossing a guest page boundary are deterministically split at that boundary.
+- Empty text pages remain represented in the ordered registry and safely resolve to no block.
+- The recovery emitter produces **604 artifacts total**: 599 page C++ files plus five recovery support artifacts. Those five filenames are a reconstruction convention; their historical identities are still unknown.
+- Four page-emitter Python tests pass.
+- A complete synthetic 599-page output compiles and links successfully.
+- CMake integration configures/builds the full page set and links a registry smoke executable successfully.
+
+The emitter reuses the pinned frontend's real fixed-point literal/CFG/pointer logic
+when Capstone is available, then repacks the resulting blocks into the page-oriented
+layout. It does not invent raw game instructions.
 
 ## AOT coverage reconstruction
 
-The surviving `adr-coverage-build2.log` is now correctly treated as an **earlier
-intermediate**, not the final Recovery J generator layout. At 14:26 UTC on
-September 21 it built 135 `lego_shard_*.cpp` files named across `00040` through
-`000D5` and reported 111,312 blocks / 547,756 instruction slots.
+The surviving `adr-coverage-build2.log` remains an earlier intermediate, not the
+final Recovery J layout. At 14:26 UTC on September 21 it built 135
+`lego_shard_*.cpp` files and reported 111,312 blocks / 547,756 instruction slots.
 
-Recovery F, produced later that day, and Recovery G/J document a later source tree
-with **604 generated AOT files**. The executable text allocation is exactly **599
-4-KiB pages**, and Focus K01 explicitly describes compiling four unchanged
-"generated AOT pages." This is strong evidence that the final project used a
-page-oriented LEGO generation layer that is not present in the pinned generic
-TriAevum frontend. The exact five additional generated artifacts and page filename
-scheme remain to be recovered.
-
-The pinned TriAevum frontend's `shard_size` setting is an **operation-count
-limit**, not a guest page size. The reconstruction wrapper has therefore been
-returned to its 0x1000 operation-limit default and is being used only for coverage
-analysis while the later LEGO page generator is reconstructed.
-
-A fresh LLVM 17 A32 disassembly of the verified executable was used to rebuild a
+A fresh LLVM 17 A32 disassembly of the verified executable rebuilt a conservative
 control-flow baseline without Capstone. Entry + initializer + observed callback
 roots cover 48,120 instruction slots. Adding validated absolute code-pointer roots
 reaches **524,873 instruction slots and 106,400 block starts**. The preserved
 frontend source has also recovered the actual fixed-point rules for literal pools,
 absolute and base-relative switch tables, self-relative pointer tables, constant-PC
-targets, and filtered pointer roots. Local LLVM emulation of those rules is being
-used diagnostically; it is not claimed byte-identical to the lost Capstone-backed
-generator.
+targets, and filtered pointer roots.
 
-A deterministic page-manifest layer is now reconstructed in
-`tools/build_aot_page_manifest.py`. It verifies the exact executable and enumerates
-all **599 4-KiB text pages**, including per-page hashes generated locally. Its tests
-also pin the four distinct pages used by Focus K01. See
-`reports/recovery-aot-pages/README.md`.
+The exact frontend dependency remains `capstone==5.0.7`. The correct PyPI
+manylinux x86-64 wheel was identified during this turn, but the active container
+could not fetch that binary. Therefore no new claim is made that the reconstructed
+page emitter currently reproduces Recovery J's exact game-page contents.
 
-The next AOT step is to reconstruct the later page-oriented C++ emitter and its
-registry/dispatch metadata while continuing to recover the lost title-specific
-function/root inventory. The five additional generated artifacts implied by the
-604-file Recovery J count are still unidentified.
+## Current boundary
+
+The verified game input, executable preparation, pinned A32 frontend/runtime,
+page-manifest layer, page-oriented C++ emitter, registry, and CMake build integration
+are now safe in GitHub.
+
+The next critical step is to run the pinned Capstone-backed analysis with the best
+recovered title inventory, emit actual page contents, and compare their coverage
+against the surviving historical checkpoints. After that, reconstruction moves into
+the LEGO-specific native host/runtime, services, renderer, audio, and desktop frontend.
+
+No current commit is claimed to reproduce Recovery J gameplay yet.
