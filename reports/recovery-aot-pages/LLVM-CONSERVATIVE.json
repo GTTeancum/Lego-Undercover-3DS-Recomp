@@ -56,53 +56,61 @@
     "blocks": 111312,
     "note": "This September 21 adr-coverage count predates Recovery F/G/J and remains a comparison reference, not a final Recovery J identity."
   },
-  "claim_boundary": "The conservative LLVM tree now has only three explicit unknown/unsupported words and fully links, but it is still not claimed equivalent to Recovery J. Relative-table and other indirect roots remain diagnostic until canonical frontend parity is established.",
+  "claim_boundary": "The LLVM recovery tree now contains zero explicit unknown/unsupported words and fully builds, but it is still not claimed equivalent to Recovery J. Runtime-dependent virtual calls and the canonical Capstone/title-inventory fixed point remain unrecovered.",
   "latest_recovery_improvement": {
     "date": "2026-10-03",
     "changes": [
-      "Preserve condition-failed fallthrough for predicated indirect PC writes/branches, matching the pinned frontend.",
-      "Do not interpret the trailing 'ls' in vmls/vnmls as an ARM LS condition suffix.",
-      "Promote vldmia/vstmia to the existing pinned VFP transport backend."
+      "Preserve condition-failed fallthrough for predicated indirect PC writes and branches.",
+      "Recover old-style ARM call continuations that set LR explicitly before a register-indirect branch.",
+      "Recover three already-reached base-relative switch tables using the pinned frontend's add-pc/base/offset pattern.",
+      "Recognize direct-call inline-word thunks whose callee begins with post-index LDR from LR; skip the inline data word and resume at pc+8.",
+      "Exclude aligned null-terminated ASCII string words and proven absolute/base-relative switch-table words from traversal.",
+      "Route vldmia/vstmia plus scalar vmls/vnmls forms to the existing restored VFP backends."
     ],
     "before": {
       "instruction_slots": 524873,
       "block_starts": 106397,
+      "emitted_blocks_after_page_split": 106846,
       "unsupported_ops": 3819
     },
     "after": {
-      "instruction_slots": 538589,
-      "block_starts": 109423,
-      "emitted_blocks_after_page_split": 109882,
-      "unsupported_ops": 3,
-      "indirect_stops": 10929,
-      "unknown_stops": 3,
+      "instruction_slots": 545111,
+      "block_starts": 110592,
+      "emitted_blocks_after_page_split": 111043,
+      "unsupported_ops": 0,
+      "explicit_lr_returns": 110,
+      "base_relative_switch_sites": 3,
+      "base_relative_switch_targets": 30,
+      "absolute_switch_sites": 200,
+      "absolute_switch_words": 1642,
+      "ascii_literal_words_identified": 15069,
       "nonempty_pages": 589
     },
     "categories": {
-      "fast_path": 352624,
-      "core_alu_candidate": 38279,
-      "core_memory": 56940,
+      "fast_path": 356712,
+      "core_alu_candidate": 39924,
+      "core_memory": 57704,
       "core_system": 9521,
-      "vfp_transport": 56137,
-      "vfp_scalar": 25085,
-      "unknown": 3
+      "vfp_transport": 56159,
+      "vfp_scalar": 25091
     },
-    "remaining_unknown_addresses": [
-      "0x00205F24",
-      "0x0022E924",
-      "0x003563E0"
-    ],
+    "unknown_addresses_remaining": [],
     "build_validation": {
       "all_599_page_translation_units_compiled": true,
       "registry_and_functions_compiled": true,
       "full_link_succeeded": true,
       "linked_registry_shard_count": 599,
       "linked_function_count": 300,
-      "local_page_source_aggregate_sha256": "611fe29149119aecef9153bef4421af97c9b2cf755e2caf1c9301a10a705512d"
+      "local_page_source_aggregate_sha256": "635176a61656502a1d76e7b84ee09e1f85e5f9859ce0ac6f11e48ab04f565688"
+    },
+    "historical_intermediate_delta": {
+      "instruction_slots_below_547756": 2645,
+      "emitted_blocks_below_111312": 269,
+      "note": "These are comparison deltas only. The September 21 counts predate Recovery F/G/J and are not being used as a target to tune toward."
     },
     "relative_pointer_table_experiment": {
       "status": "not committed",
-      "detail": "The preserved >=8-entry self-relative-table rule identified 22 candidate tables / 296 words and raised LLVM reachability to 548553 slots. Because the LLVM compatibility decoder is not the canonical Capstone frontend and this exceeded the earlier 547756-slot checkpoint, those roots remain diagnostic only."
+      "detail": "A one-pass preserved self-relative-table rule identifies 22 candidate tables / 296 words. With the LLVM compatibility graph it reaches 552048 slots, so it remains diagnostic-only rather than being forced into the production recovery graph."
     }
   }
 }
