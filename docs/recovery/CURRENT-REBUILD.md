@@ -199,3 +199,52 @@ this compatibility decoder is not the canonical Capstone frontend and the result
 slightly exceeds the earlier 547,756-slot intermediate checkpoint. The evidence
 is retained in `reports/recovery-aot-pages/LLVM-CONSERVATIVE.json` rather than
 being forced into the production recovery graph.
+
+
+## Indirect-call and literal-data recovery checkpoint
+
+The LLVM fallback has now advanced from the original 524,873-slot conservative
+graph to a cleaner **545,111-slot** graph without tuning toward the historical
+count.
+
+Newly recovered behavior:
+
+- Predicated indirect PC writes preserve their condition-failed fallthrough.
+- Old-style ARM calls that explicitly construct LR before a register-indirect
+  branch now recover their real continuation; **110** such continuation roots
+  are present in the final graph.
+- Three already-reached base-relative switch dispatches recover **30** proven
+  table targets.
+- All **200** recognized GCC absolute PC-relative switch tables are identified;
+  **1,642** table words are treated as data rather than instructions.
+- The inline-parameter thunk at `0x003561C8` is recognized structurally by its
+  leading post-index `ldr ..., [lr], #4`. Its two callers therefore treat the
+  word following `BL` as inline data and resume at `pc+8`.
+- Aligned null-terminated ASCII strings are excluded from traversal. This removes
+  false code roots inside asset names and exception strings.
+- `vldmia` / `vstmia` and scalar `vmls` / `vnmls` are routed to the
+  already-restored VFP backends instead of being misclassified.
+
+Current generated-code measurements:
+
+- **545,111 reachable instruction slots**
+- **110,592 block starts**
+- **111,043 emitted blocks after page splitting**
+- **599 page translation units / 604 total recovery artifacts**
+- **0 unknown or explicitly unsupported generated operations**
+- **589 nonempty pages**
+
+A complete fresh rebuild of all 599 real game-derived page translation units
+passed again, followed by registry/functions compilation and a full link. The
+smoke executable reports **599 registry shards** and **300 function/inventory
+entries**. The aggregate hash of the regenerated page C++ sources is
+`635176a61656502a1d76e7b84ee09e1f85e5f9859ce0ac6f11e48ab04f565688`.
+
+For comparison only, this leaves the LLVM recovery graph 2,645 slots and 269
+emitted blocks below the older September 21 adr-coverage checkpoint
+(547,756 / 111,312). Those older figures are **not** being used as numeric targets.
+
+The preserved >=8-entry self-relative pointer-table rule remains diagnostic-only:
+on the LLVM compatibility graph it reaches 552,048 slots, so it has not been
+promoted merely to make the counts look closer. Runtime-dependent virtual calls
+remain unresolved by design.
