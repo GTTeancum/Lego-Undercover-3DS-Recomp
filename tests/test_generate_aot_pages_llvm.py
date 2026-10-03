@@ -59,6 +59,42 @@ class LlvmRecoveryTests(unittest.TestCase):
         flow = mod.walk(inst, [base])
         self.assertIn(base + 4, flow["seen"])
 
+    def test_explicit_lr_linked_indirect_recovers_return_site(self):
+        base = mod.BASE
+        inst = {
+            base: (0xE28FE000, "add", "lr, pc, #0"),
+            base + 4: (0xE12FFF14, "bx", "r4"),
+            base + 8: (0xE1A00000, "mov", "r0, r0"),
+            base + 12: (0xE12FFF1E, "bx", "lr"),
+        }
+        flow = mod.walk(inst, [base])
+        self.assertIn(base + 8, flow["seen"])
+        self.assertIn(base + 8, flow["lr_returns"])
+
+    def test_base_relative_switch_targets(self):
+        base = mod.BASE
+        site = base + 0x100
+        table = base + 0x40
+        target1 = base + 0x200
+        target2 = base + 0x204
+        code = bytearray(mod.TEXT_ALLOCATED_BYTES)
+        code[table - base:table - base + 4] = (target1 - table).to_bytes(4, "little")
+        code[table - base + 4:table - base + 8] = (target2 - table).to_bytes(4, "little")
+        code[table - base + 8:table - base + 12] = (0xFFFFFFFF).to_bytes(4, "little")
+        inst = {
+            site - 12: (0xE24F60BC, "sub", "r6, pc, #188"),
+            site - 8: (0xE7965105, "ldr", "r5, [r6, r5, lsl #2]"),
+            site - 4: (0xE1A0E008, "mov", "lr, r8"),
+            site: (0xE085F006, "add", "pc, r5, r6"),
+            target1: (0xE1A00000, "mov", "r0, r0"),
+            target2: (0xE1A00000, "mov", "r0, r0"),
+        }
+        reachable = {site - 12, site - 8, site - 4, site}
+        targets, words, sites = mod.base_relative_switch_targets(inst, bytes(code), reachable)
+        self.assertEqual(targets, {target1, target2})
+        self.assertEqual(words, {table, table + 4})
+        self.assertEqual(sites, [site])
+
     def test_block_split_at_guest_page_boundary(self):
         base = mod.BASE
         inst = {
