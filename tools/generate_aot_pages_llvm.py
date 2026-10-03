@@ -40,7 +40,7 @@ CONDITIONS = ("Eq","Ne","Cs","Cc","Mi","Pl","Vs","Vc","Hi","Ls","Ge","Lt","Gt","
 COND_SUFFIXES = ("eq","ne","hs","cs","lo","cc","mi","pl","vs","vc","hi","ls","ge","lt","gt","le","al")
 SYSTEM = {"nop","yield","wfe","wfi","sev","clrex","dmb","dsb","isb","mrs","msr","cps","setend","bkpt","udf","hvc","smc"}
 MEM_PREFIX = ("ldr","str","ldm","stm","push","pop","ldrex","strex","swp","pld","pli")
-VFP_TRANSPORT = ("vldr","vstr","vmov","vmrs","vmsr","vpush","vpop")
+VFP_TRANSPORT = ("vldr","vstr","vmov","vmrs","vmsr","vpush","vpop","vldmia","vstmia")
 VFP_SCALAR = ("vadd","vsub","vmul","vdiv","vabs","vneg","vsqrt","vcmp","vcmpe","vcvt","vmla","vmls","vnmla","vnmls","vnmul")
 LINE_RE = re.compile(r"^\s*([0-9a-f]+):\s+([0-9a-f]{8})\s+([^\s]+)(?:\s+(.*?))?\s*$")
 HEX_RE = re.compile(r"0x([0-9a-f]+)")
@@ -59,6 +59,19 @@ def strip_cond(mn: str) -> str:
         if base.endswith(cc) and len(base)>len(cc)+1:
             return base[:-len(cc)]
     return base
+
+
+def vfp_family(mn: str, families: tuple[str, ...]) -> str | None:
+    """Match a VFP mnemonic without confusing opcode text with condition suffixes."""
+    base=mn.lower().split('.',1)[0]
+    if base in families:
+        return base
+    for cc in COND_SUFFIXES:
+        if base.endswith(cc):
+            stem=base[:-len(cc)]
+            if stem in families:
+                return stem
+    return None
 
 
 def build_disassembly(code_path: Path, work: Path, clang: str, llvm_objdump: str) -> Path:
@@ -151,7 +164,14 @@ def walk(inst: dict[int,tuple[int,str,str]], roots: list[int]) -> dict:
                 if target is not None and BASE<=target<BASE+TEXT_BYTES and target%4==0 and target not in queued:
                     todo.append(target);queued.add(target);starts.add(target)
                 pc+=4; starts.add(pc); continue
-            if indirect_terminator(mn,op): indirect.append((pc,mn,op)); break
+            if indirect_terminator(mn,op):
+                indirect.append((pc,mn,op))
+                cond=(raw>>28)&0xf
+                if cond not in (0xe,0xf):
+                    fallthrough=pc+4
+                    if BASE<=fallthrough<BASE+TEXT_BYTES and fallthrough%4==0 and fallthrough not in queued:
+                        todo.append(fallthrough);queued.add(fallthrough);starts.add(fallthrough)
+                break
             pc+=4
     starts={x for x in starts if x in seen}
     return {'seen':seen,'starts':starts,'unknown':unknown,'indirect':indirect,'direct_edges':direct_edges}
@@ -178,11 +198,11 @@ def classify(raw: int, mn: str) -> tuple[str,str,int,str]:
         if immediate_offset and pre and not byte and not wb:
             if not raw&(1<<23): flags|=32
             return ('Ldr32' if load else 'Str32',CONDITIONS[cond],flags,'fast_path')
+    if vfp_family(mn,VFP_TRANSPORT): return ('VfpTransport',CONDITIONS[cond],flags,'vfp_transport')
+    if vfp_family(mn,VFP_SCALAR): return ('VfpScalar',CONDITIONS[cond],flags,'vfp_scalar')
     base=strip_cond(mn)
     if base in SYSTEM: return ('CoreSystem',CONDITIONS[cond],flags,'core_system')
     if base.startswith(MEM_PREFIX): return ('CoreMemory',CONDITIONS[cond],flags,'core_memory')
-    if base.startswith(VFP_TRANSPORT): return ('VfpTransport',CONDITIONS[cond],flags,'vfp_transport')
-    if base.startswith(VFP_SCALAR): return ('VfpScalar',CONDITIONS[cond],flags,'vfp_scalar')
     if base.startswith('v'): return ('Unsupported',CONDITIONS[cond],flags,'unsupported_vfp_simd')
     if mn!='<unknown>': return ('CoreAlu',CONDITIONS[cond],flags,'core_alu_candidate')
     return ('Unsupported',CONDITIONS[cond],flags,'unknown')
