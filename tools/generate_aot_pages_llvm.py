@@ -285,6 +285,109 @@ def base_relative_switch_targets(
     return targets, table_words, sites
 
 
+def inline_word_thunk(inst: dict[int, tuple[int, str, str]], target: int) -> bool:
+    if target not in inst:
+        return False
+    raw, _, _ = inst[target]
+    return bool(
+        (raw & 0x0C000000) == 0x04000000
+        and not raw & (1 << 25)
+        and not raw & (1 << 24)
+        and raw & (1 << 23)
+        and not raw & (1 << 22)
+        and raw & (1 << 20)
+        and ((raw >> 16) & 15) == 14
+        and (raw & 0xFFF) == 4
+    )
+
+
+def aligned_ascii_literal_words(code: bytes) -> set[int]:
+    words: set[int] = set()
+    for offset in range(0, TEXT_BYTES, 4):
+        if offset > 0 and 0x20 <= code[offset - 1] < 0x7F:
+            continue
+        end = offset
+        while (
+            end < TEXT_BYTES
+            and 0x20 <= code[end] < 0x7F
+            and end - offset < 256
+        ):
+            end += 1
+        if end - offset >= 8 and end < TEXT_BYTES and code[end] == 0:
+            words.update(
+                range(BASE + offset, BASE + ((end + 4) // 4) * 4, 4)
+            )
+    return words
+
+
+def absolute_switch_table_words(
+    inst: dict[int, tuple[int, str, str]], code: bytes, reachable: set[int]
+) -> tuple[set[int], set[int], list[int]]:
+    words: set[int] = set()
+    targets: set[int] = set()
+    sites: list[int] = []
+
+    def writes_flags(raw: int) -> bool:
+        if (raw & 0x0C000000) != 0:
+            return False
+        opcode = (raw >> 21) & 15
+        return opcode in (8, 9, 10, 11) or bool(raw & (1 << 20))
+
+    for pc in sorted(reachable):
+        raw, _, _ = inst[pc]
+        condition = (raw >> 28) & 15
+        if (raw & 0x0FFFFFF0) != 0x079FF100 or condition not in (3, 9):
+            continue
+        index_register = raw & 15
+        bound = None
+        for distance in range(1, 65):
+            candidate = pc - distance * 4
+            if candidate not in inst:
+                break
+            candidate_raw, candidate_mn, candidate_operand = inst[candidate]
+            if candidate_mn.startswith("bl"):
+                break
+            if writes_flags(candidate_raw):
+                decoded = simple_dp(candidate_raw)
+                if (
+                    decoded is not None
+                    and decoded[0] == 10
+                    and decoded[2] == index_register
+                    and decoded[4] is not None
+                ):
+                    bound = decoded[4]
+                break
+            if (
+                ((candidate_raw >> 28) & 15) == 14
+                and (branch_kind(candidate_mn) or indirect_terminator(candidate_mn, candidate_operand))
+            ):
+                break
+        if bound is None:
+            continue
+        count = bound if condition == 3 else bound + 1
+        if not (0 < count <= 256):
+            continue
+        table_words: list[int] = []
+        table_targets: list[int] = []
+        for index in range(count):
+            word = pc + 8 + index * 4
+            if not (BASE <= word <= BASE + len(code) - 4):
+                table_words = []
+                break
+            target = struct.unpack_from("<I", code, word - BASE)[0]
+            if target % 4 or not (BASE <= target < BASE + TEXT_BYTES):
+                table_words = []
+                break
+            table_words.append(word)
+            table_targets.append(target)
+        if not table_words:
+            continue
+        words.update(table_words)
+        targets.update(table_targets)
+        sites.append(pc)
+    return words, targets, sites
+
+
 def initializer_roots(code: bytes) -> list[int]:
     roots=[]
     for slot in range(INIT_BEGIN,INIT_END,4):
@@ -305,13 +408,16 @@ def absolute_pointer_roots(code: bytes) -> set[int]:
     return out
 
 
-def walk(inst: dict[int,tuple[int,str,str]], roots: list[int]) -> dict:
+def walk(
+    inst: dict[int,tuple[int,str,str]], roots: list[int], literal: set[int] | None = None
+) -> dict:
+    literal = set() if literal is None else literal
     todo=deque(roots); queued=set(roots); seen=set(); starts=set(); unknown=[]; indirect=[]; direct_edges=0; lr_returns=set()
     while todo:
         start=todo.popleft()
-        if start in seen or start not in inst: continue
+        if start in seen or start not in inst or start in literal: continue
         starts.add(start); pc=start
-        while BASE<=pc<BASE+TEXT_BYTES and pc in inst and pc not in seen:
+        while BASE<=pc<BASE+TEXT_BYTES and pc in inst and pc not in seen and pc not in literal:
             seen.add(pc); raw,mn,op=inst[pc]
             if mn=='<unknown>': unknown.append(pc); break
             bk=branch_kind(mn)
@@ -319,18 +425,26 @@ def walk(inst: dict[int,tuple[int,str,str]], roots: list[int]) -> dict:
                 kind,conditional=bk; target=direct_target(op)
                 if target is not None and BASE<=target<BASE+TEXT_BYTES and target%4==0:
                     direct_edges+=1
-                    if target not in queued: todo.append(target);queued.add(target);starts.add(target)
+                    if target not in queued and target not in literal: todo.append(target);queued.add(target);starts.add(target)
                 if kind=='branch' and not conditional: break
-                pc+=4; starts.add(pc); continue
+                if kind=='call' and not conditional and target is not None and inline_word_thunk(inst,target):
+                    pc+=8
+                    if pc not in literal: starts.add(pc)
+                    continue
+                pc+=4
+                if pc not in literal: starts.add(pc)
+                continue
             if mn=='blx':
                 target=direct_target(op)
                 if target is not None and BASE<=target<BASE+TEXT_BYTES and target%4==0 and target not in queued:
                     todo.append(target);queued.add(target);starts.add(target)
-                pc+=4; starts.add(pc); continue
+                pc+=4
+                if pc not in literal: starts.add(pc)
+                continue
             if indirect_terminator(mn,op):
                 indirect.append((pc,mn,op))
                 ret=explicit_lr_return(inst,seen,pc)
-                if ret is not None and ret not in queued:
+                if ret is not None and ret not in queued and ret not in literal:
                     todo.append(ret);queued.add(ret);starts.add(ret);lr_returns.add(ret)
                 cond=(raw>>28)&0xf
                 if cond not in (0xe,0xf):
@@ -460,12 +574,20 @@ def main()->int:
     with tempfile.TemporaryDirectory(prefix='lego-aot-llvm-') as tmp:
         dis=build_disassembly(args.code,Path(tmp),args.clang,args.llvm_objdump); inst=parse_disassembly(dis)
     roots=list(dict.fromkeys([BASE,*init,*OBSERVED_CALLBACKS,*sorted(pointers)]))
-    flow=walk(inst,roots)
+    ascii_literals=aligned_ascii_literal_words(code)
+    flow=walk(inst,roots,ascii_literals)
+    absolute_words, absolute_targets, absolute_sites = absolute_switch_table_words(inst,code,flow["seen"])
+    literal=set(ascii_literals)|set(absolute_words)
+    flow=walk(inst,roots,literal)
     switch_targets, switch_words, switch_sites = base_relative_switch_targets(inst,code,flow["seen"])
+    literal.update(switch_words)
     if switch_targets:
-        flow=walk(inst,list(dict.fromkeys([*roots,*sorted(switch_targets)])))
+        flow=walk(inst,list(dict.fromkeys([*roots,*sorted(switch_targets)])),literal)
     flow["base_relative_switch_sites"]=len(switch_sites)
     flow["base_relative_switch_targets"]=len(switch_targets)
+    flow["absolute_switch_sites"]=len(absolute_sites)
+    flow["absolute_switch_words"]=len(absolute_words)
+    flow["ascii_literal_words"]=len(ascii_literals)
     manifest=emit(code,inst,flow,init,pointers,args.output)
     print(json.dumps({'files':manifest['generated_files_including_manifest'],'counts':manifest['counts'],'categories':manifest['categories']},indent=2))
     return 0
