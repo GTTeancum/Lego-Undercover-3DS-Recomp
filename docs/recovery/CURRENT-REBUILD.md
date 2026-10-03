@@ -162,3 +162,40 @@ The historical Capstone-backed title inventory/fixed-point graph still needs to
 replace the conservative absolute-pointer graph before a gameplay-equivalence
 claim is possible. The September 21 547,756-slot / 111,312-block figure remains an
 earlier comparison checkpoint rather than a final Recovery J identity.
+
+
+## LLVM recovery improvement — conditional flow and VFP support
+
+The conservative LLVM path has advanced without inventing new guest semantics.
+
+Two concrete reconstruction bugs were corrected:
+
+1. Predicated indirect PC writes/branches now preserve their condition-failed
+   fallthrough, matching the pinned frontend. This includes forms such as
+   `ldrlo pc,[...]` and `bxeq lr`.
+2. VFP mnemonic classification no longer mistakes the `ls` at the end of
+   `vmls` / `vnmls` for the ARM `LS` condition suffix. The existing pinned
+   runtime also confirms `vldmia` / `vstmia` are supported VFP transport
+   forms, so they are routed to that already-restored backend.
+
+On the exact verified executable this moves the conservative graph from
+**524,873 to 538,589 reachable instruction slots** and from **106,397 to
+109,423 block starts**. After guest-page splitting the tree contains **109,882
+emitted blocks**.
+
+The earlier 3,819 unsupported operations have fallen to **3**. The remaining
+three LLVM-undecoded words are at `0x00205F24`, `0x0022E924`, and
+`0x003563E0`; no broad VFP family remains intentionally unsupported by this
+fallback classification.
+
+A complete regenerated 599-page tree was compiled again and fully linked with
+the reconstructed registry/functions layer. The linked smoke target still reports
+**599 registry shards** and **300 function/inventory entries**.
+
+The preserved frontend's >=8-entry self-relative pointer-table rule was also
+tested diagnostically. It finds 22 candidate tables / 296 words and would raise
+LLVM reachability to 548,553 slots. That promotion is **not committed** because
+this compatibility decoder is not the canonical Capstone frontend and the result
+slightly exceeds the earlier 547,756-slot intermediate checkpoint. The evidence
+is retained in `reports/recovery-aot-pages/LLVM-CONSERVATIVE.json` rather than
+being forced into the production recovery graph.
