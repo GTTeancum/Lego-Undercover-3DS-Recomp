@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Generate LEGO Chase A32 C++ shards with the pinned TriAevum frontend.
 
-The original LEGO-specific wrapper was lost. This reconstruction deliberately
-uses the exact A32 frontend/runtime sources from the recorded TriAevum commit
-and a minimal title-specific inventory rooted at the real process entry point.
-It does not claim byte-identical output to the lost Recovery J generator until
-the documented generation counts are reproduced.
+The original LEGO-specific page generator was lost. This reconstruction uses
+the exact A32 frontend/runtime sources from the recorded TriAevum commit plus
+a minimal title-specific inventory rooted at the real process entry point.
+The pinned frontend's shard_size is an operation-count limit; it is not the
+page-oriented 604-file layout documented by Recovery F/J. This wrapper is a
+coverage/recovery tool and does not claim byte-identical Recovery J output.
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ BASE = 0x00100000
 TEXT_BYTES = 2_450_732
 TEXT_PAGES = 0x257
 TEXT_ALLOCATED_BYTES = TEXT_PAGES * 0x1000
-DEFAULT_SHARD_SIZE = 0x4000
+DEFAULT_SHARD_SIZE = 0x1000
 HISTORICAL_BLOCKS = 111_312
 HISTORICAL_INSTRUCTION_SLOTS = 547_756
 HISTORICAL_EXPLICIT_TRAPS = 41
@@ -135,7 +136,8 @@ def main() -> int:
     summary = {
         "format": "lego_chase_aot_reconstruction_v1",
         "code_sha256": code_hash,
-        "shard_size": args.shard_size,
+        "frontend_operation_shard_limit": args.shard_size,
+        "recovery_j_generated_file_target": 604,
         "recovered_roots": {
             "initializer_dispatcher": f"0x{INITIALIZER_DISPATCHER:08X}",
             "initializer_table_begin": f"0x{INITIALIZER_TABLE_BEGIN:08X}",
