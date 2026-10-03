@@ -79,19 +79,34 @@ No current commit is claimed to reproduce Recovery J gameplay yet.
 
 ## AOT coverage reconstruction
 
-The surviving native build log proves the historical generator used **0x4000-byte**
-AOT shards. The reconstructed wrapper previously defaulted to 0x1000; this has now
-been corrected and regression-tested. The same log preserves 135 compiled
-`lego_shard_*.cpp` IDs spanning shard `00040` through `000D5`.
+The surviving `adr-coverage-build2.log` is now correctly treated as an **earlier
+intermediate**, not the final Recovery J generator layout. At 14:26 UTC on
+September 21 it built 135 `lego_shard_*.cpp` files named across `00040` through
+`000D5` and reported 111,312 blocks / 547,756 instruction slots.
+
+Recovery F, produced later that day, and Recovery G/J document a later source tree
+with **604 generated AOT files**. The executable text allocation is exactly **599
+4-KiB pages**, and Focus K01 explicitly describes compiling four unchanged
+"generated AOT pages." This is strong evidence that the final project used a
+page-oriented LEGO generation layer that is not present in the pinned generic
+TriAevum frontend. The exact five additional generated artifacts and page filename
+scheme remain to be recovered.
+
+The pinned TriAevum frontend's `shard_size` setting is an **operation-count
+limit**, not a guest page size. The reconstruction wrapper has therefore been
+returned to its 0x1000 operation-limit default and is being used only for coverage
+analysis while the later LEGO page generator is reconstructed.
 
 A fresh LLVM 17 A32 disassembly of the verified executable was used to rebuild a
 control-flow baseline without Capstone. Entry + initializer + observed callback
 roots cover 48,120 instruction slots. Adding validated absolute code-pointer roots
-reaches **524,873 instruction slots and 106,400 block starts**, versus the historical
-checkpoint of **547,756 slots and 111,312 blocks**. A diagnostic pass that also
-accepts every slot-relative candidate reaches 543,915 slots but creates false code
-roots, so it is not being treated as canonical.
+reaches **524,873 instruction slots and 106,400 block starts**. The preserved
+frontend source has also recovered the actual fixed-point rules for literal pools,
+absolute and base-relative switch tables, self-relative pointer tables, constant-PC
+targets, and filtered pointer roots. Local LLVM emulation of those rules is being
+used diagnostically; it is not claimed byte-identical to the lost Capstone-backed
+generator.
 
-The remaining AOT work is focused on reconstructing the lost title-specific
-relative-root and indirect jump-table rules, not on blindly marking the whole text
-segment as executable code. See `reports/recovery-aot-baseline/summary.json`.
+The next AOT step is to reconstruct the later page-oriented output layer while
+continuing to recover the lost title-specific function/root inventory. See
+`reports/recovery-aot-baseline/summary.json`.
