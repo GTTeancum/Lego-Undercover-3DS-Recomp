@@ -76,3 +76,22 @@ loss is the 604-file generated AOT tree plus the LEGO-specific native host/runti
 renderer, services, audio, and desktop frontend implementation.
 
 No current commit is claimed to reproduce Recovery J gameplay yet.
+
+## AOT coverage reconstruction
+
+The surviving native build log proves the historical generator used **0x4000-byte**
+AOT shards. The reconstructed wrapper previously defaulted to 0x1000; this has now
+been corrected and regression-tested. The same log preserves 135 compiled
+`lego_shard_*.cpp` IDs spanning shard `00040` through `000D5`.
+
+A fresh LLVM 17 A32 disassembly of the verified executable was used to rebuild a
+control-flow baseline without Capstone. Entry + initializer + observed callback
+roots cover 48,120 instruction slots. Adding validated absolute code-pointer roots
+reaches **524,873 instruction slots and 106,400 block starts**, versus the historical
+checkpoint of **547,756 slots and 111,312 blocks**. A diagnostic pass that also
+accepts every slot-relative candidate reaches 543,915 slots but creates false code
+roots, so it is not being treated as canonical.
+
+The remaining AOT work is focused on reconstructing the lost title-specific
+relative-root and indirect jump-table rules, not on blindly marking the whole text
+segment as executable code. See `reports/recovery-aot-baseline/summary.json`.
