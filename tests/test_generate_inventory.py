@@ -12,9 +12,11 @@ spec.loader.exec_module(generate_aot)
 
 
 class InventoryTests(unittest.TestCase):
-    def test_historical_shard_size(self):
-        self.assertEqual(generate_aot.DEFAULT_SHARD_SIZE, 0x4000)
-        self.assertEqual(generate_aot.BASE // generate_aot.DEFAULT_SHARD_SIZE, 0x40)
+    def test_recovery_frontend_operation_limit(self):
+        # This is the pinned frontend's operation-count limit, not guest page size.
+        self.assertEqual(generate_aot.DEFAULT_SHARD_SIZE, 0x1000)
+        self.assertEqual(generate_aot.TEXT_PAGES, 599)
+        self.assertEqual(generate_aot.TEXT_ALLOCATED_BYTES, 599 * 0x1000)
 
     def test_documented_initializer_table_geometry(self):
         self.assertEqual(
