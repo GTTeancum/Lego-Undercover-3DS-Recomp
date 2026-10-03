@@ -124,3 +124,41 @@ against the surviving historical checkpoints. After that, reconstruction moves i
 the LEGO-specific native host/runtime, services, renderer, audio, and desktop frontend.
 
 No current commit is claimed to reproduce Recovery J gameplay yet.
+
+
+## Conservative real-page milestone — October 3, 2026
+
+A second, dependency-independent recovery path now exists in
+`tools/generate_aot_pages_llvm.py`. It uses Clang/LLVM only as a decoding aid,
+validates the exact supported `code.bin`, and roots control flow from the real
+entrypoint, all 296 recovered initializer callbacks, the three observed runtime
+callbacks, and 5,313 aligned absolute code-pointer targets.
+
+This path reproduces the previously established conservative **524,873 reachable
+instruction slots** and emits a real page-oriented tree from the supplied game:
+
+- **599** generated page C++ translation units.
+- **604** total generated recovery artifacts.
+- **106,846** emitted blocks after guest-page splitting.
+- **589** nonempty pages.
+- **3** LLVM-undecoded words.
+- **3,819** deliberately unsupported operations, of which 3,816 are SIMD/VFP
+  forms that are not assigned fabricated native semantics.
+
+The generated source was validated beyond syntax-only sampling. All 599 real
+game-derived page translation units compiled in parallel, the registry/functions
+translation units compiled, and the entire set linked into a smoke executable.
+That executable reported **599 registry shards** and **300 function/inventory
+entries**.
+
+The generated 52 MiB source tree is intentionally not committed as hundreds of
+individual files at this stage. Its deterministic generator and validation
+fingerprints are committed, so the exact conservative tree can be regenerated
+from the verified local `code.bin`. See
+`reports/recovery-aot-pages/LLVM-CONSERVATIVE.json`.
+
+This is a genuine native generated-code checkpoint, but **not Recovery J parity**.
+The historical Capstone-backed title inventory/fixed-point graph still needs to
+replace the conservative absolute-pointer graph before a gameplay-equivalence
+claim is possible. The September 21 547,756-slot / 111,312-block figure remains an
+earlier comparison checkpoint rather than a final Recovery J identity.
