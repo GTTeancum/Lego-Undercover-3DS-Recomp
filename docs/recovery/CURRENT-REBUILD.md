@@ -54,9 +54,10 @@ same CCI and executable hashes above. A rebuilt preparation script also
 successfully BLZ-decompressed the ExeFS `.code` to the exact historical
 `code.bin` fingerprint. The derived `code.bin` remains local and is not committed.
 
-## Native translation recovery targets
+## Native translation recovery evidence
 
-Surviving build evidence records this later whole-program generation checkpoint:
+The surviving September 21 adr-coverage build records a strong whole-program
+coverage checkpoint:
 
 - **111,312 ARM blocks**
 - **547,756 unique instruction slots**
@@ -64,9 +65,16 @@ Surviving build evidence records this later whole-program generation checkpoint:
 - **0 pending roots**
 - output target `LEGOChaseNative`
 
-The surviving Recovery J report records **604 generated AOT files**, all unchanged
-from Recovery I. The reconstruction must converge toward these documented
-boundaries before any claim that Recovery J has been restored.
+This checkpoint predates Recovery F/G and therefore is **not** treated as proof of
+Recovery J's final block/slot counts. It remains the best recovered quantitative
+coverage reference unless later evidence establishes that the same counts carried
+forward unchanged.
+
+The surviving Recovery J report independently records **604 generated AOT files**,
+all unchanged from Recovery I. Recovery F/G and Focus K01 establish that the later
+tree used generated AOT pages. The reconstruction must satisfy the later page-layout
+evidence as well as the older coverage evidence before any claim that Recovery J
+has been restored.
 
 ## Current boundary
 
@@ -107,6 +115,13 @@ targets, and filtered pointer roots. Local LLVM emulation of those rules is bein
 used diagnostically; it is not claimed byte-identical to the lost Capstone-backed
 generator.
 
-The next AOT step is to reconstruct the later page-oriented output layer while
-continuing to recover the lost title-specific function/root inventory. See
-`reports/recovery-aot-baseline/summary.json`.
+A deterministic page-manifest layer is now reconstructed in
+`tools/build_aot_page_manifest.py`. It verifies the exact executable and enumerates
+all **599 4-KiB text pages**, including per-page hashes generated locally. Its tests
+also pin the four distinct pages used by Focus K01. See
+`reports/recovery-aot-pages/README.md`.
+
+The next AOT step is to reconstruct the later page-oriented C++ emitter and its
+registry/dispatch metadata while continuing to recover the lost title-specific
+function/root inventory. The five additional generated artifacts implied by the
+604-file Recovery J count are still unidentified.
