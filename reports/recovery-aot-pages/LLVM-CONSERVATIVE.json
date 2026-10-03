@@ -56,5 +56,53 @@
     "blocks": 111312,
     "note": "This September 21 adr-coverage count predates Recovery F/G/J and remains a comparison reference, not a final Recovery J identity."
   },
-  "claim_boundary": "This is real game-derived conservative native page output, but it is not claimed equivalent to Recovery J. The 3819 uncertain ops remain explicit instead of being given fabricated semantics."
+  "claim_boundary": "The conservative LLVM tree now has only three explicit unknown/unsupported words and fully links, but it is still not claimed equivalent to Recovery J. Relative-table and other indirect roots remain diagnostic until canonical frontend parity is established.",
+  "latest_recovery_improvement": {
+    "date": "2026-10-03",
+    "changes": [
+      "Preserve condition-failed fallthrough for predicated indirect PC writes/branches, matching the pinned frontend.",
+      "Do not interpret the trailing 'ls' in vmls/vnmls as an ARM LS condition suffix.",
+      "Promote vldmia/vstmia to the existing pinned VFP transport backend."
+    ],
+    "before": {
+      "instruction_slots": 524873,
+      "block_starts": 106397,
+      "unsupported_ops": 3819
+    },
+    "after": {
+      "instruction_slots": 538589,
+      "block_starts": 109423,
+      "emitted_blocks_after_page_split": 109882,
+      "unsupported_ops": 3,
+      "indirect_stops": 10929,
+      "unknown_stops": 3,
+      "nonempty_pages": 589
+    },
+    "categories": {
+      "fast_path": 352624,
+      "core_alu_candidate": 38279,
+      "core_memory": 56940,
+      "core_system": 9521,
+      "vfp_transport": 56137,
+      "vfp_scalar": 25085,
+      "unknown": 3
+    },
+    "remaining_unknown_addresses": [
+      "0x00205F24",
+      "0x0022E924",
+      "0x003563E0"
+    ],
+    "build_validation": {
+      "all_599_page_translation_units_compiled": true,
+      "registry_and_functions_compiled": true,
+      "full_link_succeeded": true,
+      "linked_registry_shard_count": 599,
+      "linked_function_count": 300,
+      "local_page_source_aggregate_sha256": "611fe29149119aecef9153bef4421af97c9b2cf755e2caf1c9301a10a705512d"
+    },
+    "relative_pointer_table_experiment": {
+      "status": "not committed",
+      "detail": "The preserved >=8-entry self-relative-table rule identified 22 candidate tables / 296 words and raised LLVM reachability to 548553 slots. Because the LLVM compatibility decoder is not the canonical Capstone frontend and this exceeded the earlier 547756-slot checkpoint, those roots remain diagnostic only."
+    }
+  }
 }
