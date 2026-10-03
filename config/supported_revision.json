@@ -1,0 +1,17 @@
+{
+  "format": "lego_chase_supported_revision_v1",
+  "title": "LEGO City Undercover: The Chase Begins",
+  "region": "USA",
+  "program_id": "00040000000AD500",
+  "product_code": "CTR-P-AA8E",
+  "process_name": "LEGOCITY",
+  "cci": {
+    "bytes": 1073741824,
+    "sha256": "3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525"
+  },
+  "code": {
+    "bytes": 2650112,
+    "sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f"
+  },
+  "triaevum_commit": "a9b447709d4405848d75352354891059cebb9ff8"
+}
