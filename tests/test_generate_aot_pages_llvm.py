@@ -41,6 +41,24 @@ class LlvmRecoveryTests(unittest.TestCase):
         self.assertEqual(opcode, "Unsupported")
         self.assertEqual(category, "unsupported_vfp_simd")
 
+    def test_vmls_is_scalar_not_ls_condition(self):
+        opcode, cond, _, category = mod.classify(0xEE419A60, "vmls.f32")
+        self.assertEqual((opcode, cond, category), ("VfpScalar", "Al", "vfp_scalar"))
+
+    def test_vldmia_is_supported_transport(self):
+        opcode, cond, _, category = mod.classify(0xEC900A08, "vldmia")
+        self.assertEqual((opcode, cond, category), ("VfpTransport", "Al", "vfp_transport"))
+
+    def test_conditional_indirect_preserves_fallthrough(self):
+        base = mod.BASE
+        inst = {
+            base: (0x012FFF1E, "bxeq", "lr"),
+            base + 4: (0xE1A00000, "mov", "r0, r0"),
+            base + 8: (0xE12FFF1E, "bx", "lr"),
+        }
+        flow = mod.walk(inst, [base])
+        self.assertIn(base + 4, flow["seen"])
+
     def test_block_split_at_guest_page_boundary(self):
         base = mod.BASE
         inst = {
