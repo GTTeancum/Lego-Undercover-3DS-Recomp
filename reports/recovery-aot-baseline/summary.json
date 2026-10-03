@@ -167,7 +167,7 @@
       "000CC",
       "000CF"
     ],
-    "inference": "Shard ID is guest_address / 0x4000; 0x40 maps to 0x00100000 and 0xD5 maps to the final text chunk."
+    "inference": "The 0x40..0xD5 filenames are valid evidence for the earlier adr-coverage intermediate, but they are not treated as Recovery J's final 604-file layout."
   },
   "llvm_cfg_reconstruction": {
     "llvm_version": "17.0.0",
@@ -197,8 +197,25 @@
     }
   },
   "interpretation": [
+    "Do not use the 135-file adr-coverage build as the final Recovery J sharding target; it predates the documented 604-file page-oriented generator.",
     "The absolute-pointer pass reaches about 95.8% of the historical instruction-slot count without fabricating whole-text coverage.",
     "Blindly accepting every slot-relative word gets close to the historical counts but introduces false code roots; it is retained only as a diagnostic upper-bound heuristic.",
     "The remaining recovery work is to reconstruct the title-specific indirect/jump-table and validated relative-root rules used by the lost generator."
-  ]
+  ],
+  "chronology": {
+    "adr_coverage_intermediate": {
+      "observed_at": "2026-09-21T14:26Z",
+      "generated_source_files_in_build_log": 135,
+      "source_name_span": "lego_shard_00040.cpp through lego_shard_000D5.cpp with gaps",
+      "note": "This predates Recovery F and is retained as intermediate evidence only."
+    },
+    "recovery_f_g_j": {
+      "recovery_f_status_time": "2026-09-21T20:08Z",
+      "recovery_g_status_time": "2026-09-21T21:12Z",
+      "documented_generated_aot_files": 604,
+      "text_pages_4k": 599,
+      "focus_k01_wording": "four generated AOT pages",
+      "conclusion": "Final Recovery J used a later page-oriented LEGO generation layout. The exact five non-page generated artifacts and page filename scheme remain to be recovered."
+    }
+  }
 }
