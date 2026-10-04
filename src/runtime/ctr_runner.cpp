@@ -1,5 +1,6 @@
 #include "runtime/ctr_runner.h"
 #include "services/apt_service.h"
+#include "services/ndm_service.h"
 
 #include <algorithm>
 
@@ -10,6 +11,7 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
                            Kernel& kernel) noexcept
     : registry_(registry), memory_(memory), kernel_(kernel), ipc_(), svc_(kernel, &ipc_) {
     ipc_.RegisterService("APT:U", std::make_shared<AptService>());
+    ipc_.RegisterService("ndm:u", std::make_shared<NdmService>());
 }
 
 bool NativeRunner::InitializeMainThread(std::uint32_t entry_point,

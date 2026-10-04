@@ -1,0 +1,131 @@
+{
+  "format": "lego_ndm_startup_checkpoint_v1",
+  "date_utc": "2026-10-04",
+  "base_commit": "8f3fec87ca83a8cb578c72c26bb15f8934676a98",
+  "base_tree_verified": "c7b0c5f547a0629848c6c9d7e726edad6213e141",
+  "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "private_aot": {
+    "page_cpp_files": 599,
+    "regular_files": 603,
+    "all_archive_members_unchanged": true,
+    "verified_instruction_words": 545111,
+    "registry_blocks": 111043
+  },
+  "observed_sequence": [
+    {
+      "stage": "baseline reproduced",
+      "stop": "UnsupportedSvc",
+      "svc": "0x3C",
+      "pc": "0x0011FB80",
+      "thread": 1,
+      "dispatch_rounds": 35,
+      "requested_service": "ndm:u",
+      "result": "0xD0406401"
+    },
+    {
+      "stage": "NDM registered, no handlers",
+      "stop": "UnsupportedIpc",
+      "service": "ndm:u",
+      "request": "0x00140040",
+      "argument": "0xF",
+      "command": "OverrideDefaultDaemons",
+      "pc": "0x0025947C",
+      "thread": 1,
+      "dispatch_rounds": 35
+    },
+    {
+      "stage": "Override enabled",
+      "stop": "UnsupportedIpc",
+      "service": "ndm:u",
+      "request": "0x00060040",
+      "argument": "0x6",
+      "command": "SuspendDaemons",
+      "pc": "0x0025947C",
+      "thread": 1,
+      "dispatch_rounds": 36
+    },
+    {
+      "stage": "Suspend enabled, final",
+      "stop": "UnsupportedIpc",
+      "service": "APT:U",
+      "request": "0x00030040",
+      "argument": "0x0",
+      "command": "Enable",
+      "pc": "0x0025947C",
+      "thread": 1,
+      "dispatch_rounds": 39,
+      "host_exit_code": 3
+    }
+  ],
+  "implementation_scope": {
+    "commands": [
+      "NDM OverrideDefaultDaemons (0x14)",
+      "NDM SuspendDaemons (0x06)"
+    ],
+    "policy": "State bookkeeping matches pinned Azahar NDM HLE. This is not hardware or network-daemon execution parity.",
+    "masks": "Low four bits. Initial default/current mask 0x9. Suspend derives current mask from default and requested mask, as pinned HLE does.",
+    "status_and_count": "Four status values and nested suspension counts persist across sessions. Override idles selected statuses without clearing counts, matching pinned HLE.",
+    "unknown_commands": "Strict host stop, no guest response or mutation. Resume, queries and network work are not implemented.",
+    "counter_exhaustion": "Guarded as an explicit unsupported host stop before overflow; not claimed exhaustively runtime-tested."
+  },
+  "validation": {
+    "gcc": "Full 599-page build; 6/6 CTest",
+    "clang": "Full 599-page build; 6/6 CTest",
+    "sanitizers": "Clang ASan/UBSan 6/6 ROM-free CTest; detect_leaks=1, halt_on_error=1",
+    "gcc_clang_startup_logs_identical": true,
+    "hosted_ci": "Check Actions for the delivery commit; local validation is independent"
+  },
+  "artifacts": {
+    "NDM-BASELINE.txt": {
+      "bytes": 695,
+      "sha256": "817ab5175e23777437b66818eaa1236348bbf284568772bd244acbbfbacc0ace"
+    },
+    "NDM-FIRST-REQUEST.txt": {
+      "bytes": 691,
+      "sha256": "7dbe8eabf82baae3810e0239a3cc7a4db740d482d25d15ae62b1043e8c456f51"
+    },
+    "NDM-AFTER-OVERRIDE.txt": {
+      "bytes": 691,
+      "sha256": "620e7f82912ada1b8f520288122f7f6b2b162de77526ff3977fdb776bd4286cb"
+    },
+    "NDM-AFTER-SUSPEND.txt": {
+      "bytes": 691,
+      "sha256": "3f5a188c3353622e222f3c382bf35a1aaeb47f798028841b1c74b4f3df92d0f2"
+    },
+    "NDM-STARTUP-GCC.txt": {
+      "bytes": 691,
+      "sha256": "3f5a188c3353622e222f3c382bf35a1aaeb47f798028841b1c74b4f3df92d0f2"
+    },
+    "NDM-STARTUP-CLANG.txt": {
+      "bytes": 691,
+      "sha256": "3f5a188c3353622e222f3c382bf35a1aaeb47f798028841b1c74b4f3df92d0f2"
+    },
+    "NDM-CTEST-GCC.txt": {
+      "bytes": 782,
+      "sha256": "263c00b096e6cad614c7381ae444cdb1acf641b9cdd4c6f86d76de236e2af9b4"
+    },
+    "NDM-CTEST-CLANG.txt": {
+      "bytes": 786,
+      "sha256": "f73347f3805543ea58f983589b110b77b33150b45e77fa0f368d98fd4a089bee"
+    },
+    "NDM-CTEST-ASAN.txt": {
+      "bytes": 784,
+      "sha256": "d3900cbfe3d92217ca4a183c6337a58af2de8f060b1f468dd77186090830eb2a"
+    }
+  },
+  "binaries": {
+    "build-gcc": "5d581083d5f7829a0bd5ef46d175e124c2d93f1ff8db49e70e2254b7292a9c1c",
+    "build-clang": "8d15ba15f533c185fc3532d627effa5a2844d51f718f0fc2cc99b918e9e268ec"
+  },
+  "limits": [
+    "No APT Enable response or Break bypass added.",
+    "No title screen, completed initializer count, graphics, audio, controls or gameplay claim.",
+    "No network connectivity, daemon execution, arbitrary notification success or guest-time advancement added.",
+    "Upstream NDM is labeled STUBBED; implemented fields follow its HLE state model, not verified firmware behavior."
+  ],
+  "sources": [
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/ndm/ndm_u.cpp",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/ndm/ndm_u.h",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/apt/apt_u.cpp"
+  ]
+}

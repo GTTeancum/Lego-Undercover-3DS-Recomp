@@ -1,92 +1,100 @@
 # LEGO Chase Begins — canonical recovery handoff
 
-Updated October 4, 2026. Read this first. Historical Recovery F/J gameplay is not
-current reconstruction proof. Work here, not on the user's PC or via Work handoff.
+Updated October 4, 2026. Read this first. Continue here, not on the user's PC or
+via Work handoff. Historical Recovery F/J gameplay is not current recovery proof.
 
 ## Current real-game boundary
 
-The headless `LEGOChaseNative` builds with all 599 private AOT pages and executes
-the verified original USA code. `APT:GlanceParameter` now returns the queued empty
-launch Wakeup without consuming it. The real program passes the prior thread-2
-stop and reaches a new missing-service boundary:
+The headless LEGOChaseNative builds with all 599 private AOT pages and runs the
+verified original USA executable. The observed NDM startup requests now pass:
+
+1. ndm:u OverrideDefaultDaemons: header 0x00140040, mask 0xF.
+2. ndm:u SuspendDaemons: header 0x00060040, mask 0x6 (BOSS and NIM).
+3. The real program next asks APT:U to Enable: header 0x00030040, attributes 0.
 
 ```text
-stop=UnsupportedSvc pc=0x0011fb80 detail=0x0000003c thread=1 dispatch_rounds=35
-last_ipc_session=srv: requested_service=ndm:u request_header=0x00050100
-ipc_words=00050040 d0406401 ...
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=39
+last_ipc_session=APT:U requested_service= request_header=0x00030040
+ipc_words=00030040 00000000 00000010 00048010 ...
 host_exit_code=3
 ```
 
-The game requested `ndm:u`, received ServiceNotRegistered, and subsequently called
-SVC Break (0x3C). Do not bypass that break or assume startup succeeded. No title
-screen, completed initializer count, graphics, sound, controls or gameplay claim.
+The pending APT request is untouched at the stop. No APT Enable response was
+invented and the original Break SVC was not bypassed. No title screen, completed
+initializer count, graphics, audio, controls or gameplay is established.
 
-Base commit: `2dd9b1ae694799caede9eb17daae7b6c9dd56038`.
-The restored source tree matched `787bd5832f6bdc30866eb26a6a5c93dfcdbb042d` exactly
-before editing. The initial real-game Glance stop was reproduced first.
+Base commit: 8f3fec87ca83a8cb578c72c26bb15f8934676a98.
+Before editing, the restored source matched remote tree
+c7b0c5f547a0629848c6c9d7e726edad6213e141 exactly. The previous missing-ndm:u Break
+was reproduced first, then the service was registered with no handlers so each
+actual request could be observed before implementing it.
 
 ## This checkpoint
 
-Changed only `src/services/apt_service.*`, its tests, reports and this handoff.
-No vendor code, generated game page or original executable was changed.
+Added src/services/ndm_service.h and .cpp, registered one shared ndm:u handler
+per runner, and added tests/ctr_ndm_test.cpp as the sixth CTest suite. No existing
+APT, kernel, IPC, vendor, generated-page or original executable code was changed.
+CMake integration, reports and this handoff were updated.
 
-Glance peeks at the actual queued launch parameter. ReceiveParameter implements
-the paired consume-once operation and returns service NoData on later reads.
-Receive is component-tested; its execution by the game is NOT claimed here.
-No event is re-signaled to manufacture progress and event acquisition remains
-separate from message consumption. Only the existing empty Wakeup is supported.
+NDM tracks default/current masks, four daemon status fields and nested suspend
+counts across sessions. Masks use only the low four bits. The observed 0xF then
+0x6 sequence leaves default mask 0xF, current mask 0x9, and counts [0,1,1,0].
+These fields follow the pinned Azahar HLE implementation, whose operations are
+labeled STUBBED; this is NOT verified firmware or network-daemon execution parity.
+No network threads, online state, timers, kernel wakeups or fake events are added.
 
-Static output descriptor 0 is read from TLS+0x180, outside the TLS+0x80 command
-buffer. Descriptor type/id, capacity, full destination writability and address
-wrap are checked before any write or queue change. Requests are capped at 0x1000;
-no host allocation uses a guest size. Failed output leaves the pending message
-and command intact. Guest writes invalidate exclusive reservations. Zero-size
-requests dereference no destination bytes.
-
-### Explicit wire-policy boundary
-
-3dbrew documents a copy descriptor for Glance and a move descriptor for Receive.
-Pinned Azahar emits move for both. This reconstruction uses the documented split;
-the launch object is null, so no real object-transfer ownership is claimed.
-Output is zero-padded to the requested size, as in pinned Azahar; response payload
-size remains zero. 3dbrew instead labels the static descriptor size as actual
-payload size. This discrepancy is documented, not claimed resolved on hardware.
-See `reports/recovery-host/APT-PARAMETER-2026-10-04.json` for primary references.
+Two potentially surprising upstream policies are retained explicitly: Suspend
+recomputes the current mask from the default mask rather than cumulatively from
+the previous mask; Override idles selected statuses without clearing existing
+suspend counts. Tests pin these choices. Do not silently treat them as proven
+hardware behavior. Unknown commands and malformed header counts stop before
+side effects. Resume/query commands are not guessed. Counter overflow is guarded
+by a host stop, not wrapping. Response writability is checked by the existing
+IPC router before the service can mutate state.
 
 ## Validation and evidence
 
-- Fresh full GCC and Clang builds include all 599 private page translation units.
-- Both real-game startup logs are byte-identical at the ndm:u/Break boundary.
-- GCC 5/5 CTest suites pass; Clang 5/5 pass.
-- Separate Clang ASan/UBSan: 5/5 ROM-free suites pass with leak checking enabled.
-- Tests cover repeat peek, consume once, NoData, event non-resignaling, buffer
-  guards, short/wrong descriptors, read-only and partly unmapped outputs, address
-  wrap, absent descriptor table, zero-length and oversized requests, command-buffer
-  protection, retained queue on failure, and exclusive-reservation invalidation.
-- All 603 regular members of the restored AOT archive remain byte-identical.
-  599 are page C++ files. Do not manufacture a 604th file to match older reports.
-- 545,111 instruction words / 111,043 registry blocks are static counts, not
-  executed-block counts or proof of complete ARM semantics.
-- New logs are `reports/recovery-host/PARAMETER-*.txt`; the JSON report records
-  actual file and executable hashes. Hosted CI must be checked after the push.
+- Full GCC and Clang builds linked all 599 private page translation units.
+- Final real-game startup logs are byte-identical at APT Enable.
+- GCC 6/6 CTest and Clang 6/6 CTest passed.
+- Clang ASan/UBSan 6/6 ROM-free suites passed with leak checking enabled.
+- Tests cover observed masks, nested counts, unselected states, high-bit masks,
+  service lifetime across sessions, exact response headers, unchanged registers
+  and buffers on unknown commands, read-only/partial command memory preflight,
+  and absence of artificial kernel/event/time side effects.
+- All 603 regular AOT archive members are unchanged; 599 are page C++ files.
+  Do not manufacture a 604th file to match older historical reports.
+- 545,111 raw instruction words and 111,043 registry blocks are static counts,
+  not executed-block counts or proof of complete ARM semantics.
+- reports/recovery-host/NDM-STARTUP-2026-10-04.json records source references,
+  the observed sequence, limitations and exact log/binary hashes.
+- NDM-*.txt alongside it are real run/test logs. Check GitHub Actions for the
+  delivery commit separately; hosted CI uses ROM-free tests, not game bytes.
 
 ## Next exact step
 
-Register only the observed `ndm:u` service, retaining strict unsupported-command
-stops. Run the unchanged game to discover its first NDM request and implement
-that request from pinned primary service code. Do not import the old private
-service implementation wholesale. Leave unknown commands, applet roles, nonempty
-parameters, attached objects and arbitrary missing services explicit.
+Implement only the observed APT:Enable application request (0x00030040, attrs=0)
+from pinned AppletManager semantics, then rerun the unchanged real game and stop
+at its next unsupported request. Initialize already queued the initial Wakeup;
+Enable must not manufacture another parameter or re-signal an event just to
+advance the game. Preserve the previously established peek/consume semantics.
 
-## Working files / rebuild
+APT GlanceParameter peeks the queued empty launch Wakeup. ReceiveParameter is
+component-tested consume-once behavior, not yet claimed reached by the game.
+Static buffer 0 lives at TLS+0x180, separate from the command at TLS+0x80.
+The prior wire policy uses Glance copy / Receive move descriptors (3dbrew), but
+pads to requested size (pinned Azahar). Azahar uses move for both; 3dbrew describes
+actual payload size for the static descriptor. Hardware parity remains unresolved.
+See APT-PARAMETER-2026-10-04.json. Keep unimplemented roles/messages explicit.
 
-Scratch: `/mnt/data/lego_recovery/`.
-Source: `repo/`; real builds: `build-gcc/`, `build-clang/`; sanitizer components:
-`build-asan/`; private pages: `generated2/`; verified input: `restored/code.bin`.
-This turn's complete configure/build/test/run logs: `parameter-checkpoint/`.
-Original six game archive parts remain in `/mnt/data/` and `backup-verify/`.
-No CCI re-extraction was needed for this startup test; inspect before claiming
-an extracted CCI is currently present.
+## Working files and rebuild
+
+Scratch root: /mnt/data/lego_recovery/.
+Source: repo/; real builds: build-gcc/ and build-clang/; sanitizer: build-asan/;
+private pages: generated2/; verified executable input: restored/code.bin.
+This checkpoint's configure/build/test/run logs: ndm-checkpoint/.
+Original six archive parts remain in /mnt/data/ and backup-verify/.
+No large CCI re-extraction was needed for this executable-only startup work.
 
 ```sh
 cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DLEGO_AOT_DIR=/mnt/data/lego_recovery/generated2
@@ -95,21 +103,24 @@ ctest --test-dir build-gcc --output-on-failure
 ./build-gcc/LEGOChaseNative restored/code.bin
 ```
 
-Omit LEGO_AOT_DIR for ROM-free component tests. Use clang++ for Clang. Launcher
-limits are `--block-limit` and `--host-event-limit`; no forced successful boot.
-GetSystemTick uses kernel guest time; dispatch-driven time is still unreconstructed.
+Omit LEGO_AOT_DIR for ROM-free builds; use clang++ for Clang. Launcher limits are
+--block-limit and --host-event-limit. No forced successful boot. GetSystemTick
+reads kernel guest time; dispatch-driven time progression remains unreconstructed.
 
-## Durable recovery / mandate
+## Durable recovery and continuing mandate
 
-Private Library `/LEGO-Chase-Recovery/` holds the six parts in `Game-archive/`,
-`code.bin`, `LEGO-Chase-current-AOT-599pages-2026-10-03.tgz`, prior source checkpoints
-and the restore kit. See `GAME-FILES-PERSISTENCE.md`. Restore those before asking
-for uploads. Scratch can reset; Library plus GitHub are the durable recovery paths.
+Private Library /LEGO-Chase-Recovery/ contains the six parts under Game-archive/,
+code.bin, LEGO-Chase-current-AOT-599pages-2026-10-03.tgz, source checkpoints and
+restore tools. Source 8f3fec8 was restored from its delivered archive this turn;
+no user reupload was needed. See GAME-FILES-PERSISTENCE.md for the full procedure.
+Scratch can reset. Library backups and GitHub source are the durable recovery
+paths, not a claim that scratch is permanent.
 
-Code SHA-256: `5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f`.
-CCI SHA-256: `3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525`.
+Code SHA-256: 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
+CCI SHA-256: 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
 
-Use moderate tested checkpoints, push source and evidence before ending, keep all
-game bytes/private AOT pages out of the public repository. Update this canonical
-handoff and post a downloadable copy every turn. Source/log archive and delivery
-commit/CI confirmation are recorded in the attached copy after the push.
+Use moderate tested checkpoints. Push source and reports before ending, keep all
+game bytes and private AOT pages out of the public repository, update this
+canonical handoff and attach a downloadable copy every turn. Check backups before
+asking for another upload. Delivery commit, hosted CI confirmation and private
+source/log archive are recorded in the attached handoff after the push.
