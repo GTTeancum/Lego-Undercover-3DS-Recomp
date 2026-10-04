@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -58,6 +59,8 @@ class IpcRouter;
 class IpcService {
 public:
     virtual ~IpcService() = default;
+    // False requests a host diagnostic stop without changing guest state.
+    virtual bool CanHandle(const IpcCommandBuffer&) const noexcept { return true; }
     virtual Result Handle(IpcRouter& router, Kernel& kernel, GuestMemory& memory,
                           ThreadObject& thread, IpcCommandBuffer& command) = 0;
 };
@@ -82,7 +85,10 @@ public:
                          Handle* out_handle);
     Result ConnectToService(Kernel& kernel, std::string_view name,
                             Handle* out_handle);
-    Result SendSyncRequest(Kernel& kernel, GuestMemory& memory, Handle handle);
+    // nullopt is a host stop, not a fabricated guest Result.
+    std::optional<Result> SendSyncRequest(Kernel& kernel, GuestMemory& memory, Handle handle);
+
+    [[nodiscard]] bool unsupported_request() const noexcept { return unsupported_request_; }
 
     [[nodiscard]] bool HasService(std::string_view name) const;
 
@@ -100,6 +106,7 @@ private:
     bool WriteCommandBuffer(GuestMemory& memory, const ThreadObject& thread,
                             const IpcCommandBuffer& command) const;
 
+    bool unsupported_request_{};
     std::string last_session_name_;
     std::string last_lookup_name_;
     IpcCommandBuffer last_request_{};

@@ -15,6 +15,7 @@ enum class RunnerStopReason : std::uint8_t {
     ProcessExited,
     WaitingNoRunnableThread,
     UnsupportedSvc,
+    UnsupportedIpc,
     BlockLimit,
     MissingBlock,
     MemoryFault,

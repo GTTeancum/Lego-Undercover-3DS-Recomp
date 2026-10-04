@@ -1,0 +1,123 @@
+{
+  "format": "lego_apt_startup_checkpoint_v1",
+  "date_utc": "2026-10-04",
+  "base_commit": "33d84803304e9310e158cf6865daf72b65f5ca13",
+  "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "generated_pages": 599,
+  "registry_blocks": 111043,
+  "verified_instruction_words": 545111,
+  "observed_sequence": [
+    {
+      "state": "baseline",
+      "stop": "WaitingNoRunnableThread",
+      "requested_service": "APT:U",
+      "pc": "0x0024B324",
+      "dispatch_rounds": 13
+    },
+    {
+      "state": "APT registered, before handlers enabled",
+      "stop": "UnsupportedSvc",
+      "request_header": "0x00010040",
+      "arguments": [
+        "0x00000000"
+      ],
+      "thread_id": 1,
+      "pc": "0x0025947C",
+      "dispatch_rounds": 12
+    },
+    {
+      "state": "GetLockHandle enabled",
+      "stop": "UnsupportedSvc",
+      "request_header": "0x00020080",
+      "arguments": [
+        "0x00000300",
+        "0x00000000"
+      ],
+      "thread_id": 1,
+      "pc": "0x0025947C",
+      "dispatch_rounds": 16
+    },
+    {
+      "state": "Initialize enabled, final",
+      "stop": "UnsupportedIpc",
+      "request_header": "0x000E0080",
+      "command": "GlanceParameter",
+      "arguments": [
+        "0x00000300",
+        "0x00001000"
+      ],
+      "thread_id": 2,
+      "pc": "0x0025947C",
+      "dispatch_rounds": 29,
+      "tls": "0x1FF82200",
+      "static_buffer_descriptor": "0x04000002",
+      "static_buffer_address": "0x0036C000",
+      "host_exit_code": 3
+    }
+  ],
+  "changes": [
+    "Application GetLockHandle with a shared real mutex and copied handles",
+    "First application Initialize with two one-shot events and a queued launch Wakeup parameter",
+    "Unsupported IPC produces a host stop with no fabricated guest Result or response",
+    "Response writability preflight before service allocations/state mutation"
+  ],
+  "validation": {
+    "gcc": "g++ (Debian 14.2.0-19) 14.2.0",
+    "clang": "clang version 17.0.0 (https://github.com/swiftlang/llvm-project.git 10999b6d034fe318f3d56c83bddb6572593a8bb0)",
+    "full_private_builds": [
+      "GCC",
+      "Clang"
+    ],
+    "gcc_ctest": "5/5 passed",
+    "clang_ctest": "5/5 passed",
+    "asan_ubsan_leak_check_ctest": "5/5 passed (ROM-free)",
+    "real_startup_logs_byte_identical": true,
+    "hosted_ci": "Check after push; not yet observed"
+  },
+  "artifacts": {
+    "APT-AFTER-LOCK.txt": {
+      "bytes": 653,
+      "sha256": "526f3956e43f8abbc32fb4ec3dd06326160bb822addf2ea5a79b8a0ddf563055"
+    },
+    "APT-CTEST-ASAN.txt": {
+      "bytes": 689,
+      "sha256": "1d2be6235cf32851e053ef96fad872425d7e34f105c1ffedd943c5f8b8ce3b85"
+    },
+    "APT-CTEST-CLANG.txt": {
+      "bytes": 691,
+      "sha256": "326e4906d5d8bd0316b80b57357e2f8befa8d0197ff46c8e4aa2eb1fc873f7fa"
+    },
+    "APT-CTEST-GCC.txt": {
+      "bytes": 687,
+      "sha256": "25fa46baa23816d307991b4448ff9b364c3b8dcd00e3b75afcbfc398602934b3"
+    },
+    "APT-FIRST-REQUEST.txt": {
+      "bytes": 653,
+      "sha256": "967c2741ea2c92f18d316315f8c1c38227b530e12cbf7b15fe5811180d221301"
+    },
+    "APT-STARTUP-CLANG.txt": {
+      "bytes": 691,
+      "sha256": "9f38de2851ec027bddc2afc16746db78e8bcfc6552ceb8a4b17f56ead55e99f6"
+    },
+    "APT-STARTUP-GCC.txt": {
+      "bytes": 691,
+      "sha256": "9f38de2851ec027bddc2afc16746db78e8bcfc6552ceb8a4b17f56ead55e99f6"
+    }
+  },
+  "binary_sha256": {
+    "build-gcc": "bab1bbaa5333539f1c0e56aca9e2075276e98938588cd8a0d17b2560bc611548",
+    "build-clang": "2f79159bee00a7dc17a9024db5f48f43f01fe1b39a1224b9f47c7cb2a8a1203a"
+  },
+  "limitations": [
+    "GlanceParameter and ReceiveParameter are not implemented; the launch parameter is queued, not consumed",
+    "Other applet roles, malformed request shapes and duplicate Initialize are explicit host stops",
+    "Only one application APT state is modeled; no complete applet manager",
+    "No title screen, full initializer count, rendering, audio, controls or gameplay claim",
+    "Inherited dispatcher timing and other kernel/IPC limitations remain open"
+  ],
+  "behavior_sources": [
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/apt/apt.cpp",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/apt/applet_manager.cpp",
+    "https://www.3dbrew.org/wiki/APT:GlanceParameter"
+  ]
+}

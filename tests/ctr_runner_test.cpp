@@ -217,6 +217,34 @@ void TestRunnerStopsOnUnsupportedSvc() {
     CHECK(result.exit.detail == 0x7FU);
 }
 
+
+void TestRunnerStopsOnUnimplementedApt() {
+    using namespace oot3d::recomp::a32;
+    static constexpr PackedOp ops[] = {SvcOp(lego::ctr::kSvcSendSyncRequest)};
+    static const Block blocks[] = {{0x00100000U, ops, 1U}};
+    static const BlockShard shards[] = {{0x00100000U, 0x00100FFCU, blocks, 1U}};
+    static const Registry registry{shards, 1U, nullptr, 0U};
+    Kernel kernel;
+    GuestMemory memory;
+    NativeRunner runner(registry, memory, kernel);
+    CHECK(runner.InitializeMainThread());
+    Handle session = 0;
+    CHECK(runner.ipc().ConnectToService(kernel, "APT:U", &session) == 0);
+    const auto address = kernel.current_thread()->tls_address + lego::ctr::kIpcCommandBufferOffset;
+    CHECK(memory.Write32(address, 0x000e0080));
+    CHECK(memory.Write32(address + 4, 0x300));
+    CHECK(memory.Write32(address + 8, 0x1000));
+    runner.live_state().r[0] = session;
+    const auto result = runner.Run(100, 4);
+    CHECK(result.reason == RunnerStopReason::UnsupportedIpc);
+    CHECK(result.exit.pc == 0x00100000U && result.exit.detail == lego::ctr::kSvcSendSyncRequest);
+    CHECK(runner.live_state().r[0] == session);
+    CHECK(runner.live_state().r[15] == 0x00100000U);
+    std::uint32_t word = 0;
+    CHECK(memory.Read32(address, &word) && word == 0x000e0080);
+    CHECK(runner.ipc().last_request()[2] == 0x1000);
+}
+
 }  // namespace
 
 int main() {
@@ -224,6 +252,7 @@ int main() {
     TestTlsPagesAndExclusiveMemory();
     TestDispatchSvcRescheduleLoop();
     TestRunnerStopsOnUnsupportedSvc();
+    TestRunnerStopsOnUnimplementedApt();
 
     if (failures != 0) {
         std::cerr << failures << " CTR runner/memory checks failed\n";

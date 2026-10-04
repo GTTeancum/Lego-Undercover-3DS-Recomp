@@ -1,123 +1,127 @@
-# LEGO Chase Begins — current reconstruction handoff
+# LEGO Chase Begins — canonical recovery handoff
 
-Updated October 4, 2026. This replaces the accumulated, partly stale checkpoint
-summary; historical milestone reports remain under `reports/recovery-host/` and
-in Git history. Read this file first when continuing.
+Updated October 4, 2026. Read this first; historical reports are not current gameplay proof.
 
-## Current verified state
+## Current verified boundary
 
-A real headless `LEGOChaseNative` executable now builds from the repository host
-source plus the private restored AOT pages. Fresh Linux GCC 14.2 and Clang 17
-builds both linked all 599 pages and executed the verified original USA code.
-This is a startup diagnostic, not a playable release or Recovery J restoration.
+The headless LEGOChaseNative builds and executes the verified USA game code with
+all 599 private AOT pages. This checkpoint implements the first two observed
+APT:U requests, not a complete applet manager or a playable release.
 
-The launcher verifies the 2,650,112-byte code image SHA-256 and checks every
-stored generated instruction word against that image before dispatch. It checked
-545,111 words in 111,043 registry blocks. These are static inventory counts, not
-executed-block counts or proof of correct instruction semantics.
+Base commit: `33d84803304e9310e158cf6865daf72b65f5ca13`.
+The restored source tree was verified against base tree
+`a7fb9eb472d7ffb7a19bd512798850973f51b939` before editing.
 
-The saved page archive has **603 regular files**, including 599 page C++ files.
-Do not force the historical 604-file claim onto this archive or manufacture missing
-manifest files. The new top-level CMake build accepts the actual restored layout.
+The original missing APT:U stop was reproduced first. Controlled diagnostic runs
+then observed this sequence directly from the game, without patching its code:
 
-## Source reconciliation and changes
+1. GetLockHandle: header `0x00010040`, application attributes `0`.
+2. Initialize: header `0x00020080`, applet ID `0x300`, attributes `0`.
+3. A second guest thread reaches GlanceParameter: header `0x000E0080`,
+   applet ID `0x300`, requested parameter buffer size `0x1000`.
 
-Base: `d726390ce406d724f87f8feebc0e23e4b0c0e6a8`.
-
-The earlier private source archive contains a launcher and missing SVC routing.
-Only the SVC bridge changes were brought forward into current GitHub source; the
-old kernel, memory, vendor and broad service implementations were not substituted
-for the newer committed versions. The launcher was reconstructed with a portable
-CLI, revision verification, registry checks, explicit exit codes, and diagnostics.
-
-Newly connected SVCs: ControlMemory (0x01), CreateAddressArbiter (0x21),
-ArbitrateAddress (0x22), GetSystemTick (0x28), GetProcessId (0x35), and resource
-limit queries (0x38–0x3A). Kernel backends already existed in the base snapshot.
-No generated page or game image was changed. IPC diagnostics retain the request
-before the handler overwrites it with a response.
-
-## Fresh observed startup boundary
-
-Before connecting those bridges, the real program stopped at SVC 0x21,
-PC `0x00101D8C`, after one dispatch round.
-
-After the changes, both compilers produce byte-identical startup diagnostics:
+The first two requests now work. The third is intentionally an explicit host
+stop with the original request/registers preserved; no invented response:
 
 ```text
-stop=WaitingNoRunnableThread pc=0x0024b324 thread=1 dispatch_rounds=13
-last_ipc_session=srv: requested_service=APT:U request_header=0x00050100
-response=00050040 d0406401
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=2 dispatch_rounds=29
+last_ipc_session=APT:U request_header=0x000e0080
+TLS=0x1ff82200
+static_buffer_descriptor=0x04000002 static_buffer_address=0x0036c000
+host_exit_code=3
 ```
 
-The program has requested `APT:U` through srv:GetServiceHandle, received
-ServiceNotRegistered, and subsequently blocked. It has NOT reached the title
-screen. Host exit code 3 correctly marks this as a diagnostic stop.
+Both GCC and Clang produce byte-identical final startup logs. No title screen,
+completed initializer count, renderer, audio, input or gameplay is claimed.
+The 545,111 instruction words / 111,043 blocks are static inventory counts.
 
-Next: implement the observed `APT:U` service entry and its first request using
-verified service semantics, then rerun this exact startup. Review the older
-private service source as evidence only; do not promote fabricated event signals,
-notification success, or broad stub responses to make startup appear successful.
+## Implemented in this checkpoint
+
+- `src/services/apt_service.*`: shared real mutex with copied handles for
+  GetLockHandle; first application Initialize with two one-shot events.
+- Initialization queues a Wakeup parameter (sender None, destination 0x300,
+  signal 1) and signals ONLY its parameter event. Notification remains unsignaled.
+  This follows the pinned manager's first-application launch behavior. The
+  parameter remains queued; acquiring its event is not receiving the message.
+- APT state survives closing/reopening client sessions and copied handles.
+- Unknown/malformed APT requests, other applet roles and duplicate initialization
+  remain unsupported host stops, not pretend successes or invented error replies.
+- IPC now uses `optional<Result>`: nullopt means host implementation missing.
+  The SVC bridge leaves guest state untouched and the runner reports UnsupportedIpc.
+- Full command-buffer writability is checked before handlers mutate state or
+  allocate handles. Partial event-handle allocation rolls back on exhaustion.
+
+Behavior references are pinned Azahar `86a9f9236ae42bb5a2b995dbc933d599d8ea07ac`,
+`apt.cpp` GetLockHandle/Initialize and `applet_manager.cpp`
+GetLockHandle/Initialize/SendParameter. See the report for source links.
+No generated game page, ARM lowering, guest executable or vendor file was changed.
 
 ## Validation
 
-- GCC: all 599 private pages built and linked; 4/4 CTest suites passed.
-- Clang: all 599 private pages built and linked; 4/4 CTest suites passed.
-- A same-length wrong executable was rejected by SHA-256 before mapping/dispatch.
-- SHA-256 tests include empty input, abc, a padding-boundary message and a million a's.
-- New tests cover recovered SVC register routing and missing-service diagnostics.
-- See `reports/recovery-host/NATIVE-STARTUP-2026-10-04.json` and the adjacent
-  `NATIVE-STARTUP-*.txt` logs for exact measurements and fingerprints.
-- Hosted CI now uses top-level CMake to run four ROM-free suites. Do not infer a
-  hosted result from the local GCC/Clang runs; check Actions separately.
+- Fresh full 599-page GCC and Clang native builds/run: PASS (diagnostic exit 3).
+- GCC: 5/5 CTest suites pass; Clang: 5/5 pass.
+- Separate Clang ASan/UBSan, leak checking enabled: 5/5 ROM-free suites pass.
+- Added tests exercise mutex identity/ownership, actual queued launch-event
+  behavior, unsupported-request preservation, handle-exhaustion rollback,
+  read-only command-buffer rejection and runner UnsupportedIpc reporting.
+- `reports/recovery-host/APT-STARTUP-2026-10-04.json` records fingerprints,
+  observed requests, limits and build scope; adjacent APT-*.txt files are logs.
+- Hosted CI result must be checked separately after pushing this checkpoint.
+
+## Next exact step
+
+Implement the observed GlanceParameter and subsequent ReceiveParameter sequence
+against the real queued launch message. The static receive descriptor is at
+TLS+0x180, separate from the 64-word IPC command buffer at TLS+0x80.
+Inspect/validate the full destination before touching it. The pinned APT handler
+pads its output static buffer to the requested size, even for an empty parameter;
+3dbrew documents different details for the Glance handle descriptor. Resolve that
+boundary explicitly, retain request/response logs and test message consumption.
+Do not simply signal more events, always return Wakeup, or manufacture success
+for later APT commands. Continue from observed guest requests only.
 
 ## Build and run
-
-ROM-free components:
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel 4
 ctest --test-dir build --output-on-failure
-```
 
-Real private game tree:
-
-```sh
 cmake -S . -B build-game -DCMAKE_BUILD_TYPE=Release -DLEGO_AOT_DIR=/path/to/generated2
 cmake --build build-game --parallel 4
 ./build-game/LEGOChaseNative /path/to/code.bin
 ```
 
-Set `CMAKE_CXX_COMPILER=clang++` for the Clang build. The launcher accepts
-`--block-limit N` and `--host-event-limit N`. No desktop/renderer, Windows build,
-controller, audio, completed initialization or gameplay result is claimed.
-GetSystemTick reads kernel guest time; dispatch-driven time advancement remains
-unreconstructed. Other inherited kernel/IPC limitations remain open.
+Set `CMAKE_CXX_COMPILER=clang++` for Clang. CLI limits are `--block-limit N` and
+`--host-event-limit N`. The executable validates code SHA-256 and every generated
+instruction word; that does not prove complete/correct instruction semantics.
+The private page archive has 603 regular files (599 page units), not the historic
+604-file layout. Do not manufacture missing artifacts to match a count.
 
-## Working data and durable recovery
+## Files and durable recovery
 
-Current scratch root: `/mnt/data/lego_recovery/`.
-Source: `repo/`; builds: `build-gcc/` and `build-clang/`; pages: `generated2/`;
-verified executable input: `restored/code.bin`; older evidence source:
-`source-recovered-2026-10-03/`. Fresh build/test/run logs are in the scratch root.
+Scratch root `/mnt/data/lego_recovery/`:
+- Source: `repo/`; current native builds: `build-gcc/`, `build-clang/`.
+- Sanitizer components: `build-asan/`.
+- Private pages: `generated2/`; executable input: `restored/code.bin`.
+- Original six game archive parts: `/mnt/data/` and `backup-verify/`.
+- Build/run logs are in the scratch root and copied into the source report folder.
 
-The six original archive parts are still in `/mnt/data/` and in
-`/mnt/data/lego_recovery/backup-verify/`. The large CCI was not re-extracted in this
-turn because the verified code image was sufficient for startup execution.
+The source/page archives already present were restored this turn; no new game
+upload was required. The 1 GiB CCI was not re-extracted because code.bin suffices
+for this startup boundary. Do not claim it is present without inspecting.
 
-Durable private Library folder: `/LEGO-Chase-Recovery/`. It contains the six
-parts under `Game-archive/`, `code.bin`, the 599-page AOT archive, the older source
-archive and the game-files recovery kit. See `GAME-FILES-PERSISTENCE.md` for the
-restore procedure. Scratch can reset; the Library snapshots and GitHub source
-are the recovery paths, not a claim that scratch is permanent.
+Private Library `/LEGO-Chase-Recovery/` retains `Game-archive/` (all six parts),
+`code.bin`, `LEGO-Chase-current-AOT-599pages-2026-10-03.tgz`, earlier source
+checkpoints and the restore kit. See `GAME-FILES-PERSISTENCE.md`.
+Scratch may reset; Library plus GitHub source are the durable recovery paths.
 
 Code SHA-256: `5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f`.
 CCI SHA-256: `3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525`.
 
 ## Continuing mandate
 
-Work in moderate tested checkpoints. Push source/report changes before ending
-work; keep game images and generated game bytes private. Update this handoff and
-attach a downloadable copy each turn. Never report old Recovery F/J gameplay or
-component tests as fresh game execution. Inspect/restore backups before asking
-for another upload.
+Work here, not on the user's PC or through a Work handoff. Use moderate tested
+checkpoints and push before ending. Keep game bytes/generated pages private.
+Update this handoff and attach a downloadable copy every turn. Preserve logs and
+state exact test scope. Inspect/restore backups before requesting uploads.

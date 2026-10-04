@@ -1,4 +1,5 @@
 #include "runtime/ctr_runner.h"
+#include "services/apt_service.h"
 
 #include <algorithm>
 
@@ -7,7 +8,9 @@ namespace lego::ctr {
 NativeRunner::NativeRunner(const a32::Registry& registry,
                            GuestMemory& memory,
                            Kernel& kernel) noexcept
-    : registry_(registry), memory_(memory), kernel_(kernel), ipc_(), svc_(kernel, &ipc_) {}
+    : registry_(registry), memory_(memory), kernel_(kernel), ipc_(), svc_(kernel, &ipc_) {
+    ipc_.RegisterService("APT:U", std::make_shared<AptService>());
+}
 
 bool NativeRunner::InitializeMainThread(std::uint32_t entry_point,
                                         std::uint32_t stack_top) noexcept {
@@ -86,7 +89,10 @@ RunnerResult NativeRunner::Run(std::uint32_t block_limit_per_dispatch,
             const a32::ExecutionResult handled =
                 svc_.Handle(exit, live_state_, &memory_);
             if (handled.kind == a32::ExitKind::Svc) {
-                return Stop(RunnerStopReason::UnsupportedSvc, handled, round);
+                return Stop(ipc_.unsupported_request() && exit.detail == kSvcSendSyncRequest
+                                ? RunnerStopReason::UnsupportedIpc
+                                : RunnerStopReason::UnsupportedSvc,
+                            handled, round);
             }
 
             if (!memory_.EnsureTlsMappings(kernel_)) {

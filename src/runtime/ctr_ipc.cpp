@@ -207,14 +207,24 @@ Result IpcRouter::ConnectToService(Kernel& kernel, std::string_view name,
         std::make_shared<ClientSessionObject>(std::string(name), it->second));
 }
 
-Result IpcRouter::SendSyncRequest(Kernel& kernel, GuestMemory& memory,
+std::optional<Result> IpcRouter::SendSyncRequest(Kernel& kernel, GuestMemory& memory,
                                   Handle handle) {
+    unsupported_request_ = false;
     const auto session =
         std::dynamic_pointer_cast<ClientSessionObject>(kernel.handles().Get(handle));
     if (!session || !session->service) {
         return kResultInvalidHandle;
     }
 
+    // Preflight the entire response area before any handler allocates handles
+    // or mutates service state. Readability alone is insufficient.
+    const auto command_address = std::uint64_t(kernel.current_thread()->tls_address) +
+                                 kIpcCommandBufferOffset;
+    if (command_address + sizeof(IpcCommandBuffer) > 0x100000000ULL ||
+        !memory.IsWritable(static_cast<std::uint32_t>(command_address),
+                           sizeof(IpcCommandBuffer))) {
+        return kResultInvalidPointer;
+    }
     IpcCommandBuffer command{};
     if (!ReadCommandBuffer(memory, *kernel.current_thread(), &command)) {
         return kResultInvalidPointer;
@@ -223,6 +233,10 @@ Result IpcRouter::SendSyncRequest(Kernel& kernel, GuestMemory& memory,
     last_session_name_ = session->name;
     last_lookup_name_.clear();
     last_request_ = command;
+    if (!session->service->CanHandle(command)) {
+        unsupported_request_ = true;
+        return std::nullopt;
+    }
     const Result dispatch_result =
         session->service->Handle(*this, kernel, memory,
                                  *kernel.current_thread(), command);

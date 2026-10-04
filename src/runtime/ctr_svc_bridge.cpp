@@ -300,7 +300,9 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
         if (guest_memory == nullptr) {
             return exit;
         }
-        state.r[0] = ipc_->SendSyncRequest(kernel_, *guest_memory, state.r[0]);
+        const auto result = ipc_->SendSyncRequest(kernel_, *guest_memory, state.r[0]);
+        if (!result) return exit;
+        state.r[0] = *result;
         return ResumeAfterSvc(exit.pc, state);
     }
 

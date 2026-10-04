@@ -21,6 +21,7 @@ const char* StopName(ctr::RunnerStopReason reason) {
     case R::ProcessExited: return "ProcessExited";
     case R::WaitingNoRunnableThread: return "WaitingNoRunnableThread";
     case R::UnsupportedSvc: return "UnsupportedSvc";
+    case R::UnsupportedIpc: return "UnsupportedIpc";
     case R::BlockLimit: return "BlockLimit";
     case R::MissingBlock: return "MissingBlock";
     case R::MemoryFault: return "MemoryFault";
@@ -126,6 +127,13 @@ int main(int argc,char** argv) {
         for (unsigned i=0;i<8;++i) {
             std::uint32_t word=0;
             if (memory.Read32(cb+i*4,&word)) std::cout<<' '<<std::setw(8)<<word;
+            else std::cout<<" unreadable";
+        }
+        std::cout<<'\n';
+        std::cout<<"ipc_static_buffer0=";
+        for (unsigned i=0;i<2;++i) {
+            std::uint32_t word=0;
+            if (memory.Read32(cb+0x100+i*4,&word)) std::cout<<' '<<std::setw(8)<<word;
             else std::cout<<" unreadable";
         }
         std::cout<<'\n';
