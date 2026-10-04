@@ -8,6 +8,8 @@ bool AptService::CanHandle(const IpcCommandBuffer& command) const noexcept {
     if (command[0] == IpcMakeHeader(1, 1, 0)) return command[1] == 0;
     if (command[0] == IpcMakeHeader(2, 2, 0))
         return !initialized_ && command[1] == 0x300 && command[2] == 0;
+    if (command[0] == IpcMakeHeader(3, 1, 0))
+        return initialized_ && command[1] == 0;
     if (command[0] == IpcMakeHeader(0xE, 2, 0) ||
         command[0] == IpcMakeHeader(0xD, 2, 0))
         return initialized_ && command[1] == 0x300 && command[2] <= 0x1000;
@@ -33,6 +35,19 @@ Result AptService::Handle(IpcRouter&, Kernel& kernel, GuestMemory& memory, Threa
         return kResultSuccess;
     }
 
+    if (IpcCommandId(command[0]) == 3) {
+        // Observed application Enable(attrs=0). AppletManager::Enable marks
+        // this slot registered; first Initialize has already done so. There
+        // are no delayed parameters or other applet roles in this slice.
+        // Repeated Enable must not create a second Wakeup, re-signal events,
+        // consume the pending message, or change kernel thread scheduling.
+        registered_ = true;
+        command.fill(0);
+        command[0] = IpcMakeHeader(3, 1, 0);
+        command[1] = kResultSuccess;
+        return kResultSuccess;
+    }
+
     // First application initialization: the pinned manager enables the first
     // applet and queues a real Wakeup parameter (sender None, receiver 0x300).
     // Its parameter event represents that queued message, NOT a fake GPU or
@@ -46,6 +61,7 @@ Result AptService::Handle(IpcRouter&, Kernel& kernel, GuestMemory& memory, Threa
         return result;
     }
     initialized_ = true;
+    registered_ = true; // Initialize auto-enables the first application.
     pending_parameter_ = LaunchParameter{};
     parameter_->Signal();
     command.fill(0);

@@ -17,6 +17,7 @@ public:
     Result Handle(IpcRouter&, Kernel& kernel, GuestMemory&, ThreadObject&,
                   IpcCommandBuffer& command) override;
     [[nodiscard]] bool initialized() const noexcept { return initialized_; }
+    [[nodiscard]] bool registered() const noexcept { return registered_; }
     [[nodiscard]] const std::optional<LaunchParameter>& pending_parameter() const noexcept {
         return pending_parameter_;
     }
@@ -27,6 +28,7 @@ private:
     std::shared_ptr<EventObject> notification_{std::make_shared<EventObject>(ResetType::OneShot)};
     std::shared_ptr<EventObject> parameter_{std::make_shared<EventObject>(ResetType::OneShot)};
     bool initialized_{};
+    bool registered_{};
     std::optional<LaunchParameter> pending_parameter_;
 };
 } // namespace lego::ctr
