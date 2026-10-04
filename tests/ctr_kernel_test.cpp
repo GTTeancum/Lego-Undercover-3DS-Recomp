@@ -334,6 +334,135 @@ void TestWaitNSvcMemoryAbi() {
     CHECK(state.r[1] == 1U);
 }
 
+
+void TestGuestContextSwitchAndTls() {
+    lego::ctr::Kernel kernel;
+
+    oot3d::recomp::a32::GuestState main_state{};
+    main_state.r[0] = 0x11111111U;
+    main_state.r[4] = 0x44444444U;
+    main_state.r[13] = 0x08000000U;
+    main_state.r[15] = 0x00100000U;
+    main_state.cpsr = lego::ctr::kUserModeCpsr;
+    main_state.fpscr = 0x03C00010U;
+    main_state.vfp[3] = 0xDEADBEEFU;
+    main_state.exclusive_address = 0x12340000U;
+    main_state.exclusive_token = 0x1122334455667788ULL;
+    main_state.exclusive_size = 4;
+    main_state.exclusive_valid = true;
+    kernel.SetCurrentGuestState(main_state);
+
+    CHECK(kernel.current_thread()->tls_address == lego::ctr::kTlsAreaBase);
+    CHECK(kernel.CurrentGuestState().thread_pointer == lego::ctr::kTlsAreaBase);
+
+    Handle child_handle = 0;
+    CHECK(kernel.CreateThread(&child_handle, 0x00200000U, 0xA5A5U,
+                              0x07FFF000U, 20U, 0) ==
+          lego::ctr::kResultSuccess);
+    auto child =
+        std::dynamic_pointer_cast<ThreadObject>(kernel.handles().Get(child_handle));
+    CHECK(child != nullptr);
+    CHECK(child->tls_address ==
+          lego::ctr::kTlsAreaBase + lego::ctr::kTlsEntrySize);
+    CHECK(child->guest_state.r[0] == 0xA5A5U);
+    CHECK(child->guest_state.r[13] == 0x07FFF000U);
+    CHECK(child->guest_state.r[15] == 0x00200000U);
+    CHECK(child->guest_state.cpsr == lego::ctr::kUserModeCpsr);
+    CHECK(child->guest_state.fpscr == lego::ctr::kThreadInitialFpscr);
+    CHECK(child->guest_state.thread_pointer == child->tls_address);
+
+    oot3d::recomp::a32::GuestState live = kernel.CurrentGuestState();
+    CHECK(kernel.Reschedule(live));
+    CHECK(kernel.current_thread() == child);
+    CHECK(kernel.handles().Get(lego::ctr::kCurrentThreadPseudoHandle) == child);
+    CHECK(live.r[0] == 0xA5A5U);
+    CHECK(live.r[13] == 0x07FFF000U);
+    CHECK(live.thread_pointer == child->tls_address);
+
+    live.r[5] = 0x5555AAAAU;
+    live.vfp[7] = 0xCAFEBABEU;
+    live.fpscr = 0x01234567U;
+    live.exclusive_address = 0x2000U;
+    live.exclusive_token = 0x8877665544332211ULL;
+    live.exclusive_size = 8;
+    live.exclusive_valid = true;
+
+    CHECK(kernel.SleepCurrentThread(100));
+    CHECK(kernel.Reschedule(live));
+    CHECK(kernel.current_thread()->thread_id == 1U);
+    CHECK(live.r[0] == 0x11111111U);
+    CHECK(live.r[4] == 0x44444444U);
+    CHECK(live.vfp[3] == 0xDEADBEEFU);
+    CHECK(live.exclusive_valid);
+    CHECK(live.exclusive_token == 0x1122334455667788ULL);
+    CHECK(live.thread_pointer == lego::ctr::kTlsAreaBase);
+
+    kernel.AdvanceTime(100);
+    live.r[6] = 0x66666666U;
+    CHECK(kernel.Reschedule(live));
+    CHECK(kernel.current_thread() == child);
+    CHECK(live.r[5] == 0x5555AAAAU);
+    CHECK(live.vfp[7] == 0xCAFEBABEU);
+    CHECK(live.fpscr == 0x01234567U);
+    CHECK(live.exclusive_valid);
+    CHECK(live.exclusive_token == 0x8877665544332211ULL);
+    CHECK(live.thread_pointer == child->tls_address);
+
+    Handle thumb_handle = 0;
+    CHECK(kernel.CreateThread(&thumb_handle, 0x00210001U, 0,
+                              0x07FFE000U, 30U, 0) ==
+          lego::ctr::kResultSuccess);
+    auto thumb =
+        std::dynamic_pointer_cast<ThreadObject>(kernel.handles().Get(thumb_handle));
+    CHECK(thumb != nullptr);
+    CHECK(thumb->guest_state.r[15] == 0x00210000U);
+    CHECK((thumb->guest_state.cpsr & (1U << 5U)) != 0U);
+}
+
+void TestBlockedThreadContextResume() {
+    lego::ctr::Kernel kernel;
+    lego::ctr::SvcBridge bridge(kernel);
+
+    Handle child_handle = 0;
+    CHECK(kernel.CreateThread(&child_handle, 0x00200000U, 0x44U,
+                              0x07FFF000U, 20U, 0) ==
+          lego::ctr::kResultSuccess);
+    auto child =
+        std::dynamic_pointer_cast<ThreadObject>(kernel.handles().Get(child_handle));
+    CHECK(child != nullptr);
+
+    oot3d::recomp::a32::GuestState live = kernel.CurrentGuestState();
+    CHECK(kernel.Reschedule(live));
+    CHECK(kernel.current_thread() == child);
+
+    Handle event = 0;
+    CHECK(kernel.CreateEvent(&event, 0) == lego::ctr::kResultSuccess);
+
+    live.r[0] = event;
+    live.r[2] = 1000U;
+    live.r[3] = 0U;
+    const auto wait_exit =
+        bridge.Handle(Svc(lego::ctr::kSvcWaitSynchronization1, 0x00201000U),
+                      live);
+    CHECK(wait_exit.kind == oot3d::recomp::a32::ExitKind::Wait);
+    CHECK(live.r[0] == lego::ctr::kResultTimeout);
+    CHECK(live.r[15] == 0x00201004U);
+    CHECK(child->status == ThreadStatus::WaitSynchAny);
+
+    CHECK(kernel.Reschedule(live));
+    CHECK(kernel.current_thread()->thread_id == 1U);
+
+    CHECK(kernel.SignalEvent(event) == lego::ctr::kResultSuccess);
+    CHECK(child->status == ThreadStatus::Ready);
+
+    CHECK(kernel.Reschedule(live));
+    CHECK(kernel.current_thread() == child);
+    CHECK(live.r[0] == lego::ctr::kResultSuccess);
+    CHECK(live.r[15] == 0x00201004U);
+    CHECK(!child->pending_wake);
+    CHECK(live.thread_pointer == child->tls_address);
+}
+
 void TestDuplicateSvcStage2Shape() {
     lego::ctr::Kernel kernel(1, 1);
     lego::ctr::SvcBridge bridge(kernel);
@@ -360,6 +489,8 @@ int main() {
     TestThreadCreateAndSleep();
     TestSvcAbisAndWake();
     TestWaitNSvcMemoryAbi();
+    TestGuestContextSwitchAndTls();
+    TestBlockedThreadContextResume();
     TestDuplicateSvcStage2Shape();
 
     if (failures != 0) {
