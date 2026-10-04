@@ -279,3 +279,39 @@ This clears the known DuplicateHandle host-semantic blocker as a component test;
 it is **not** yet an end-to-end claim that the current reconstructed game runner
 has executed through that address. The next host layer is synchronization,
 events, threads, and scheduling, followed by service IPC.
+
+
+## CTR synchronization/thread checkpoint
+
+The native host layer now extends beyond DuplicateHandle into the first real
+scheduling/synchronization tranche.
+
+Implemented and ROM-free tested:
+
+- one-shot, sticky, and pulse events
+- recursive mutexes
+- semaphores
+- wait-one and wait-many
+- finite, zero, and infinite timeout state
+- wait-any index reporting and wait-all acquisition
+- signal-driven and timeout-driven wakeups
+- basic thread creation, ready/sleep/wait/dead states
+- deterministic ready-thread priority selection
+- SVC wake-result application back into saved A32 registers
+
+Newly bridged SVCs are `0x08`, `0x09`, `0x0A`, `0x13` through `0x19`,
+`0x24`, and `0x25`, in addition to the already recovered `0x23` and
+`0x27`.
+
+The modified CTR register ABI is preserved, including the unusual
+`WaitSynchronizationN` placement: timeout in `r0/r4`, handles pointer in
+`r1`, count in `r2`, wait-all in `r3`, and wait-any output index in `r1`.
+
+Fresh CMake/CTest builds pass with both **Clang and GCC**. See
+`reports/recovery-host/SYNC-THREAD.md`.
+
+This checkpoint still does **not** perform full guest context switching between
+ThreadObjects. The kernel now knows which thread should be ready/waiting and why,
+but each thread does not yet own a complete saved A32 register/TLS context in the
+runner. That context-switch/resume layer is the next runtime boundary; service
+port/session IPC follows it.
