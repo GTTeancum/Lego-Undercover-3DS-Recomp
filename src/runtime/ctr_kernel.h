@@ -28,6 +28,10 @@ inline constexpr Result kResultOutOfRangeKernel = 0xD8E007FDU;
 inline constexpr Result kResultInvalidCombinationKernel = 0xD90007EEU;
 inline constexpr Result kResultWrongLockingThread = 0xD8E0041FU;
 inline constexpr Result kResultInvalidResultValue = 0xD8A007FFU;
+inline constexpr Result kResultInvalidEnumValue = 0xD8E007EDU;
+inline constexpr Result kResultInvalidCombination = 0xE0E01BEEU;
+inline constexpr Result kResultMisalignedAddress = 0xE0E01BF1U;
+inline constexpr Result kResultMisalignedSize = 0xE0E01BF2U;
 
 inline constexpr Handle kCurrentThreadPseudoHandle = 0xFFFF8000U;
 inline constexpr Handle kCurrentProcessPseudoHandle = 0xFFFF8001U;
@@ -46,6 +50,7 @@ enum class ThreadStatus : std::uint8_t {
     Running,
     Ready,
     WaitSleep,
+    WaitArb,
     WaitSynchAny,
     WaitSynchAll,
     Dormant,
@@ -61,6 +66,7 @@ enum class ResetType : std::uint32_t {
 class Kernel;
 class ThreadObject;
 class WaitObject;
+class GuestMemory;
 
 class KernelObject {
 public:
@@ -73,6 +79,8 @@ public:
         Timer,
         SharedMemory,
         Session,
+        AddressArbiter,
+        ResourceLimit,
         Other,
     };
 
@@ -201,6 +209,40 @@ private:
     std::int32_t available_count_{};
 };
 
+class AddressArbiterObject final : public KernelObject {
+public:
+    AddressArbiterObject() noexcept : KernelObject(Type::AddressArbiter) {}
+};
+
+enum class ResourceLimitType : std::uint32_t {
+    Priority = 0,
+    Commit = 1,
+    Thread = 2,
+    Event = 3,
+    Mutex = 4,
+    Semaphore = 5,
+    Timer = 6,
+    SharedMemory = 7,
+    AddressArbiter = 8,
+    CpuTime = 9,
+    Max = 10,
+};
+
+class ResourceLimitObject final : public KernelObject {
+public:
+    ResourceLimitObject() noexcept;
+
+    [[nodiscard]] std::int32_t Current(ResourceLimitType type) const noexcept;
+    [[nodiscard]] std::int32_t Limit(ResourceLimitType type) const noexcept;
+    void Reserve(ResourceLimitType type, std::int32_t amount) noexcept;
+
+private:
+    std::array<std::int32_t,
+               static_cast<std::size_t>(ResourceLimitType::Max)> limits_{};
+    std::array<std::int32_t,
+               static_cast<std::size_t>(ResourceLimitType::Max)> current_{};
+};
+
 class GenericObject final : public KernelObject {
 public:
     explicit GenericObject(Type type) noexcept : KernelObject(type) {}
@@ -271,6 +313,27 @@ public:
     [[nodiscard]] const a32::GuestState& CurrentGuestState() const noexcept;
     bool Reschedule(a32::GuestState& live_state) noexcept;
 
+    Result ControlMemory(GuestMemory* memory, std::uint32_t* out_address,
+                         std::uint32_t addr0, std::uint32_t addr1,
+                         std::uint32_t size, std::uint32_t operation,
+                         std::uint32_t permissions) noexcept;
+
+    Result CreateAddressArbiter(Handle* out_handle) noexcept;
+    WaitOutcome ArbitrateAddress(GuestMemory* memory, Handle handle,
+                                 std::uint32_t address, std::uint32_t type,
+                                 std::int32_t value,
+                                 std::int64_t timeout_ns) noexcept;
+
+    Result GetProcessId(std::uint32_t* out_process_id,
+                        Handle process_handle) noexcept;
+    Result GetResourceLimit(Handle* out_handle,
+                            Handle process_handle) noexcept;
+    Result GetResourceLimitValues(GuestMemory* memory, bool current_values,
+                                  std::uint32_t values_address,
+                                  Handle resource_limit_handle,
+                                  std::uint32_t names_address,
+                                  std::uint32_t name_count) noexcept;
+
     Result DuplicateHandle(Handle* out_handle, Handle handle) noexcept;
     Result CloseHandle(Handle handle) noexcept;
 
@@ -307,6 +370,7 @@ private:
     void WakeThread(ThreadObject& thread, Result result, std::int32_t index,
                     bool index_valid) noexcept;
     void TryWakeWaitingThreads() noexcept;
+    void RemoveArbiterWait(ThreadObject& thread) noexcept;
     std::uint32_t AllocateTlsAddress() noexcept;
     void InitializeGuestContext(ThreadObject& thread, std::uint32_t entry_point,
                                 std::uint32_t argument, std::uint32_t stack_top,
@@ -314,9 +378,18 @@ private:
     void ApplyPendingWakeToContext(ThreadObject& thread) noexcept;
 
     std::shared_ptr<ProcessObject> current_process_;
+    std::shared_ptr<ResourceLimitObject> application_resource_limit_;
     std::shared_ptr<ThreadObject> current_thread_;
     HandleTable handles_;
+
+    struct ArbiterWait {
+        std::shared_ptr<AddressArbiterObject> arbiter;
+        std::shared_ptr<ThreadObject> thread;
+        std::uint32_t address{};
+    };
+
     std::vector<std::shared_ptr<ThreadObject>> threads_;
+    std::vector<ArbiterWait> arbiter_waits_;
     std::uint32_t next_thread_id_{2};
     std::uint32_t next_tls_slot_{};
     std::uint64_t now_ns_{};
