@@ -1,0 +1,42 @@
+name: CTR Runtime CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/runtime/**"
+      - "tests/ctr_kernel_test.cpp"
+      - "vendor/triaevum-a9b4477/recomp/**"
+      - ".github/workflows/ctr-runtime-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  runtime-test:
+    name: ${{ matrix.compiler }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build CTR runtime test
+        run: |
+          "${{ matrix.compiler }}" -std=c++20 -O2 -Wall -Wextra -pedantic \
+            -Isrc -Ivendor/triaevum-a9b4477 \
+            tests/ctr_kernel_test.cpp \
+            src/runtime/ctr_kernel.cpp \
+            src/runtime/ctr_svc_bridge.cpp \
+            vendor/triaevum-a9b4477/recomp/a32_runtime.cpp \
+            vendor/triaevum-a9b4477/recomp/a32_core.cpp \
+            vendor/triaevum-a9b4477/recomp/a32_core_alu.cpp \
+            vendor/triaevum-a9b4477/recomp/a32_core_memory.cpp \
+            vendor/triaevum-a9b4477/recomp/a32_vfp_binary64.cpp \
+            vendor/triaevum-a9b4477/recomp/a32_vfp_scalar.cpp \
+            vendor/triaevum-a9b4477/recomp/a32_vfp_transport.cpp \
+            -o ctr_kernel_test
+
+      - name: Run CTR runtime test
+        run: ./ctr_kernel_test
