@@ -728,12 +728,6 @@ bool Kernel::SleepCurrentThread(std::int64_t nanoseconds) noexcept {
 void Kernel::TryWakeWaitingThreads() noexcept {
     std::vector<std::shared_ptr<ThreadObject>> candidates;
     for (const auto& thread : threads_) {
-        if (thread->status == ThreadStatus::WaitArb) {
-            RemoveArbiterWait(*thread);
-            WakeThread(*thread, kResultTimeout, -1, false);
-            continue;
-        }
-
         if (thread->status == ThreadStatus::WaitSynchAny ||
             thread->status == ThreadStatus::WaitSynchAll) {
             candidates.push_back(thread);
@@ -794,6 +788,12 @@ void Kernel::AdvanceTime(std::uint64_t nanoseconds) noexcept {
         if (thread->status == ThreadStatus::WaitSleep) {
             thread->wake_deadline_ns_.reset();
             thread->status = ThreadStatus::Ready;
+            continue;
+        }
+
+        if (thread->status == ThreadStatus::WaitArb) {
+            RemoveArbiterWait(*thread);
+            WakeThread(*thread, kResultTimeout, -1, false);
             continue;
         }
 
