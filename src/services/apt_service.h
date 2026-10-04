@@ -3,6 +3,8 @@
 #include "runtime/ctr_ipc.h"
 
 namespace lego::ctr {
+// NoData / Applet / InvalidState / Status, from the pinned CTR result layout.
+inline constexpr Result kResultAptNoData = 0xC8A0CFEFU;
 // Application-only APT recovery slice. Other applets/commands remain stops.
 class AptService final : public IpcService {
 public:
@@ -19,6 +21,8 @@ public:
         return pending_parameter_;
     }
 private:
+    Result ReadLaunchParameter(GuestMemory& memory, ThreadObject& thread,
+                               IpcCommandBuffer& command);
     std::shared_ptr<MutexObject> lock_{std::make_shared<MutexObject>()};
     std::shared_ptr<EventObject> notification_{std::make_shared<EventObject>(ResetType::OneShot)};
     std::shared_ptr<EventObject> parameter_{std::make_shared<EventObject>(ResetType::OneShot)};

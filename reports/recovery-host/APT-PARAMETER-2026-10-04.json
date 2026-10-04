@@ -1,0 +1,101 @@
+{
+  "format": "lego_apt_launch_parameter_checkpoint_v1",
+  "date_utc": "2026-10-04",
+  "base_commit": "2dd9b1ae694799caede9eb17daae7b6c9dd56038",
+  "base_tree_verified": "787bd5832f6bdc30866eb26a6a5c93dfcdbb042d",
+  "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "private_aot": {
+    "page_cpp_files": 599,
+    "regular_files": 603,
+    "all_archive_members_unchanged": true,
+    "verified_instruction_words": 545111,
+    "registry_blocks": 111043
+  },
+  "before": {
+    "stop": "UnsupportedIpc",
+    "service": "APT:U",
+    "request_header": "0x000E0080",
+    "pc": "0x0025947C",
+    "thread": 2,
+    "dispatch_rounds": 29
+  },
+  "after": {
+    "stop": "UnsupportedSvc",
+    "svc": "0x3C",
+    "svc_name": "Break",
+    "pc": "0x0011FB80",
+    "thread": 1,
+    "dispatch_rounds": 35,
+    "host_exit_code": 3,
+    "last_session": "srv:",
+    "requested_service": "ndm:u",
+    "last_header": "0x00050100",
+    "last_service_result": "0xD0406401"
+  },
+  "implementation_scope": {
+    "GlanceParameter": "Peek at queued empty Wakeup; real game passes prior request",
+    "ReceiveParameter": "Paired consume-once operation; component-tested, not claimed observed in this game run",
+    "NoData": "0xC8A0CFEF as service response after consumption",
+    "static_buffer": "TLS+0x180 slot 0, complete destination preflight, max request 0x1000, bounded guest writes, no guest-sized host allocation"
+  },
+  "wire_policy": {
+    "glance_object_descriptor": "Copy (0), per 3dbrew; differs from pinned Azahar which emits move",
+    "receive_object_descriptor": "Move (0x10)",
+    "attached_object": "Null only; no real handle transfer claimed",
+    "output_padding": "Requested size, per pinned Azahar; actual payload size remains zero. 3dbrew labels static descriptor size as actual payload; hardware parity unresolved."
+  },
+  "validation": {
+    "gcc": "5/5 CTest; full 599-page native build and startup",
+    "clang": "5/5 CTest; full 599-page native build and startup",
+    "sanitizers": "Clang ASan/UBSan 5/5 ROM-free CTest, detect_leaks=1, halt_on_error=1",
+    "gcc_clang_startup_logs_identical": true,
+    "hosted_ci": "To be checked after push"
+  },
+  "artifacts": {
+    "PARAMETER-BASELINE.txt": {
+      "bytes": 691,
+      "sha256": "9f38de2851ec027bddc2afc16746db78e8bcfc6552ceb8a4b17f56ead55e99f6"
+    },
+    "PARAMETER-GLANCE-ONLY.txt": {
+      "bytes": 695,
+      "sha256": "817ab5175e23777437b66818eaa1236348bbf284568772bd244acbbfbacc0ace"
+    },
+    "PARAMETER-STARTUP-GCC.txt": {
+      "bytes": 695,
+      "sha256": "817ab5175e23777437b66818eaa1236348bbf284568772bd244acbbfbacc0ace"
+    },
+    "PARAMETER-STARTUP-CLANG.txt": {
+      "bytes": 695,
+      "sha256": "817ab5175e23777437b66818eaa1236348bbf284568772bd244acbbfbacc0ace"
+    },
+    "PARAMETER-CTEST-GCC.txt": {
+      "bytes": 687,
+      "sha256": "b387921a82f6b27bf28833886a093a1b2328cda0e5260aa7879e07fe6bac338e"
+    },
+    "PARAMETER-CTEST-CLANG.txt": {
+      "bytes": 691,
+      "sha256": "8dc3ac78dc2d5ed59023b131b71627e82c9af0499d5e95391f04f3752ce96c03"
+    },
+    "PARAMETER-CTEST-ASAN.txt": {
+      "bytes": 689,
+      "sha256": "2a099d373e595105811ff33cb507d08524b8995b7daa5a31cb26d3286d9629b7"
+    }
+  },
+  "binaries": {
+    "build-gcc": "28de41f99676a05394ca17d37a15aeba18de2dfd17b2319d7e81b185d542b49d",
+    "build-clang": "357a7d34d696bdbd3ac175d5c453566ef0d216029cade3550aad71f9ef10db3a"
+  },
+  "limits": [
+    "No ndm:u implementation or Break bypass added.",
+    "No new APT messages, nonempty payloads or attached objects implemented.",
+    "No title screen, completed initializer count, graphics, audio or gameplay claim.",
+    "Runtime guest-time progression and inherited kernel limitations remain open."
+  ],
+  "sources": [
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/apt/apt.cpp",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/apt/applet_manager.cpp",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/result.h",
+    "https://www.3dbrew.org/wiki/APT:GlanceParameter",
+    "https://3dbrew.org/wiki/APT:ReceiveParameter"
+  ]
+}
