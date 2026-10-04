@@ -51,3 +51,16 @@ jobs:
 
       - name: Run CTR IPC test
         run: ./ctr_ipc_test
+
+      - name: Package runtime source bundle
+        if: matrix.compiler == 'g++'
+        run: |
+          tar -czf ctr-runtime-source.tgz src/runtime vendor/triaevum-a9b4477/recomp cmake/LEGOHostRuntime.cmake
+
+      - name: Upload runtime source bundle
+        if: matrix.compiler == 'g++'
+        uses: actions/upload-artifact@v5
+        with:
+          name: ctr-runtime-source
+          path: ctr-runtime-source.tgz
+          retention-days: 1
