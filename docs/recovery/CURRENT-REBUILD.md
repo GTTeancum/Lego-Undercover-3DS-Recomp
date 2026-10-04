@@ -347,3 +347,46 @@ restored LEGO guest-memory manager. The next runner step is to restore that memo
 mapping and add the dispatch/SVC/reschedule loop that joins the 599-page AOT
 registry to this kernel. Service port/session IPC follows after that executable
 skeleton is running.
+
+
+## Mapped guest-memory + AOT runner checkpoint
+
+The recovered A32 code path and recovered CTR kernel are now joined by a real
+native runner instead of only being tested as separate components.
+
+New source:
+
+- `src/runtime/ctr_memory.*` — mapped guest `MemoryBus` with the verified
+  LEGO text/rodata/data/BSS layout, main stack, TLS pages, 8/16/32/64-bit
+  accesses, exclusive operations, and atomic swap.
+- `src/runtime/ctr_runner.*` — AOT `Dispatch` + SVC routing + wait/exit
+  rescheduling + per-thread context restore.
+
+The verified process-image loader maps the `0x287000`-byte prepared executable
+into its real virtual segment addresses and explicitly zeros BSS
+`0x00386670-0x005A45D8`. Text/rodata are enforced read-only; data/BSS and the
+main stack are writable. TLS pages are mapped from the recovered
+`0x1FF82000 + n*0x200` thread addresses.
+
+A synthetic generated-registry test now exercises the complete component path:
+main A32 thread -> WaitSynchronization1 SVC -> context save -> child A32 thread ->
+SignalEvent -> ExitThread -> main context restore with ResultSuccess -> ExitThread.
+
+Unknown SVCs remain explicit runner stops.
+
+GitHub Actions run **37165798433** passed the committed expanded runtime suite
+with both **GCC** and **Clang**, including `ctr_kernel_test` and the new
+`ctr_runner_test`.
+
+See `reports/recovery-host/AOT-RUNNER.md`.
+
+The scratch environment still contains the real current 599-page generated tree
+(545,111 slots / 111,043 emitted blocks / zero explicit unsupported ops) and the
+verified `code.bin`. Those proprietary/derived game pages are intentionally not
+being dumped into the public repo.
+
+This is now a genuine **native executable skeleton architecture**: mapped guest
+memory, AOT dispatch, SVC routing, waits, context switching, and scheduling all
+exist and are tested together. It is still **not a complete LEGOChaseNative game
+build** because CTR service port/session IPC and the startup services have not yet
+been reconstructed.
