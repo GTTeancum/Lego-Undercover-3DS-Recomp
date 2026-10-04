@@ -62,6 +62,21 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
     }
 
     switch (exit.detail) {
+    case kSvcControlMemory: {
+        auto* guest_memory = dynamic_cast<GuestMemory*>(memory);
+        if (guest_memory == nullptr) return exit;
+        const std::uint32_t operation = state.r[0];
+        const std::uint32_t addr0 = state.r[1];
+        const std::uint32_t addr1 = state.r[2];
+        const std::uint32_t size = state.r[3];
+        const std::uint32_t permissions = state.r[4];
+        std::uint32_t out_address = 0;
+        const Result result = kernel_.ControlMemory(guest_memory, &out_address, addr0, addr1, size, operation, permissions);
+        state.r[0] = result;
+        if (result == kResultSuccess) state.r[1] = out_address;
+        return ResumeAfterSvc(exit.pc, state);
+    }
+
     case kSvcCreateThread: {
         ::lego::ctr::Handle handle = 0;
         const Result result = kernel_.CreateThread(
@@ -140,6 +155,38 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
         state.r[0] = kernel_.ClearEvent(state.r[0]);
         return ResumeAfterSvc(exit.pc, state);
 
+    case kSvcArbitrateAddress: {
+        auto* guest_memory = dynamic_cast<GuestMemory*>(memory);
+        if (guest_memory == nullptr) return exit;
+        const std::int64_t timeout = Signed64(state.r[4], state.r[5]);
+        const WaitOutcome outcome = kernel_.ArbitrateAddress(guest_memory, state.r[0], state.r[1], state.r[2], static_cast<std::int32_t>(state.r[3]), timeout);
+        state.r[0] = outcome.result;
+        return outcome.blocked ? WaitAfterSvc(exit.pc,state) : ResumeAfterSvc(exit.pc,state);
+    }
+
+    case kSvcCreateAddressArbiter: {
+        ::lego::ctr::Handle handle = 0;
+        const Result result = kernel_.CreateAddressArbiter(&handle);
+        state.r[0] = result;
+        if (result == kResultSuccess) {
+            state.r[1] = handle;
+        }
+        return ResumeAfterSvc(exit.pc, state);
+    }
+
+    case kSvcGetSystemTick: {
+        // CTR ARM11 base clock recovered from Citra/Azahar timing. Keep the
+        // source deterministic and guest-time based rather than host wall time.
+        constexpr std::uint64_t kArm11TicksPerSecond = 268111856ULL;
+        const std::uint64_t ticks =
+            (kernel_.now_ns() / 1000000000ULL) * kArm11TicksPerSecond +
+            ((kernel_.now_ns() % 1000000000ULL) * kArm11TicksPerSecond) /
+                1000000000ULL;
+        state.r[0] = static_cast<std::uint32_t>(ticks);
+        state.r[1] = static_cast<std::uint32_t>(ticks >> 32U);
+        return ResumeAfterSvc(exit.pc, state);
+    }
+
     case kSvcDuplicateHandle: {
         const ::lego::ctr::Handle source = state.r[1];
         ::lego::ctr::Handle duplicate = 0;
@@ -200,6 +247,32 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
         return ResumeAfterSvc(exit.pc, state);
     }
 
+
+    case kSvcGetProcessId: {
+        std::uint32_t process_id = 0;
+        const Result result = kernel_.GetProcessId(&process_id, state.r[1]);
+        state.r[0] = result;
+        if (result == kResultSuccess) state.r[1] = process_id;
+        return ResumeAfterSvc(exit.pc, state);
+    }
+
+    case kSvcGetResourceLimitLimitValues:
+    case kSvcGetResourceLimitCurrentValues: {
+        auto* guest_memory = dynamic_cast<GuestMemory*>(memory);
+        if (guest_memory == nullptr) return exit;
+        state.r[0] = kernel_.GetResourceLimitValues(
+            guest_memory, exit.detail == kSvcGetResourceLimitCurrentValues,
+            state.r[0], state.r[1], state.r[2], state.r[3]);
+        return ResumeAfterSvc(exit.pc, state);
+    }
+
+    case kSvcGetResourceLimit: {
+        ::lego::ctr::Handle handle = 0;
+        const Result result = kernel_.GetResourceLimit(&handle, state.r[1]);
+        state.r[0] = result;
+        if (result == kResultSuccess) { state.r[1] = handle; }
+        return ResumeAfterSvc(exit.pc, state);
+    }
 
     case kSvcConnectToPort: {
         if (ipc_ == nullptr || memory == nullptr) {

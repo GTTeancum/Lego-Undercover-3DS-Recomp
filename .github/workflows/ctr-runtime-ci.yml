@@ -1,66 +1,27 @@
 name: CTR Runtime CI
-
 on:
   push:
     branches: [main]
     paths:
-      - "src/runtime/**"
-      - "tests/ctr_kernel_test.cpp"
-      - "tests/ctr_runner_test.cpp"
-      - "tests/ctr_ipc_test.cpp"
+      - "src/**"
+      - "tests/ctr_*"
+      - "cmake/**"
+      - "CMakeLists.txt"
       - "vendor/triaevum-a9b4477/recomp/**"
       - ".github/workflows/ctr-runtime-ci.yml"
   workflow_dispatch:
-
 jobs:
   runtime-test:
-    name: ${{ matrix.compiler }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         compiler: [g++, clang++]
-
     steps:
       - uses: actions/checkout@v6
-
-      - name: Build CTR runtime tests
-        run: |
-          COMMON_SOURCES="src/runtime/ctr_kernel.cpp src/runtime/ctr_svc_bridge.cpp src/runtime/ctr_memory.cpp src/runtime/ctr_runner.cpp src/runtime/ctr_ipc.cpp vendor/triaevum-a9b4477/recomp/a32_runtime.cpp vendor/triaevum-a9b4477/recomp/a32_core.cpp vendor/triaevum-a9b4477/recomp/a32_core_alu.cpp vendor/triaevum-a9b4477/recomp/a32_core_memory.cpp vendor/triaevum-a9b4477/recomp/a32_vfp_binary64.cpp vendor/triaevum-a9b4477/recomp/a32_vfp_scalar.cpp vendor/triaevum-a9b4477/recomp/a32_vfp_transport.cpp"
-
-          "${{ matrix.compiler }}" -std=c++20 -O2 -Wall -Wextra -pedantic \
-            -Isrc -Ivendor/triaevum-a9b4477 \
-            tests/ctr_kernel_test.cpp $COMMON_SOURCES \
-            -o ctr_kernel_test
-
-          "${{ matrix.compiler }}" -std=c++20 -O2 -Wall -Wextra -pedantic \
-            -Isrc -Ivendor/triaevum-a9b4477 \
-            tests/ctr_runner_test.cpp $COMMON_SOURCES \
-            -o ctr_runner_test
-
-          "${{ matrix.compiler }}" -std=c++20 -O2 -Wall -Wextra -pedantic \
-            -Isrc -Ivendor/triaevum-a9b4477 \
-            tests/ctr_ipc_test.cpp $COMMON_SOURCES \
-            -o ctr_ipc_test
-
-      - name: Run CTR kernel test
-        run: ./ctr_kernel_test
-
-      - name: Run CTR runner test
-        run: ./ctr_runner_test
-
-      - name: Run CTR IPC test
-        run: ./ctr_ipc_test
-
-      - name: Package runtime source bundle
-        if: matrix.compiler == 'g++'
-        run: |
-          tar -czf ctr-runtime-source.tgz src/runtime vendor/triaevum-a9b4477/recomp cmake/LEGOHostRuntime.cmake
-
-      - name: Upload runtime source bundle
-        if: matrix.compiler == 'g++'
-        uses: actions/upload-artifact@v5
-        with:
-          name: ctr-runtime-source
-          path: ctr-runtime-source.tgz
-          retention-days: 1
+      - name: Configure ROM-free runtime tests
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+      - name: Build
+        run: cmake --build build --parallel 2
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

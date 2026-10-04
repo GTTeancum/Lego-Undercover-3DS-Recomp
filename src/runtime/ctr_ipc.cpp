@@ -197,6 +197,7 @@ Result IpcRouter::ConnectToPort(Kernel& kernel, GuestMemory& memory,
 
 Result IpcRouter::ConnectToService(Kernel& kernel, std::string_view name,
                                    Handle* out_handle) {
+    last_lookup_name_ = name;
     const auto it = services_.find(std::string(name));
     if (it == services_.end()) {
         return kResultServiceNotRegistered;
@@ -219,6 +220,9 @@ Result IpcRouter::SendSyncRequest(Kernel& kernel, GuestMemory& memory,
         return kResultInvalidPointer;
     }
 
+    last_session_name_ = session->name;
+    last_lookup_name_.clear();
+    last_request_ = command;
     const Result dispatch_result =
         session->service->Handle(*this, kernel, memory,
                                  *kernel.current_thread(), command);

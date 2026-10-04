@@ -1,0 +1,76 @@
+{
+  "format": "lego_native_startup_checkpoint_v1",
+  "date_utc": "2026-10-04",
+  "base_commit": "d726390ce406d724f87f8feebc0e23e4b0c0e6a8",
+  "game_code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "generated_pages": 599,
+  "generated_regular_files": 603,
+  "verified_instruction_words": 545111,
+  "registry_block_entries": 111043,
+  "baseline": {
+    "reason": "UnsupportedSvc",
+    "svc": "0x21",
+    "pc": "0x00101D8C",
+    "dispatch_rounds": 1
+  },
+  "after": {
+    "reason": "WaitingNoRunnableThread",
+    "pc": "0x0024B324",
+    "thread_id": 1,
+    "dispatch_rounds": 13,
+    "host_exit_code": 3,
+    "last_session": "srv:",
+    "requested_service": "APT:U",
+    "request_header": "0x00050100",
+    "service_result": "0xD0406401"
+  },
+  "validation": {
+    "gcc_ctest": "4/4 passed",
+    "clang_ctest": "4/4 passed",
+    "gcc_full_599_page_build": true,
+    "clang_full_599_page_build": true,
+    "same_length_wrong_revision_rejected": true,
+    "startup_logs_byte_identical": true
+  },
+  "artifacts": {
+    "startup-gcc.log": {
+      "bytes": 666,
+      "sha256": "b24274992d72d99b7c85aaa7718476a419469f0b2ff8395270e9d073257d7aca"
+    },
+    "startup-clang.log": {
+      "bytes": 666,
+      "sha256": "b24274992d72d99b7c85aaa7718476a419469f0b2ff8395270e9d073257d7aca"
+    },
+    "baseline-startup.log": {
+      "bytes": 584,
+      "sha256": "8787199badc30157d4156d2497625d0bdec997f5e99025cb56fb00e239b1d7fc"
+    },
+    "ctest-gcc.log": {
+      "bytes": 592,
+      "sha256": "d926cdc27e659308a2839e75e12e29f4ea3437fa60663d0287e884a7d2bfc4ea"
+    },
+    "ctest-clang.log": {
+      "bytes": 596,
+      "sha256": "646a16b22b9c0f796b06d89ec9f3a37393b91c699938603d5dd1651e16e6680e"
+    },
+    "wrong-revision-check.log": {
+      "bytes": 103,
+      "sha256": "791941fd524c940d011b7d8d1753df83e388ac831990eb6569b1b5e68d6ae89c"
+    },
+    "build-gcc/LEGOChaseNative": {
+      "bytes": 10117752,
+      "sha256": "f02ff3a8f54b2383f6815951414cb33ad687405688b43477db56eca48aa136ee"
+    },
+    "build-clang/LEGOChaseNative": {
+      "bytes": 10088984,
+      "sha256": "4cc568da6f2502a0564696f9fed30799f5168013b718a81669d862e7434e4a8b"
+    }
+  },
+  "limitations": [
+    "No title screen, renderer, controls, audio, or gameplay validation.",
+    "The raw AOT word check is not proof of correct lowering/metadata or complete control-flow coverage.",
+    "GetSystemTick uses kernel guest time; dispatch-driven time advancement is not reconstructed.",
+    "Older saved service code is unreviewed and was not copied wholesale.",
+    "CI has been updated but a new hosted CI result has not yet been observed."
+  ]
+}

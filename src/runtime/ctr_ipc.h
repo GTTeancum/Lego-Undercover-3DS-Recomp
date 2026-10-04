@@ -86,6 +86,12 @@ public:
 
     [[nodiscard]] bool HasService(std::string_view name) const;
 
+    // Last guest request, captured before handlers replace it with a response.
+    // Diagnostics only: these fields do not alter IPC or service availability.
+    [[nodiscard]] const std::string& last_session_name() const noexcept { return last_session_name_; }
+    [[nodiscard]] const std::string& last_lookup_name() const noexcept { return last_lookup_name_; }
+    [[nodiscard]] const IpcCommandBuffer& last_request() const noexcept { return last_request_; }
+
 private:
     bool ReadCString(GuestMemory& memory, std::uint32_t address,
                      std::size_t max_length, std::string* out) const;
@@ -94,6 +100,9 @@ private:
     bool WriteCommandBuffer(GuestMemory& memory, const ThreadObject& thread,
                             const IpcCommandBuffer& command) const;
 
+    std::string last_session_name_;
+    std::string last_lookup_name_;
+    IpcCommandBuffer last_request_{};
     std::shared_ptr<IpcService> srv_;
     std::unordered_map<std::string, std::shared_ptr<IpcService>> services_;
 };

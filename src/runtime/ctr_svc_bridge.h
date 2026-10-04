@@ -8,6 +8,7 @@
 namespace lego::ctr {
 namespace a32 = oot3d::recomp::a32;
 
+inline constexpr std::uint32_t kSvcControlMemory = 0x01U;
 inline constexpr std::uint32_t kSvcCreateThread = 0x08U;
 inline constexpr std::uint32_t kSvcExitThread = 0x09U;
 inline constexpr std::uint32_t kSvcSleepThread = 0x0AU;
@@ -18,12 +19,19 @@ inline constexpr std::uint32_t kSvcReleaseSemaphore = 0x16U;
 inline constexpr std::uint32_t kSvcCreateEvent = 0x17U;
 inline constexpr std::uint32_t kSvcSignalEvent = 0x18U;
 inline constexpr std::uint32_t kSvcClearEvent = 0x19U;
+inline constexpr std::uint32_t kSvcCreateAddressArbiter = 0x21U;
+inline constexpr std::uint32_t kSvcArbitrateAddress = 0x22U;
 inline constexpr std::uint32_t kSvcCloseHandle = 0x23U;
 inline constexpr std::uint32_t kSvcWaitSynchronization1 = 0x24U;
 inline constexpr std::uint32_t kSvcWaitSynchronizationN = 0x25U;
 inline constexpr std::uint32_t kSvcDuplicateHandle = 0x27U;
+inline constexpr std::uint32_t kSvcGetSystemTick = 0x28U;
 inline constexpr std::uint32_t kSvcConnectToPort = 0x2DU;
 inline constexpr std::uint32_t kSvcSendSyncRequest = 0x32U;
+inline constexpr std::uint32_t kSvcGetProcessId = 0x35U;
+inline constexpr std::uint32_t kSvcGetResourceLimit = 0x38U;
+inline constexpr std::uint32_t kSvcGetResourceLimitLimitValues = 0x39U;
+inline constexpr std::uint32_t kSvcGetResourceLimitCurrentValues = 0x3AU;
 
 class IpcRouter;
 
