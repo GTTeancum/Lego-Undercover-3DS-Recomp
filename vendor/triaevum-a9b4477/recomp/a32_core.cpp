@@ -9,6 +9,7 @@ namespace {
 
 constexpr std::uint32_t kSystemFormMask = 0x0FFF0FFFU;
 constexpr std::uint32_t kMrcTpidrurw = 0x0E1D0F70U;
+constexpr std::uint32_t kArmNop = 0x0320F000U;
 constexpr std::uint32_t kLegacyDsb = 0x0E070F9AU;
 constexpr std::uint32_t kLegacyDmb = 0x0E070FBAU;
 constexpr std::uint32_t kMrsApsrMask = 0x0FBF0FFFU;
@@ -34,6 +35,13 @@ ExecutionResult ExecuteObservedSystem(
         const std::uint8_t rm = static_cast<std::uint8_t>(raw & 0xFU);
         state.cpsr =
             (state.cpsr & 0x00FFFFFFU) | (state.r[rm] & 0xFF000000U);
+        state.r[15] = pc + 4U;
+        return {ExitKind::Fallthrough, pc + 4U, FallbackReason::None, 0U};
+    }
+
+    // ARM architectural NOP uses r15 in the encoded Rt field, so it must
+    // be recognized before the generic system-register Rt validation.
+    if ((raw & 0x0FFFFFFFU) == kArmNop) {
         state.r[15] = pc + 4U;
         return {ExitKind::Fallthrough, pc + 4U, FallbackReason::None, 0U};
     }
