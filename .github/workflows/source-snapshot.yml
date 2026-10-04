@@ -1,0 +1,33 @@
+name: Source recovery snapshot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/source-snapshot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Archive committed source only
+        run: |
+          git archive --format=tar.gz --output=source-snapshot.tgz HEAD
+          sha256sum source-snapshot.tgz > source-snapshot.sha256
+          git rev-parse HEAD > source-commit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-snapshot
+          path: |
+            source-snapshot.tgz
+            source-snapshot.sha256
+            source-commit.txt
+          if-no-files-found: error
+          retention-days: 30
