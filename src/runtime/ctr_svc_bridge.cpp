@@ -1,5 +1,7 @@
 #include "runtime/ctr_svc_bridge.h"
 
+#include "runtime/ctr_ipc.h"
+
 #include <vector>
 
 namespace lego::ctr {
@@ -195,6 +197,37 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
             state.r[1] = 0xFFFFFFFFU;
             return WaitAfterSvc(exit.pc, state);
         }
+        return ResumeAfterSvc(exit.pc, state);
+    }
+
+
+    case kSvcConnectToPort: {
+        if (ipc_ == nullptr || memory == nullptr) {
+            return exit;
+        }
+        auto* guest_memory = dynamic_cast<GuestMemory*>(memory);
+        if (guest_memory == nullptr) {
+            return exit;
+        }
+        ::lego::ctr::Handle handle = 0;
+        const Result result = ipc_->ConnectToPort(
+            kernel_, *guest_memory, state.r[1], &handle);
+        state.r[0] = result;
+        if (result == kResultSuccess) {
+            state.r[1] = handle;
+        }
+        return ResumeAfterSvc(exit.pc, state);
+    }
+
+    case kSvcSendSyncRequest: {
+        if (ipc_ == nullptr || memory == nullptr) {
+            return exit;
+        }
+        auto* guest_memory = dynamic_cast<GuestMemory*>(memory);
+        if (guest_memory == nullptr) {
+            return exit;
+        }
+        state.r[0] = ipc_->SendSyncRequest(kernel_, *guest_memory, state.r[0]);
         return ResumeAfterSvc(exit.pc, state);
     }
 
