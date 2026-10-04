@@ -148,11 +148,49 @@ bool GuestMemory::LoadLegoCodeImage(std::span<const std::uint8_t> code) {
         !LoadBytes(kRodataBase,
                    code.subspan(rodata_offset, kRodataAllocatedBytes)) ||
         !LoadBytes(kDataBase,
-                   code.subspan(data_offset, kDataAllocatedBytes))) {
+                   code.subspan(data_offset, kDataAllocatedBytes)) ||
+        !ZeroBytes(kBssBegin, kBssEnd - kBssBegin)) {
         return false;
     }
 
-    return ZeroBytes(kBssBegin, kBssEnd - kBssBegin);
+    // Retail Old-3DS configuration page. Standard kernel/firmware fields
+    // follow the Citra/Azahar HLE defaults. Memory mode 0 is independently
+    // corroborated by the recovered LEGO Stage-2 run: a 64 MiB application
+    // budget and the exact 0x124B000 + 0x2900000 heap allocations.
+    std::array<std::uint8_t, kConfigMemorySize> config{};
+    const auto put32 = [&](std::size_t offset, std::uint32_t value) {
+        for (unsigned byte = 0; byte < 4; ++byte) {
+            config[offset + byte] =
+                static_cast<std::uint8_t>(value >> (byte * 8U));
+        }
+    };
+    const auto put64 = [&](std::size_t offset, std::uint64_t value) {
+        for (unsigned byte = 0; byte < 8; ++byte) {
+            config[offset + byte] =
+                static_cast<std::uint8_t>(value >> (byte * 8U));
+        }
+    };
+    config[0x02] = 0x3A;
+    config[0x03] = 0x02;
+    put64(0x08, 0x0004013000008002ULL);
+    put32(0x10, 0x00000002U);
+    config[0x14] = 0x01;  // retail unit
+    config[0x16] = 0x01;
+    put32(0x18, 0x0000F450U);
+    put32(0x30, 0x00000000U);  // Old-3DS memory mode 0
+    put32(0x40, 0x04000000U);  // APPLICATION
+    put32(0x44, 0x02C00000U);  // SYSTEM
+    put32(0x48, 0x01400000U);  // BASE
+    config[0x62] = 0x3A;
+    config[0x63] = 0x02;
+    put32(0x64, 0x00000002U);
+    put32(0x68, 0x0000F450U);
+
+    if (!Map(kConfigMemoryBase, kConfigMemorySize, MemoryPermission::Read) ||
+        !LoadBytes(kConfigMemoryBase, config)) {
+        return false;
+    }
+    return true;
 }
 
 bool GuestMemory::EnsureMainStack() {
