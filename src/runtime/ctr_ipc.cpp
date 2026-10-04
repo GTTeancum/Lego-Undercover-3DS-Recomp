@@ -167,12 +167,29 @@ bool IpcRouter::WriteCommandBuffer(GuestMemory& memory,
 Result IpcRouter::ConnectToPort(Kernel& kernel, GuestMemory& memory,
                                 std::uint32_t port_name_address,
                                 Handle* out_handle) {
+    if (!memory.IsReadable(port_name_address, 1U)) {
+        return kResultNotFound;
+    }
+
     std::string port_name;
-    if (!ReadCString(memory, port_name_address, 11U, &port_name)) {
-        return kResultInvalidPointer;
+    bool terminated = false;
+    for (std::size_t index = 0; index < 12U; ++index) {
+        std::uint8_t value = 0;
+        if (!memory.Read8(port_name_address + static_cast<std::uint32_t>(index),
+                          &value)) {
+            return kResultNotFound;
+        }
+        if (value == 0U) {
+            terminated = true;
+            break;
+        }
+        port_name.push_back(static_cast<char>(value));
+    }
+    if (!terminated || port_name.size() > 11U) {
+        return kResultPortNameTooLong;
     }
     if (port_name != "srv:") {
-        return kResultServiceNotRegistered;
+        return kResultNotFound;
     }
     return kernel.handles().Create(
         out_handle, std::make_shared<ClientSessionObject>("srv:", srv_));
