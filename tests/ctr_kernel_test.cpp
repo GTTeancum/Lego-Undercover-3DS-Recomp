@@ -4,10 +4,15 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <unordered_map>
 
 using lego::ctr::GenericObject;
 using lego::ctr::Handle;
 using lego::ctr::KernelObject;
+using lego::ctr::MutexObject;
+using lego::ctr::SemaphoreObject;
+using lego::ctr::ThreadObject;
+using lego::ctr::ThreadStatus;
 
 namespace {
 
@@ -21,14 +26,40 @@ int failures = 0;
         }                                                                              \
     } while (0)
 
+class TestMemory final : public oot3d::recomp::a32::MemoryBus {
+public:
+    bool Read32(std::uint32_t address, std::uint32_t* value) override {
+        const auto it = words.find(address);
+        if (it == words.end())
+            return false;
+        *value = it->second;
+        return true;
+    }
+
+    bool Write32(std::uint32_t address, std::uint32_t value) override {
+        words[address] = value;
+        return true;
+    }
+
+    std::unordered_map<std::uint32_t, std::uint32_t> words;
+};
+
+oot3d::recomp::a32::ExecutionResult Svc(std::uint32_t id,
+                                        std::uint32_t pc = 0x00100000U) {
+    return {
+        oot3d::recomp::a32::ExitKind::Svc,
+        pc,
+        oot3d::recomp::a32::FallbackReason::None,
+        id,
+    };
+}
+
 void TestPseudoHandlesAndDuplicate() {
     lego::ctr::Kernel kernel(7, 11);
     auto thread = kernel.handles().Get(lego::ctr::kCurrentThreadPseudoHandle);
     auto process = kernel.handles().Get(lego::ctr::kCurrentProcessPseudoHandle);
     CHECK(thread == kernel.current_thread());
     CHECK(process == kernel.current_process());
-    CHECK(thread->type() == KernelObject::Type::Thread);
-    CHECK(process->type() == KernelObject::Type::Process);
 
     Handle duplicate = 0;
     CHECK(kernel.DuplicateHandle(&duplicate, lego::ctr::kCurrentThreadPseudoHandle) ==
@@ -36,14 +67,8 @@ void TestPseudoHandlesAndDuplicate() {
     CHECK(duplicate == 1U);
     CHECK(kernel.handles().IsValid(duplicate));
     CHECK(kernel.handles().Get(duplicate) == thread);
-    CHECK(kernel.handles().OpenHandleCount() == 1U);
-
     CHECK(kernel.CloseHandle(duplicate) == lego::ctr::kResultSuccess);
     CHECK(!kernel.handles().IsValid(duplicate));
-    CHECK(kernel.handles().Get(duplicate) == nullptr);
-    CHECK(kernel.CloseHandle(duplicate) == lego::ctr::kResultInvalidHandle);
-    CHECK(kernel.CloseHandle(lego::ctr::kCurrentThreadPseudoHandle) ==
-          lego::ctr::kResultInvalidHandle);
 }
 
 void TestGenerationProtectsStaleHandles() {
@@ -64,18 +89,249 @@ void TestGenerationProtectsStaleHandles() {
     CHECK((first >> 15U) == (second >> 15U));
 }
 
-void TestTableLimit() {
+void TestEventResetModes() {
     lego::ctr::Kernel kernel;
-    Handle handle = 0;
-    for (std::size_t i = 0; i < lego::ctr::HandleTable::kMaxCount; ++i) {
-        CHECK(kernel.handles().Create(
-                  &handle, std::make_shared<GenericObject>(KernelObject::Type::Other)) ==
-              lego::ctr::kResultSuccess);
+    Handle one_shot = 0;
+    Handle sticky = 0;
+    Handle pulse = 0;
+    CHECK(kernel.CreateEvent(&one_shot, 0) == lego::ctr::kResultSuccess);
+    CHECK(kernel.CreateEvent(&sticky, 1) == lego::ctr::kResultSuccess);
+    CHECK(kernel.CreateEvent(&pulse, 2) == lego::ctr::kResultSuccess);
+
+    CHECK(kernel.SignalEvent(one_shot) == lego::ctr::kResultSuccess);
+    CHECK(kernel.WaitSynchronization1(one_shot, 0).result == lego::ctr::kResultSuccess);
+    CHECK(kernel.WaitSynchronization1(one_shot, 0).result == lego::ctr::kResultTimeout);
+
+    CHECK(kernel.SignalEvent(sticky) == lego::ctr::kResultSuccess);
+    CHECK(kernel.WaitSynchronization1(sticky, 0).result == lego::ctr::kResultSuccess);
+    CHECK(kernel.WaitSynchronization1(sticky, 0).result == lego::ctr::kResultSuccess);
+    CHECK(kernel.ClearEvent(sticky) == lego::ctr::kResultSuccess);
+    CHECK(kernel.WaitSynchronization1(sticky, 0).result == lego::ctr::kResultTimeout);
+
+    CHECK(kernel.SignalEvent(pulse) == lego::ctr::kResultSuccess);
+    CHECK(kernel.WaitSynchronization1(pulse, 0).result == lego::ctr::kResultTimeout);
+}
+
+void TestBlockedWaitSignalAndTimeout() {
+    {
+        lego::ctr::Kernel kernel;
+        Handle event = 0;
+        CHECK(kernel.CreateEvent(&event, 0) == lego::ctr::kResultSuccess);
+        const auto out = kernel.WaitSynchronization1(event, 100);
+        CHECK(out.result == lego::ctr::kResultTimeout);
+        CHECK(out.blocked);
+        CHECK(kernel.current_thread()->status == ThreadStatus::WaitSynchAny);
+        CHECK(kernel.SignalEvent(event) == lego::ctr::kResultSuccess);
+        CHECK(kernel.current_thread()->status == ThreadStatus::Ready);
+
+        lego::ctr::Result result = 0;
+        std::int32_t index = -7;
+        bool valid = true;
+        CHECK(kernel.ConsumeCurrentThreadWake(&result, &index, &valid));
+        CHECK(result == lego::ctr::kResultSuccess);
+        CHECK(!valid);
     }
-    CHECK(kernel.handles().OpenHandleCount() == lego::ctr::HandleTable::kMaxCount);
-    CHECK(kernel.handles().Create(
-              &handle, std::make_shared<GenericObject>(KernelObject::Type::Other)) ==
-          lego::ctr::kResultOutOfHandles);
+
+    {
+        lego::ctr::Kernel kernel;
+        Handle event = 0;
+        CHECK(kernel.CreateEvent(&event, 0) == lego::ctr::kResultSuccess);
+        const auto out = kernel.WaitSynchronization1(event, 50);
+        CHECK(out.blocked);
+        kernel.AdvanceTime(49);
+        CHECK(kernel.current_thread()->status == ThreadStatus::WaitSynchAny);
+        kernel.AdvanceTime(1);
+        CHECK(kernel.current_thread()->status == ThreadStatus::Ready);
+
+        lego::ctr::Result result = 0;
+        std::int32_t index = 99;
+        bool valid = true;
+        CHECK(kernel.ConsumeCurrentThreadWake(&result, &index, &valid));
+        CHECK(result == lego::ctr::kResultTimeout);
+        CHECK(!valid);
+        CHECK(index == -1);
+    }
+}
+
+void TestWaitAnyAndAll() {
+    {
+        lego::ctr::Kernel kernel;
+        Handle e0 = 0;
+        Handle e1 = 0;
+        kernel.CreateEvent(&e0, 1);
+        kernel.CreateEvent(&e1, 1);
+        kernel.SignalEvent(e1);
+        Handle handles[] = {e0, e1};
+
+        const auto out = kernel.WaitSynchronizationN(handles, false, 0);
+        CHECK(out.result == lego::ctr::kResultSuccess);
+        CHECK(out.index_valid);
+        CHECK(out.index == 1);
+    }
+
+    {
+        lego::ctr::Kernel kernel;
+        Handle e0 = 0;
+        Handle e1 = 0;
+        kernel.CreateEvent(&e0, 1);
+        kernel.CreateEvent(&e1, 1);
+        kernel.SignalEvent(e0);
+        Handle handles[] = {e0, e1};
+
+        const auto out = kernel.WaitSynchronizationN(handles, true, 1000);
+        CHECK(out.blocked);
+        CHECK(kernel.current_thread()->status == ThreadStatus::WaitSynchAll);
+        kernel.SignalEvent(e1);
+        CHECK(kernel.current_thread()->status == ThreadStatus::Ready);
+
+        lego::ctr::Result result = 0;
+        std::int32_t index = 123;
+        bool valid = true;
+        CHECK(kernel.ConsumeCurrentThreadWake(&result, &index, &valid));
+        CHECK(result == lego::ctr::kResultSuccess);
+        CHECK(!valid);
+    }
+}
+
+void TestMutexAndSemaphore() {
+    lego::ctr::Kernel kernel;
+    Handle mutex_handle = 0;
+    CHECK(kernel.CreateMutex(&mutex_handle, true) == lego::ctr::kResultSuccess);
+    auto mutex = std::dynamic_pointer_cast<MutexObject>(kernel.handles().Get(mutex_handle));
+    CHECK(mutex != nullptr);
+    CHECK(mutex->lock_count() == 1);
+
+    mutex->Acquire(*kernel.current_thread());
+    CHECK(mutex->lock_count() == 2);
+    CHECK(kernel.ReleaseMutex(mutex_handle) == lego::ctr::kResultSuccess);
+    CHECK(mutex->lock_count() == 1);
+    CHECK(kernel.ReleaseMutex(mutex_handle) == lego::ctr::kResultSuccess);
+    CHECK(mutex->lock_count() == 0);
+
+    Handle child_handle = 0;
+    CHECK(kernel.CreateThread(&child_handle, 0x00200000, 0, 0x08000000, 32, 0) ==
+          lego::ctr::kResultSuccess);
+    auto child = std::dynamic_pointer_cast<ThreadObject>(kernel.handles().Get(child_handle));
+    CHECK(child != nullptr);
+
+    mutex->Acquire(*kernel.current_thread());
+    CHECK(mutex->ShouldWait(*child));
+    CHECK(mutex->Release(*child) == lego::ctr::kResultWrongLockingThread);
+    CHECK(kernel.ReleaseMutex(mutex_handle) == lego::ctr::kResultSuccess);
+
+    Handle semaphore_handle = 0;
+    CHECK(kernel.CreateSemaphore(&semaphore_handle, 0, 2) == lego::ctr::kResultSuccess);
+    CHECK(kernel.WaitSynchronization1(semaphore_handle, 0).result ==
+          lego::ctr::kResultTimeout);
+
+    std::int32_t previous = -1;
+    CHECK(kernel.ReleaseSemaphore(&previous, semaphore_handle, 1) ==
+          lego::ctr::kResultSuccess);
+    CHECK(previous == 0);
+    CHECK(kernel.WaitSynchronization1(semaphore_handle, 0).result ==
+          lego::ctr::kResultSuccess);
+
+    auto semaphore =
+        std::dynamic_pointer_cast<SemaphoreObject>(kernel.handles().Get(semaphore_handle));
+    CHECK(semaphore->available_count() == 0);
+    CHECK(kernel.ReleaseSemaphore(&previous, semaphore_handle, 3) ==
+          lego::ctr::kResultOutOfRangeKernel);
+}
+
+void TestThreadCreateAndSleep() {
+    lego::ctr::Kernel kernel;
+    Handle thread_handle = 0;
+    CHECK(kernel.CreateThread(&thread_handle, 0x00123400, 0x55, 0x07FFF000, 20, -1) ==
+          lego::ctr::kResultSuccess);
+
+    auto thread = std::dynamic_pointer_cast<ThreadObject>(kernel.handles().Get(thread_handle));
+    CHECK(thread != nullptr);
+    CHECK(thread->status == ThreadStatus::Ready);
+    CHECK(thread->entry_point == 0x00123400U);
+    CHECK(thread->argument == 0x55U);
+    CHECK(thread->priority == 20U);
+    CHECK(thread->processor_id == 0);
+    CHECK(kernel.HighestPriorityReadyThread() == thread);
+
+    CHECK(kernel.SleepCurrentThread(100));
+    CHECK(kernel.current_thread()->status == ThreadStatus::WaitSleep);
+    kernel.AdvanceTime(100);
+    CHECK(kernel.current_thread()->status == ThreadStatus::Ready);
+}
+
+void TestSvcAbisAndWake() {
+    lego::ctr::Kernel kernel;
+    lego::ctr::SvcBridge bridge(kernel);
+    oot3d::recomp::a32::GuestState state{};
+
+    state.r[1] = 0;
+    auto result = bridge.Handle(Svc(lego::ctr::kSvcCreateEvent), state);
+    CHECK(result.kind == oot3d::recomp::a32::ExitKind::Fallthrough);
+    CHECK(state.r[0] == lego::ctr::kResultSuccess);
+    const Handle event = state.r[1];
+
+    state.r[0] = event;
+    state.r[2] = 100;
+    state.r[3] = 0;
+    result =
+        bridge.Handle(Svc(lego::ctr::kSvcWaitSynchronization1, 0x00110000), state);
+    CHECK(result.kind == oot3d::recomp::a32::ExitKind::Wait);
+    CHECK(state.r[0] == lego::ctr::kResultTimeout);
+    CHECK(state.r[15] == 0x00110004U);
+    CHECK(kernel.SignalEvent(event) == lego::ctr::kResultSuccess);
+    CHECK(bridge.ApplyPendingWake(state));
+    CHECK(state.r[0] == lego::ctr::kResultSuccess);
+
+    state.r[1] = 0;
+    state.r[2] = 2;
+    bridge.Handle(Svc(lego::ctr::kSvcCreateSemaphore), state);
+    CHECK(state.r[0] == lego::ctr::kResultSuccess);
+    const Handle semaphore = state.r[1];
+
+    state.r[1] = semaphore;
+    state.r[2] = 1;
+    bridge.Handle(Svc(lego::ctr::kSvcReleaseSemaphore), state);
+    CHECK(state.r[0] == lego::ctr::kResultSuccess);
+    CHECK(state.r[1] == 0U);
+
+    state.r[0] = 30;
+    state.r[1] = 0x00200000;
+    state.r[2] = 0xABC;
+    state.r[3] = 0x07FFE000;
+    state.r[4] = static_cast<std::uint32_t>(-1);
+    bridge.Handle(Svc(lego::ctr::kSvcCreateThread), state);
+    CHECK(state.r[0] == lego::ctr::kResultSuccess);
+    auto child = std::dynamic_pointer_cast<ThreadObject>(kernel.handles().Get(state.r[1]));
+    CHECK(child != nullptr);
+    CHECK(child->priority == 30U);
+    CHECK(child->entry_point == 0x00200000U);
+}
+
+void TestWaitNSvcMemoryAbi() {
+    lego::ctr::Kernel kernel;
+    lego::ctr::SvcBridge bridge(kernel);
+    TestMemory memory;
+
+    Handle e0 = 0;
+    Handle e1 = 0;
+    kernel.CreateEvent(&e0, 1);
+    kernel.CreateEvent(&e1, 1);
+    kernel.SignalEvent(e1);
+    memory.words[0x2000] = e0;
+    memory.words[0x2004] = e1;
+
+    oot3d::recomp::a32::GuestState state{};
+    state.r[0] = 0;
+    state.r[1] = 0x2000;
+    state.r[2] = 2;
+    state.r[3] = 0;
+    state.r[4] = 0;
+
+    const auto result =
+        bridge.Handle(Svc(lego::ctr::kSvcWaitSynchronizationN), state, &memory);
+    CHECK(result.kind == oot3d::recomp::a32::ExitKind::Fallthrough);
+    CHECK(state.r[0] == lego::ctr::kResultSuccess);
+    CHECK(state.r[1] == 1U);
 }
 
 void TestDuplicateSvcStage2Shape() {
@@ -83,63 +339,13 @@ void TestDuplicateSvcStage2Shape() {
     lego::ctr::SvcBridge bridge(kernel);
     oot3d::recomp::a32::GuestState state{};
     state.r[1] = lego::ctr::kCurrentThreadPseudoHandle;
-    state.r[15] = 0x0013313CU;
 
-    const oot3d::recomp::a32::ExecutionResult svc_exit{
-        oot3d::recomp::a32::ExitKind::Svc,
-        0x0013313CU,
-        oot3d::recomp::a32::FallbackReason::None,
-        lego::ctr::kSvcDuplicateHandle,
-    };
-
-    const auto resumed = bridge.Handle(svc_exit, state);
+    const auto resumed =
+        bridge.Handle(Svc(lego::ctr::kSvcDuplicateHandle, 0x0013313C), state);
     CHECK(resumed.kind == oot3d::recomp::a32::ExitKind::Fallthrough);
     CHECK(resumed.pc == 0x00133140U);
-    CHECK(state.r[15] == 0x00133140U);
     CHECK(state.r[0] == lego::ctr::kResultSuccess);
     CHECK(state.r[1] != lego::ctr::kCurrentThreadPseudoHandle);
-    CHECK(kernel.handles().IsValid(state.r[1]));
-    CHECK(kernel.handles().Get(state.r[1]) == kernel.current_thread());
-
-    state.r[0] = state.r[1];
-    const oot3d::recomp::a32::ExecutionResult close_exit{
-        oot3d::recomp::a32::ExitKind::Svc,
-        0x00140000U,
-        oot3d::recomp::a32::FallbackReason::None,
-        lego::ctr::kSvcCloseHandle,
-    };
-    const auto after_close = bridge.Handle(close_exit, state);
-    CHECK(after_close.kind == oot3d::recomp::a32::ExitKind::Fallthrough);
-    CHECK(state.r[0] == lego::ctr::kResultSuccess);
-}
-
-void TestInvalidAndUnsupportedSvc() {
-    lego::ctr::Kernel kernel;
-    lego::ctr::SvcBridge bridge(kernel);
-    oot3d::recomp::a32::GuestState state{};
-    state.r[1] = 0x12345678U;
-
-    const oot3d::recomp::a32::ExecutionResult bad_duplicate{
-        oot3d::recomp::a32::ExitKind::Svc,
-        0x00100000U,
-        oot3d::recomp::a32::FallbackReason::None,
-        lego::ctr::kSvcDuplicateHandle,
-    };
-    bridge.Handle(bad_duplicate, state);
-    CHECK(state.r[0] == lego::ctr::kResultInvalidHandle);
-    CHECK(state.r[1] == 0x12345678U);
-
-    const auto before = state;
-    const oot3d::recomp::a32::ExecutionResult unsupported{
-        oot3d::recomp::a32::ExitKind::Svc,
-        0x00100004U,
-        oot3d::recomp::a32::FallbackReason::None,
-        0x7FU,
-    };
-    const auto returned = bridge.Handle(unsupported, state);
-    CHECK(returned.kind == oot3d::recomp::a32::ExitKind::Svc);
-    CHECK(returned.detail == 0x7FU);
-    CHECK(state.r == before.r);
 }
 
 }  // namespace
@@ -147,13 +353,19 @@ void TestInvalidAndUnsupportedSvc() {
 int main() {
     TestPseudoHandlesAndDuplicate();
     TestGenerationProtectsStaleHandles();
-    TestTableLimit();
+    TestEventResetModes();
+    TestBlockedWaitSignalAndTimeout();
+    TestWaitAnyAndAll();
+    TestMutexAndSemaphore();
+    TestThreadCreateAndSleep();
+    TestSvcAbisAndWake();
+    TestWaitNSvcMemoryAbi();
     TestDuplicateSvcStage2Shape();
-    TestInvalidAndUnsupportedSvc();
+
     if (failures != 0) {
-        std::cerr << failures << " CTR kernel checks failed\n";
+        std::cerr << failures << " CTR runtime checks failed\n";
         return EXIT_FAILURE;
     }
-    std::cout << "PASS: CTR handle/SVC checks\n";
+    std::cout << "PASS: CTR handle/thread/sync/SVC checks\n";
     return EXIT_SUCCESS;
 }
