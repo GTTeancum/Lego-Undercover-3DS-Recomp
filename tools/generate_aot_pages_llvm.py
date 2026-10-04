@@ -459,6 +459,11 @@ def walk(
 
 def classify(raw: int, mn: str) -> tuple[str,str,int,str]:
     cond=(raw>>28)&0xf; flags=0
+    # MRC p15,0,Rt,c13,c0,3 reads CP15_THREAD_URO (the per-thread
+    # TLS pointer). Rt varies, so classify the architectural form rather
+    # than a single observed raw word.
+    if (raw & 0x0FFF0FFF) == 0x0E1D0F70:
+        return ('CoreSystem',CONDITIONS[cond],flags,'core_system')
     if (raw&0x0f000000)==0x0f000000: return ('Svc',CONDITIONS[cond],flags,'fast_path')
     if cond!=0xf and (raw&0x0e000000)==0x0a000000:
         if raw&0x01000000: flags|=4
