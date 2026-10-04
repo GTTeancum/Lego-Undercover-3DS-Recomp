@@ -7,6 +7,7 @@ on:
       - "src/runtime/**"
       - "tests/ctr_kernel_test.cpp"
       - "tests/ctr_runner_test.cpp"
+      - "tests/ctr_ipc_test.cpp"
       - "vendor/triaevum-a9b4477/recomp/**"
       - ".github/workflows/ctr-runtime-ci.yml"
   workflow_dispatch:
@@ -25,7 +26,7 @@ jobs:
 
       - name: Build CTR runtime tests
         run: |
-          COMMON_SOURCES="src/runtime/ctr_kernel.cpp src/runtime/ctr_svc_bridge.cpp src/runtime/ctr_memory.cpp src/runtime/ctr_runner.cpp vendor/triaevum-a9b4477/recomp/a32_runtime.cpp vendor/triaevum-a9b4477/recomp/a32_core.cpp vendor/triaevum-a9b4477/recomp/a32_core_alu.cpp vendor/triaevum-a9b4477/recomp/a32_core_memory.cpp vendor/triaevum-a9b4477/recomp/a32_vfp_binary64.cpp vendor/triaevum-a9b4477/recomp/a32_vfp_scalar.cpp vendor/triaevum-a9b4477/recomp/a32_vfp_transport.cpp"
+          COMMON_SOURCES="src/runtime/ctr_kernel.cpp src/runtime/ctr_svc_bridge.cpp src/runtime/ctr_memory.cpp src/runtime/ctr_runner.cpp src/runtime/ctr_ipc.cpp vendor/triaevum-a9b4477/recomp/a32_runtime.cpp vendor/triaevum-a9b4477/recomp/a32_core.cpp vendor/triaevum-a9b4477/recomp/a32_core_alu.cpp vendor/triaevum-a9b4477/recomp/a32_core_memory.cpp vendor/triaevum-a9b4477/recomp/a32_vfp_binary64.cpp vendor/triaevum-a9b4477/recomp/a32_vfp_scalar.cpp vendor/triaevum-a9b4477/recomp/a32_vfp_transport.cpp"
 
           "${{ matrix.compiler }}" -std=c++20 -O2 -Wall -Wextra -pedantic \
             -Isrc -Ivendor/triaevum-a9b4477 \
@@ -37,8 +38,16 @@ jobs:
             tests/ctr_runner_test.cpp $COMMON_SOURCES \
             -o ctr_runner_test
 
+          "${{ matrix.compiler }}" -std=c++20 -O2 -Wall -Wextra -pedantic \
+            -Isrc -Ivendor/triaevum-a9b4477 \
+            tests/ctr_ipc_test.cpp $COMMON_SOURCES \
+            -o ctr_ipc_test
+
       - name: Run CTR kernel test
         run: ./ctr_kernel_test
 
       - name: Run CTR runner test
         run: ./ctr_runner_test
+
+      - name: Run CTR IPC test
+        run: ./ctr_ipc_test
