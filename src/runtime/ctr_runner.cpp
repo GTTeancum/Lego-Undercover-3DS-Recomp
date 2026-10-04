@@ -7,7 +7,7 @@ namespace lego::ctr {
 NativeRunner::NativeRunner(const a32::Registry& registry,
                            GuestMemory& memory,
                            Kernel& kernel) noexcept
-    : registry_(registry), memory_(memory), kernel_(kernel), svc_(kernel) {}
+    : registry_(registry), memory_(memory), kernel_(kernel), ipc_(), svc_(kernel, &ipc_) {}
 
 bool NativeRunner::InitializeMainThread(std::uint32_t entry_point,
                                         std::uint32_t stack_top) noexcept {
