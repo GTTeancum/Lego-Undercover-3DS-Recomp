@@ -315,3 +315,35 @@ ThreadObjects. The kernel now knows which thread should be ready/waiting and why
 but each thread does not yet own a complete saved A32 register/TLS context in the
 runner. That context-switch/resume layer is the next runtime boundary; service
 port/session IPC follows it.
+
+
+## CTR A32 guest-context switch checkpoint
+
+The reconstructed kernel now saves/restores a complete TriAevum `GuestState`
+per guest thread rather than only tracking abstract thread status.
+
+Recovered and tested:
+
+- r0-r15, CPSR, FPSCR, VFP lanes, exclusive-monitor fields, and TPIDRURW are
+  preserved across reschedules.
+- SVC-created threads receive CTR-style initial registers and FPSCR.
+- TLS slots use the recovered `0x1FF82000` base and `0x200` entry size.
+- `0xFFFF8000` is rebound to whichever thread is actually selected.
+- pending wait results are written into the selected thread's saved r0/r1 before
+  execution resumes.
+- a blocked `WaitSynchronization1` child can switch out, be signaled by the
+  main thread, and later resume at the post-SVC PC with ResultSuccess restored.
+
+The committed runtime test suite now runs continuously in GitHub Actions through
+`.github/workflows/ctr-runtime-ci.yml`. Workflow run **37165248493** passed with
+both **GCC** and **Clang** against the committed runtime plus pinned TriAevum
+A32 core/runtime/VFP sources.
+
+See `reports/recovery-host/THREAD-CONTEXT.md`.
+
+Important remaining boundary: TLS virtual addresses and TPIDRURW are now correct,
+but the corresponding guest TLS memory pages are not yet mapped/zeroed by a
+restored LEGO guest-memory manager. The next runner step is to restore that memory
+mapping and add the dispatch/SVC/reschedule loop that joins the 599-page AOT
+registry to this kernel. Service port/session IPC follows after that executable
+skeleton is running.
