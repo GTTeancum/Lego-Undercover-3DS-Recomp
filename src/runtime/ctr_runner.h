@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "recomp/a32_runtime.h"
+#include "runtime/ctr_ipc.h"
 #include "runtime/ctr_kernel.h"
 #include "runtime/ctr_memory.h"
 #include "runtime/ctr_svc_bridge.h"
@@ -38,6 +39,9 @@ public:
     bool InitializeMainThread(std::uint32_t entry_point = kTextBase,
                               std::uint32_t stack_top = kMainStackTop) noexcept;
 
+    [[nodiscard]] IpcRouter& ipc() noexcept { return ipc_; }
+    [[nodiscard]] const IpcRouter& ipc() const noexcept { return ipc_; }
+
     [[nodiscard]] a32::GuestState& live_state() noexcept { return live_state_; }
     [[nodiscard]] const a32::GuestState& live_state() const noexcept {
         return live_state_;
@@ -56,6 +60,7 @@ private:
     const a32::Registry& registry_;
     GuestMemory& memory_;
     Kernel& kernel_;
+    IpcRouter ipc_;
     SvcBridge svc_;
     a32::GuestState live_state_{};
 };
