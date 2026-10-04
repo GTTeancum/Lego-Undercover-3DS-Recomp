@@ -390,3 +390,43 @@ memory, AOT dispatch, SVC routing, waits, context switching, and scheduling all
 exist and are tested together. It is still **not a complete LEGOChaseNative game
 build** because CTR service port/session IPC and the startup services have not yet
 been reconstructed.
+
+
+## CTR named-port / srv: session IPC checkpoint
+
+The native runner now includes the first guest-visible CTR IPC path.
+
+Recovered and dual-compiler tested:
+
+- `svc 0x2D ConnectToPort`
+- `svc 0x32 SendSyncRequest`
+- 64-word IPC buffer at `TLS + 0x80`
+- CTR command-header word counts and command IDs
+- move/copy handle descriptors and CallingPid descriptor
+- named port `srv:`
+- `srv: RegisterClient` (0x0001)
+- `srv: GetServiceHandle` (0x0005)
+- ordinary handle-table-backed client sessions
+- service registration/routing for later HLE services
+
+The ROM-free IPC test connects to `srv:`, sends RegisterClient, asks srv for an
+authored `echo:` service, receives a moved service handle, then sends another
+request through that returned session and verifies the response in guest TLS
+memory. Unknown ports, overlong names, unregistered services, and invalid session
+handles remain explicit errors.
+
+GitHub Actions run **37166400462** passes all three committed runtime suites with
+both **GCC** and **Clang**:
+
+- `ctr_kernel_test`
+- `ctr_runner_test`
+- `ctr_ipc_test`
+
+See `reports/recovery-host/IPC-SRV.md`.
+
+This does **not** yet restore the title-specific filesystem/GSP/HID/DSP/APT service
+set. The surviving Recovery F/J status documents prove the lost runner eventually
+had working services through interactive gameplay, but they do not preserve a full
+ordered startup IPC trace. The next useful step is to run the real reconstructed
+599-page game tree against this runner, stop at the first unregistered
+service/request, and restore services in observed order.
