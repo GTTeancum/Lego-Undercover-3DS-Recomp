@@ -56,7 +56,7 @@ public:
                 return kResultSuccess;
             }
 
-            Handle service_handle = 0;
+            ::lego::ctr::Handle service_handle = 0;
             const Result result =
                 router.ConnectToService(kernel, name, &service_handle);
             command.fill(0);
