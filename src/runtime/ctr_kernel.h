@@ -8,7 +8,10 @@
 #include <span>
 #include <vector>
 
+#include "recomp/a32_runtime.h"
+
 namespace lego::ctr {
+namespace a32 = oot3d::recomp::a32;
 
 using Handle = std::uint32_t;
 using Result = std::uint32_t;
@@ -31,6 +34,11 @@ inline constexpr std::uint32_t kThreadPriorityLowest = 63U;
 inline constexpr std::uint32_t kThreadPriorityDefault = 48U;
 inline constexpr std::int32_t kThreadProcessorDefault = -2;
 inline constexpr std::int32_t kThreadProcessorAll = -1;
+inline constexpr std::uint32_t kTlsAreaBase = 0x1FF82000U;
+inline constexpr std::uint32_t kTlsEntrySize = 0x200U;
+inline constexpr std::uint32_t kUserModeCpsr = 0x10U;
+inline constexpr std::uint32_t kThreadInitialFpscr = 0x03C00000U;
+inline constexpr std::uint32_t kMainThreadInitialFpscr = 0x03C00010U;
 
 enum class ThreadStatus : std::uint8_t {
     Running,
@@ -114,6 +122,8 @@ public:
     std::int32_t wait_index{-1};
     bool wait_index_valid{};
     bool pending_wake{};
+    std::uint32_t tls_address{};
+    a32::GuestState guest_state{};
 
 private:
     friend class Kernel;
@@ -255,6 +265,10 @@ public:
     }
     [[nodiscard]] std::uint64_t now_ns() const noexcept { return now_ns_; }
 
+    void SetCurrentGuestState(const a32::GuestState& state) noexcept;
+    [[nodiscard]] const a32::GuestState& CurrentGuestState() const noexcept;
+    bool Reschedule(a32::GuestState& live_state) noexcept;
+
     Result DuplicateHandle(Handle* out_handle, Handle handle) noexcept;
     Result CloseHandle(Handle handle) noexcept;
 
@@ -291,12 +305,18 @@ private:
     void WakeThread(ThreadObject& thread, Result result, std::int32_t index,
                     bool index_valid) noexcept;
     void TryWakeWaitingThreads() noexcept;
+    std::uint32_t AllocateTlsAddress() noexcept;
+    void InitializeGuestContext(ThreadObject& thread, std::uint32_t entry_point,
+                                std::uint32_t argument, std::uint32_t stack_top,
+                                std::uint32_t fpscr) noexcept;
+    void ApplyPendingWakeToContext(ThreadObject& thread) noexcept;
 
     std::shared_ptr<ProcessObject> current_process_;
     std::shared_ptr<ThreadObject> current_thread_;
     HandleTable handles_;
     std::vector<std::shared_ptr<ThreadObject>> threads_;
     std::uint32_t next_thread_id_{2};
+    std::uint32_t next_tls_slot_{};
     std::uint64_t now_ns_{};
 };
 
