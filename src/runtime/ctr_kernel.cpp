@@ -151,8 +151,76 @@ Kernel::Kernel(std::uint32_t process_id, std::uint32_t thread_id)
       current_thread_(std::make_shared<ThreadObject>(thread_id)) {
     current_thread_->status = ThreadStatus::Running;
     current_thread_->priority = kThreadPriorityDefault;
+    current_thread_->tls_address = AllocateTlsAddress();
+    current_thread_->guest_state.cpsr = kUserModeCpsr;
+    current_thread_->guest_state.fpscr = kMainThreadInitialFpscr;
+    current_thread_->guest_state.thread_pointer = current_thread_->tls_address;
     threads_.push_back(current_thread_);
     handles_.SetPseudoObjects(current_thread_, current_process_);
+}
+
+std::uint32_t Kernel::AllocateTlsAddress() noexcept {
+    return kTlsAreaBase + next_tls_slot_++ * kTlsEntrySize;
+}
+
+void Kernel::InitializeGuestContext(ThreadObject& thread,
+                                    std::uint32_t entry_point,
+                                    std::uint32_t argument,
+                                    std::uint32_t stack_top,
+                                    std::uint32_t fpscr) noexcept {
+    thread.guest_state = {};
+    thread.guest_state.r[0] = argument;
+    thread.guest_state.r[13] = stack_top;
+    thread.guest_state.r[15] = entry_point & ~1U;
+    thread.guest_state.cpsr =
+        kUserModeCpsr | ((entry_point & 1U) << 5U);
+    thread.guest_state.fpscr = fpscr;
+    thread.tls_address = AllocateTlsAddress();
+    thread.guest_state.thread_pointer = thread.tls_address;
+}
+
+void Kernel::SetCurrentGuestState(const a32::GuestState& state) noexcept {
+    current_thread_->guest_state = state;
+    current_thread_->guest_state.thread_pointer = current_thread_->tls_address;
+}
+
+const a32::GuestState& Kernel::CurrentGuestState() const noexcept {
+    return current_thread_->guest_state;
+}
+
+void Kernel::ApplyPendingWakeToContext(ThreadObject& thread) noexcept {
+    if (!thread.pending_wake) {
+        return;
+    }
+    thread.guest_state.r[0] = thread.wait_result;
+    if (thread.wait_index_valid) {
+        thread.guest_state.r[1] =
+            static_cast<std::uint32_t>(thread.wait_index);
+    }
+    thread.pending_wake = false;
+}
+
+bool Kernel::Reschedule(a32::GuestState& live_state) noexcept {
+    const auto previous = current_thread_;
+    previous->guest_state = live_state;
+    previous->guest_state.thread_pointer = previous->tls_address;
+
+    if (previous->status == ThreadStatus::Running) {
+        previous->status = ThreadStatus::Ready;
+    }
+
+    const auto next = HighestPriorityReadyThread();
+    if (!next) {
+        return false;
+    }
+
+    current_thread_ = next;
+    current_thread_->status = ThreadStatus::Running;
+    handles_.SetPseudoObjects(current_thread_, current_process_);
+    ApplyPendingWakeToContext(*current_thread_);
+    live_state = current_thread_->guest_state;
+    live_state.thread_pointer = current_thread_->tls_address;
+    return current_thread_ != previous;
 }
 
 Result Kernel::DuplicateHandle(Handle* out_handle, Handle handle) noexcept {
@@ -361,6 +429,8 @@ Result Kernel::CreateThread(Handle* out_handle, std::uint32_t entry_point,
     thread->stack_top = stack_top;
     thread->priority = priority;
     thread->processor_id = processor_id;
+    InitializeGuestContext(*thread, entry_point, argument, stack_top,
+                           kThreadInitialFpscr);
 
     Handle handle = 0;
     const Result result = handles_.Create(&handle, thread);
