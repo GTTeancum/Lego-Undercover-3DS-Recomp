@@ -248,3 +248,34 @@ The preserved >=8-entry self-relative pointer-table rule remains diagnostic-only
 on the LLVM compatibility graph it reaches 552,048 slots, so it has not been
 promoted merely to make the counts look closer. Runtime-dependent virtual calls
 remain unresolved by design.
+
+
+## CTR host/runtime checkpoint — handles and Stage-2 SVC bridge
+
+The first native host/kernel slice is now reconstructed under `src/runtime/`.
+
+Implemented and tested:
+
+- CTR-style **4096-slot generation handle table**.
+- Current-thread pseudo handle `0xFFFF8000`.
+- Current-process pseudo handle `0xFFFF8001`.
+- Pseudo-handle duplication into ordinary process handles.
+- Stale-handle rejection after slot reuse.
+- `svc 0x27 DuplicateHandle` with the real modified SVC ABI:
+  input in `r1`, Result in `r0`, duplicated output handle in `r1`.
+- `svc 0x23 CloseHandle`.
+- Handled SVC exits resume A32 execution at `pc + 4`.
+- Unsupported SVCs remain explicit stops rather than fabricated successes.
+
+The ROM-free test reproduces the historical Stage-2 blocker exactly at
+`pc=0x0013313C`, `svc=0x27`, `r1=0xFFFF8000`. The reconstructed bridge
+returns success, creates a regular handle referencing the current thread, writes
+that handle to `r1`, and resumes at `0x00133140`.
+
+Fresh CMake component builds and tests pass with both **Clang and GCC**. See
+`reports/recovery-host/STAGE2-HANDLE-SVC.md`.
+
+This clears the known DuplicateHandle host-semantic blocker as a component test;
+it is **not** yet an end-to-end claim that the current reconstructed game runner
+has executed through that address. The next host layer is synchronization,
+events, threads, and scheduling, followed by service IPC.
