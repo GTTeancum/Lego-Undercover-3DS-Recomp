@@ -47,6 +47,8 @@ inline constexpr std::uint32_t kPreparedCodeBytes = 0x00287000U;
 inline constexpr std::uint32_t kMainStackTop = 0x10000000U;
 inline constexpr std::uint32_t kMainStackBytes = 0x00010000U;
 inline constexpr std::uint32_t kPageSize = 0x1000U;
+inline constexpr std::uint32_t kConfigMemoryBase = 0x1FF80000U;
+inline constexpr std::uint32_t kConfigMemorySize = 0x1000U;
 
 class GuestMemory final : public a32::MemoryBus {
 public:
