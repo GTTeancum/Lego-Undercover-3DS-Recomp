@@ -22,10 +22,17 @@ inline constexpr std::uint32_t kSvcCloseHandle = 0x23U;
 inline constexpr std::uint32_t kSvcWaitSynchronization1 = 0x24U;
 inline constexpr std::uint32_t kSvcWaitSynchronizationN = 0x25U;
 inline constexpr std::uint32_t kSvcDuplicateHandle = 0x27U;
+inline constexpr std::uint32_t kSvcConnectToPort = 0x2DU;
+inline constexpr std::uint32_t kSvcSendSyncRequest = 0x32U;
+
+class IpcRouter;
 
 class SvcBridge final {
 public:
-    explicit SvcBridge(Kernel& kernel) noexcept : kernel_(kernel) {}
+    explicit SvcBridge(Kernel& kernel, IpcRouter* ipc = nullptr) noexcept
+        : kernel_(kernel), ipc_(ipc) {}
+
+    void SetIpcRouter(IpcRouter* ipc) noexcept { ipc_ = ipc; }
 
     a32::ExecutionResult Handle(const a32::ExecutionResult& exit,
                                 a32::GuestState& state,
@@ -35,6 +42,7 @@ public:
 
 private:
     Kernel& kernel_;
+    IpcRouter* ipc_{};
 };
 
 }  // namespace lego::ctr
