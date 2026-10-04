@@ -1,0 +1,20 @@
+Internal ctest changing into directory: /mnt/data/lego_recovery/build-gcc
+Test project /mnt/data/lego_recovery/build-gcc
+    Start 1: ctr_kernel_test
+1/7 Test #1: ctr_kernel_test ..................   Passed    0.00 sec
+    Start 2: ctr_runner_test
+2/7 Test #2: ctr_runner_test ..................   Passed    0.00 sec
+    Start 3: ctr_ipc_test
+3/7 Test #3: ctr_ipc_test .....................   Passed    0.00 sec
+    Start 4: ctr_startup_test
+4/7 Test #4: ctr_startup_test .................   Passed    0.01 sec
+    Start 5: ctr_apt_test
+5/7 Test #5: ctr_apt_test .....................   Passed    0.01 sec
+    Start 6: ctr_apt_enable_test
+6/7 Test #6: ctr_apt_enable_test ..............   Passed    0.00 sec
+    Start 7: ctr_ndm_test
+7/7 Test #7: ctr_ndm_test .....................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =   0.02 sec

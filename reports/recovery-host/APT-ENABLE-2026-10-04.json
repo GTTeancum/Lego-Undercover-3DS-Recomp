@@ -1,0 +1,94 @@
+{
+  "format": "lego_apt_enable_checkpoint_v1",
+  "date_utc": "2026-10-04",
+  "base_commit": "26dcd3e33eb3893eae368c9515e1d8a1b1dc4871",
+  "base_tree_verified": "f40fde1f61a5a1de5d8cdb9fdaa85655c802fa3c",
+  "source_commit": "9176d13c7ee595c5f404f168baed821e8a37adb7",
+  "source_tree_verified": "e27ffb5fb837b9dbea99d03691bc2cc839217d5c",
+  "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "private_aot": {
+    "page_cpp_files": 599,
+    "regular_files": 603,
+    "all_archive_members_unchanged": true,
+    "verified_instruction_words": 545111,
+    "registry_blocks": 111043
+  },
+  "before": {
+    "service": "APT:U",
+    "command": "Enable",
+    "header": "0x00030040",
+    "attributes": 0,
+    "pc": "0x0025947C",
+    "thread": 1,
+    "dispatch_rounds": 39,
+    "stop": "UnsupportedIpc"
+  },
+  "after": {
+    "service": "APT:U",
+    "command": "NotifyToWait",
+    "header": "0x00430040",
+    "applet_id": "0x300",
+    "pc": "0x0025947C",
+    "thread": 1,
+    "dispatch_rounds": 44,
+    "stop": "UnsupportedIpc",
+    "host_exit_code": 3
+  },
+  "scope": {
+    "Enable": "Initialized application only, exact header 0x00030040 and attrs=0. Return service success with registered=true.",
+    "Initialize": "Make first-application automatic registration explicit after both event handle allocations succeed.",
+    "no_extra_side_effects": "No new message, event signal, handle, thread, or kernel time advance. A consumed parameter stays absent; Enable is idempotent across sessions.",
+    "limits": "No other applet roles, attributes, delayed parameters, Enable-before-Initialize, or NotifyToWait semantics implemented."
+  },
+  "validation": {
+    "gcc": "Full 599-page native build; 7/7 CTest",
+    "clang": "Full 599-page native build; 7/7 CTest",
+    "sanitizers": "Clang ASan/UBSan 7/7 ROM-free CTest; detect_leaks=1, halt_on_error=1",
+    "real_startup_logs_identical": true,
+    "hosted_ci": "GitHub Actions 37244507645: success on source commit 9176d13c7ee595c5f404f168baed821e8a37adb7"
+  },
+  "artifacts": {
+    "ENABLE-BASELINE.txt": {
+      "bytes": 691,
+      "sha256": "3f5a188c3353622e222f3c382bf35a1aaeb47f798028841b1c74b4f3df92d0f2"
+    },
+    "ENABLE-CTEST-ASAN.txt": {
+      "bytes": 886,
+      "sha256": "c10230c3e2fecd8d3b129c6f89dd9de06431cc145e247e21b8e0b09c0fee5e64"
+    },
+    "ENABLE-CTEST-CLANG.txt": {
+      "bytes": 888,
+      "sha256": "57262ec52258b261eb04bc9ecfe4ebbfab263a17ae81b4b1e412bce79c63e51c"
+    },
+    "ENABLE-CTEST-GCC.txt": {
+      "bytes": 884,
+      "sha256": "2202a75957575685b0289600e182836c43924db475076f1c38240fc91b93b24e"
+    },
+    "ENABLE-ONLY.txt": {
+      "bytes": 691,
+      "sha256": "89082887ab66875736fd436b4fa55299087730e1f3d51c88835f0a3f0073693f"
+    },
+    "ENABLE-STARTUP-CLANG.txt": {
+      "bytes": 691,
+      "sha256": "89082887ab66875736fd436b4fa55299087730e1f3d51c88835f0a3f0073693f"
+    },
+    "ENABLE-STARTUP-GCC.txt": {
+      "bytes": 691,
+      "sha256": "89082887ab66875736fd436b4fa55299087730e1f3d51c88835f0a3f0073693f"
+    }
+  },
+  "binary_sha256": {
+    "gcc": "805850f7ed59f767ebfbd2a8cced8ad79a57cfe0557db0ef780b073a2c238451",
+    "clang": "fec7fc4a6fbc07103fbccc1b2db07baa70b92a8a5b68753bb69f13d69d552024"
+  },
+  "sources": [
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/apt/applet_manager.cpp",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/apt/apt_u.cpp"
+  ],
+  "limitations": [
+    "Headless startup only: no title screen, renderer, audio, controls or gameplay claim.",
+    "Inventory words/blocks and dispatch rounds are not gameplay coverage or proof of full instruction semantics.",
+    "Existing dispatcher timing, scheduler and IPC limitations remain open.",
+    "Paired ReceiveParameter remains component-tested, not claimed newly observed in this game run."
+  ]
+}
