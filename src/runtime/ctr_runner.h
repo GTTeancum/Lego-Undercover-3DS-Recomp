@@ -9,6 +9,7 @@
 #include "runtime/ctr_memory.h"
 #include "runtime/ctr_svc_bridge.h"
 #include "services/ptm_service.h"
+#include "services/fs_romfs_service.h"
 
 namespace lego::ctr {
 namespace a32 = oot3d::recomp::a32;
@@ -40,7 +41,8 @@ public:
                  Kernel& kernel,
                  std::uint64_t rtc_epoch_ms = kDefaultRtcMsSince1900,
                  const std::filesystem::path& shared_extdata_root = {},
-                 PtmStepMode ptm_step_mode = PtmStepMode::Unconfigured);
+                 PtmStepMode ptm_step_mode = PtmStepMode::Unconfigured,
+                 std::shared_ptr<const RomfsImage> romfs = {});
 
     bool InitializeMainThread(std::uint32_t entry_point = kTextBase,
                               std::uint32_t stack_top = kMainStackTop) noexcept;

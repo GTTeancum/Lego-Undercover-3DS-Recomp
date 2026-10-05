@@ -77,18 +77,22 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
-        std::filesystem::path shared_extdata_root;
+        std::filesystem::path shared_extdata_root, romfs_path;
         auto ptm_step_mode = ctr::PtmStepMode::Unconfigured;
         std::uint32_t block_limit=1000000,event_limit=4096;
         std::uint64_t rtc_epoch_ms=ctr::kDefaultRtcMsSince1900;
         for (int i=2; i<argc; i+=2) {
             if (i+1==argc) throw std::runtime_error("missing option value");
             const std::string_view option(argv[i]);
-            if (option=="--block-limit") block_limit=PositiveNumber(argv[i+1]);
+            if (option=="--romfs") {
+                if (!argv[i+1][0]) throw std::runtime_error("empty RomFS path");
+                romfs_path=argv[i+1];
+            }
+            else if (option=="--block-limit") block_limit=PositiveNumber(argv[i+1]);
             else if (option=="--host-event-limit") event_limit=PositiveNumber(argv[i+1]);
             else if (option=="--shared-extdata-root") {
                 if (!argv[i+1][0]) throw std::runtime_error("empty shared-extdata root");
@@ -123,7 +127,14 @@ int main(int argc,char** argv) {
         ctr::GuestMemory memory;
         if (!memory.LoadLegoCodeImage(code)) throw std::runtime_error("image mapping failed");
         ctr::Kernel kernel;
-        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode);
+        std::shared_ptr<const ctr::RomfsImage> romfs;
+        if (!romfs_path.empty()) {
+            romfs=ctr::RomfsImage::OpenVerified(romfs_path,ctr::kLegoRawRomfsBytes,
+                                               ctr::kLegoRomfsViewOffset,ctr::kLegoRawRomfsSha256);
+            std::cout << "romfs_sha256=" << romfs->sha256() << " raw_bytes=" << ctr::kLegoRawRomfsBytes
+                      << " view_offset=" << ctr::kLegoRomfsViewOffset << " view_bytes=" << romfs->size() << '\n';
+        }
+        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs);
         if (!shared_extdata_root.empty())
             std::cout << "shared_extdata_root=" << shared_extdata_root.generic_string() << '\n';
         if (ptm_step_mode == ctr::PtmStepMode::EmptyHistory)

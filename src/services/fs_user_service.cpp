@@ -22,6 +22,13 @@ bool FsUserService::CanHandle(const IpcCommandBuffer& command) const noexcept {
         return command[2] == IpcCallingPidDesc();
     if (!initialized_) return false;
     if (command[0] == IpcMakeHeader(0x0862, 1, 0)) return true;
+    if (command[0] == IpcMakeHeader(0x0803,8,4)) {
+        // Observed SelfNCCH/Empty/Binary RomFS path. Other archive types/modes
+        // are still host stops, even though pinned SelfNCCH ignores open mode.
+        return shared_->romfs && command[2]==3 && command[3]==1 && command[4]==1 &&
+               command[5]==2 && command[6]==12 && command[7]==1 && command[8]==0 &&
+               command[9]==0x00004802 && command[11]==0x00030002;
+    }
     if (command[0] == IpcMakeHeader(0x0802, 7, 2)) {
         const auto bytes = command[5];
         return shared_->archives.CanOpenFiles() && command[4] == 4 &&
@@ -56,6 +63,37 @@ Result FsUserService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& mem
         // Matches pinned FS_USER's service-global field; not thread priority
         // and not yet a modeled filesystem worker scheduler.
         shared_->priority = command[1];
+    }
+    if (id == 0x0803) {
+        const auto archive_address=command[10], file_address=command[12];
+        if (std::uint64_t(archive_address)+1>0x100000000ULL ||
+            std::uint64_t(file_address)+12>0x100000000ULL ||
+            !memory.IsReadable(archive_address,1) || !memory.IsReadable(file_address,12))
+            return kResultInvalidPointer;
+        // The Empty path's one byte is incidental (0xE8 in the actual request),
+        // NOT a NUL-terminated filename. Validate its span, do not interpret it.
+        for (unsigned i=0;i<3;++i) {
+            std::uint32_t word=0;
+            if (!memory.Read32(file_address+4*i,&word)) return kResultInvalidPointer;
+            if (word!=0) {
+                router.RequestHostStop("unsupported SelfNCCH binary path");
+                return kResultSuccess;
+            }
+        }
+        ::lego::ctr::Handle handle=0;
+        Result result;
+        try {
+            auto endpoint=std::make_shared<RomfsFileService>(shared_->romfs);
+            result=kernel.handles().Create(&handle,
+                std::make_shared<ClientSessionObject>("fs:RomFS",std::move(endpoint)));
+        } catch(const std::exception& error) {
+            router.RequestHostStop(error.what()); return kResultSuccess;
+        }
+        // The transient SelfNCCH archive is not inserted into the shared-extdata
+        // table. The returned file endpoint itself retains the actual image.
+        command.fill(0); command[0]=IpcMakeHeader(id,1,2); command[1]=result;
+        command[2]=IpcMoveHandleDesc(); command[3]=handle;
+        return kResultSuccess;
     }
     if (id == 0x0802) {
         const auto bytes = command[5];

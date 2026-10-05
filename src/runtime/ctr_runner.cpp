@@ -15,7 +15,8 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
                            Kernel& kernel,
                            std::uint64_t rtc_epoch_ms,
                            const std::filesystem::path& shared_extdata_root,
-                           PtmStepMode ptm_step_mode)
+                           PtmStepMode ptm_step_mode,
+                           std::shared_ptr<const RomfsImage> romfs)
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_) {
     ipc_.RegisterService("APT:U", std::make_shared<AptService>());
     ipc_.RegisterService("cfg:u", std::make_shared<CfgService>());
@@ -24,6 +25,7 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
     auto fs = std::make_shared<FsUserService>(0x00040000000AD500ULL);
     if (!shared_extdata_root.empty() && !fs->ConfigureSharedExtdataRoot(shared_extdata_root))
         throw std::invalid_argument("shared-extdata root must be an existing directory");
+    if (romfs) fs->ConfigureRomfs(std::move(romfs));
     ipc_.RegisterService("fs:USER", std::move(fs));
 }
 
