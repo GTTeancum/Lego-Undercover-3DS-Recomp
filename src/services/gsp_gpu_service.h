@@ -2,6 +2,7 @@
 #include <array>
 #include "runtime/ctr_ipc.h"
 #include "runtime/ctr_shared_memory.h"
+#include "services/pica_startup.h"
 
 namespace lego::ctr {
 // ErrCodes::FirstInitialization(519), GX(10), Success summary/level.
@@ -9,8 +10,9 @@ inline constexpr Result kResultGspFirstInitialization = 0x00002A07U;
 inline constexpr std::uint32_t kGspRelaySlots = 4;
 
 // Bounded startup GSP state. Registration and passive MMIO writes do not
-// generate GPU commands, interrupts, vblank or rendered frames. The bounded
-// command queue currently consumes only CacheFlush in the synchronous host.
+// generate GPU work by themselves. The queue supports CacheFlush and staged
+// non-drawing PICA startup lists, including their genuine P3D IRQ requests.
+// Drawing, transfers, active MMIO triggers and vblank remain unsupported.
 class GspGpuService final : public IpcService {
 public:
     GspGpuService() : shared_(std::make_shared<SharedState>()) {}
@@ -98,10 +100,12 @@ public:
         const auto slot=RegisterSlot(relative);
         return slot ? std::optional<std::uint32_t>(shared_->register_words[*slot]) : std::nullopt;
     }
+    [[nodiscard]] const PicaUploadState& pica_uploads() const noexcept { return shared_->pica_uploads; }
+    [[nodiscard]] const PicaListResult& last_pica_result() const noexcept { return shared_->last_pica_result; }
 private:
     // The pinned GPU::WriteReg routes two 4 KiB pages at 0x1EF00000 and
     // bounds word indexes by PicaCore::Regs::NUM_REGS (0x732). GSP adds 0x1EB00000.
-    static constexpr std::size_t kGpuWords=0x732;
+    static constexpr std::size_t kGpuWords=kPicaGpuWords;
     static constexpr std::optional<std::size_t> RegisterSlot(std::uint32_t relative) noexcept {
         if (relative<0x00400000U || (relative&3U)!=0) return std::nullopt;
         const auto index=(relative-0x00400000U)/4;
@@ -156,7 +160,9 @@ private:
         // internal begins at GPU byte 0x1000. Only passive stores / disabled
         // action triggers are modeled. Command-list register execution is distinct.
         // Reset policy is the pinned HLE constructor above, not physical hardware.
-        std::array<std::uint32_t,kGpuWords> register_words{};
+        PicaGpuRegisters register_words{};
+        PicaUploadState pica_uploads{};
+        PicaListResult last_pica_result{};
 
     };
     GspGpuService(std::shared_ptr<SharedState> shared,std::uint32_t slot)

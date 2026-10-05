@@ -5,6 +5,7 @@ get_filename_component(LEGO_RECOMP_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 function(lego_add_ctr_runtime target_name)
     add_library(${target_name} STATIC
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_kernel.cpp"
+        "${LEGO_RECOMP_ROOT}/src/runtime/ctr_service_event.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_svc_bridge.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_memory.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_shared_page.cpp"
@@ -14,6 +15,7 @@ function(lego_add_ctr_runtime target_name)
         "${LEGO_RECOMP_ROOT}/src/services/ndm_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/gsp_gpu_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/gsp_command_queue.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/pica_startup.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/ptm_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/fs_user_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/fs_shared_archive.cpp"

@@ -339,6 +339,9 @@ public:
 
     Result CreateEvent(Handle* out_handle, std::uint32_t reset_type) noexcept;
     Result SignalEvent(Handle handle) noexcept;
+    // Service holds a real EventObject reference even after the client handle
+    // closes. Use the same wake/pulse semantics without allocating a fake handle.
+    void SignalEventObject(EventObject& event) noexcept;
     Result ClearEvent(Handle handle) noexcept;
 
     Result CreateMutex(Handle* out_handle, bool initial_locked) noexcept;

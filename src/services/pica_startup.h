@@ -1,0 +1,55 @@
+#pragma once
+#include <array>
+#include <bitset>
+#include <cstdint>
+#include <span>
+
+namespace lego::ctr {
+inline constexpr std::size_t kPicaGpuWords = 0x732;
+inline constexpr std::size_t kPicaInternalWords = 0x300;
+inline constexpr std::uint32_t kPicaMaxListBytes = 1024 * 1024; // Host work cap, not hardware.
+using PicaGpuRegisters = std::array<std::uint32_t,kPicaGpuWords>;
+
+// Uploaded state, NOT executed shaders or a rasterizer. Program/LUT zero storage
+// follows the pinned HLE. Unwritten uniforms have no asserted value: known flags
+// must be consulted by any future consumer. Float values are IEEE-32 BIT PATTERNS,
+// following the reference's f24 container, not a claim of 24-bit arithmetic parity.
+struct PicaShaderUpload {
+    std::array<std::uint32_t,4096> program{};
+    std::bitset<4096> program_written{};
+    std::array<std::array<std::uint32_t,4>,96> floats{};
+    std::bitset<96> floats_written{};
+    std::array<std::uint32_t,4> integers{};
+    std::bitset<4> integers_written{};
+    std::uint16_t booleans{};
+    bool booleans_written{};
+    std::array<std::uint32_t,4> packed{};
+    std::uint32_t packed_count{};
+    bool operator==(const PicaShaderUpload&) const = default;
+};
+struct PicaUploadState {
+    PicaShaderUpload gs,vs;
+    std::array<std::array<std::uint32_t,256>,24> lighting{};
+    std::array<std::bitset<256>,24> lighting_written{};
+    std::bitset<kPicaInternalWords> registers_written{};
+    std::uint32_t topology{}; // Empty primitive assembler; all draw paths stop.
+    bool operator==(const PicaUploadState&) const = default;
+};
+struct PicaListResult {
+    const char* error{};
+    std::uint32_t byte_offset{},register_id{};
+    std::uint32_t packets{},writes{},program_words{},uniform_vectors{},lut_words{},irqs{};
+    bool autostopped{};
+};
+struct PicaListPlan {
+    PicaGpuRegisters registers{};
+    PicaUploadState uploads{};
+    PicaListResult result{};
+};
+// This stages into a disposable plan. Failure never mutates initial state. No
+// memory, event, queue, timing or renderer effects are committed here.
+bool StagePicaStartupList(std::span<const std::uint8_t> bytes,
+                          const PicaGpuRegisters& initial,
+                          const PicaUploadState& uploads,
+                          PicaListPlan& plan) noexcept;
+} // namespace lego::ctr
