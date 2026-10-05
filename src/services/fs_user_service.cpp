@@ -22,6 +22,7 @@ bool FsUserService::CanHandle(const IpcCommandBuffer& command) const noexcept {
         return command[2] == IpcCallingPidDesc();
     if (!initialized_) return false;
     if (command[0] == IpcMakeHeader(0x0862, 1, 0)) return true;
+    if (command[0] == IpcMakeHeader(0x0863, 0, 0)) return true;
     if (command[0] == IpcMakeHeader(0x0803,8,4)) {
         // Observed SelfNCCH/Empty/Binary RomFS path. Other archive types/modes
         // are still host stops, even though pinned SelfNCCH ignores open mode.
@@ -63,6 +64,17 @@ Result FsUserService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& mem
         // Matches pinned FS_USER's service-global field; not thread priority
         // and not yet a modeled filesystem worker scheduler.
         shared_->priority = command[1];
+    }
+    if (id == 0x0863) {
+        // Pinned FS_USER GetPriority returns the module's stored u32 unchanged.
+        // UINT32_MAX only triggers a reference log; it is not replaced with a
+        // thread/default priority. This does not implement worker scheduling.
+        const auto priority = shared_->priority;
+        command.fill(0);
+        command[0] = IpcMakeHeader(id, 2, 0);
+        command[1] = kResultSuccess;
+        command[2] = priority;
+        return kResultSuccess;
     }
     if (id == 0x0803) {
         const auto archive_address=command[10], file_address=command[12];

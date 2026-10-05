@@ -183,7 +183,7 @@ void GuardsAndNoInventedFilesystemAccess() {
                 IpcCommandBuffer{0x08620000, 0},
                 IpcCommandBuffer{0x08620042, 0, 0x20, 0},
                 IpcCommandBuffer{0x08621040, 0},
-                IpcCommandBuffer{0x08630000}, // GetPriority not observed/implemented.
+                IpcCommandBuffer{0x08630040, 1}, // Malformed GetPriority; exact request now supported.
                 IpcCommandBuffer{0x08010002, 0x20, 0}, // Older Initialize is not this slice.
                 IpcCommandBuffer{0x080C00C2, 7, 1, 0, 2, 0}, // No OpenArchive success.
                 IpcCommandBuffer{0x080201C2}, // No OpenFile success.

@@ -3,6 +3,7 @@
 #include "services/ndm_service.h"
 #include "services/fs_user_service.h"
 #include "services/cfg_service.h"
+#include "services/gsp_gpu_service.h"
 #include "services/ptm_service.h"
 
 #include <algorithm>
@@ -20,6 +21,7 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_) {
     ipc_.RegisterService("APT:U", std::make_shared<AptService>());
     ipc_.RegisterService("cfg:u", std::make_shared<CfgService>());
+    ipc_.RegisterService("gsp::Gpu", std::make_shared<GspGpuService>());
     ipc_.RegisterService("ptm:u", std::make_shared<PtmService>(ptm_step_mode));
     ipc_.RegisterService("ndm:u", std::make_shared<NdmService>());
     auto fs = std::make_shared<FsUserService>(0x00040000000AD500ULL);
