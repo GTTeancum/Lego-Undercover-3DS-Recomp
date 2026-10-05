@@ -259,8 +259,8 @@ void FileRequestsAndSizeSnapshot() {
     Fixture f;
     const auto h=f.Open(f.Request());
     for (auto q : {IpcCommandBuffer{0x08040040},IpcCommandBuffer{0x08040001},
-                   IpcCommandBuffer{0x08030102,0,0,20,0x10001,0x14A,0x0FFFF600},
-                   IpcCommandBuffer{0x080200C2},IpcCommandBuffer{0x08080000},IpcCommandBuffer{0x08090000}})
+                   IpcCommandBuffer{0x08030102,0,0,20,0x10001,0x14E,0x0FFFF600},
+                   IpcCommandBuffer{0x080200C2},IpcCommandBuffer{0x08080040},IpcCommandBuffer{0x08090000}})
         f.Unsupported(q,h);
     f.Size(h,20);
     // Session size is captured at open as in the reference, not recomputed from

@@ -2,10 +2,12 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <span>
 #include <string_view>
 #include "runtime/ctr_kernel.h"
 
 namespace lego::ctr {
+inline constexpr Result kResultFsWriteBeyondEnd = 0xE0E046C1U;
 inline constexpr Result kResultFsNotFormatted = 0xC8A04554U;
 inline constexpr Result kResultFsInvalidPath = 0xE0E046BEU;
 
@@ -27,6 +29,11 @@ public:
     SharedArchiveFile(const SharedArchiveFile&) = delete;
     SharedArchiveFile& operator=(const SharedArchiveFile&) = delete;
     [[nodiscard]] std::uint64_t size() const noexcept { return size_; }
+    [[nodiscard]] bool is_open() const noexcept { return fd_ >= 0; }
+    void Close();
+    // Fixed-size write; on host failure, written retains the actual partial count.
+    Result Write(std::uint64_t offset, std::span<const std::uint8_t> data,
+                 bool flush, std::uint32_t* written);
     [[nodiscard]] std::uint32_t effective_mode() const noexcept { return 3; }
 private:
     friend class SharedArchiveMounts;
