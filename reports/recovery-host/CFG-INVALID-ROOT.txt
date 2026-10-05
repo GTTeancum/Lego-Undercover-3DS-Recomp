@@ -1,0 +1,3 @@
+code_sha256=5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f
+registry_pages=599 blocks=111043 instruction_words_verified=545111
+ERROR: shared-extdata root must be an existing directory

@@ -1,0 +1,133 @@
+{
+  "format": "lego_fs_startup_checkpoint_v1",
+  "base_remote_commit": "bbc48d52afce5cded88907967a678988f04a349c",
+  "base_tree_verified": "36730377cd751e4a4a0fd12d9fbcd240a3fea14b",
+  "local_tested_implementation_tree": "e687a42e1e07c474e255aa2724ae05e6733ac918",
+  "delivery_status": "Published as ed036aae5499ce39b58328071356a7511fee1b24 with the exact original tested implementation tree. No forced history replacement.",
+  "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "private_aot": {
+    "page_cpp_files": 599,
+    "regular_files": 603,
+    "all_archive_members_unchanged": true,
+    "verified_instruction_words": 545111,
+    "registry_blocks": 111043
+  },
+  "observed_sequence": [
+    {
+      "stage": "baseline reproduced byte-identically",
+      "stop": "WaitingNoRunnableThread",
+      "requested_service": "fs:USER",
+      "pc": "0x0024B324",
+      "thread": 1,
+      "dispatch_rounds": 65
+    },
+    {
+      "stage": "FS registered, no handlers",
+      "stop": "UnsupportedIpc",
+      "service": "fs:USER",
+      "header": "0x08610042",
+      "command": "InitializeWithSdkVersion",
+      "sdk_version": "0x040203C8",
+      "pid_descriptor": "0x20",
+      "untrusted_pid_placeholder": "0x00048015",
+      "pc": "0x0025947C",
+      "thread": 1,
+      "dispatch_rounds": 64
+    },
+    {
+      "stage": "Initialize enabled",
+      "stop": "UnsupportedIpc",
+      "service": "fs:USER",
+      "header": "0x08620040",
+      "command": "SetPriority",
+      "value": 0,
+      "pc": "0x0025947C",
+      "thread": 1,
+      "dispatch_rounds": 65
+    },
+    {
+      "stage": "SetPriority enabled, final",
+      "stop": "WaitingNoRunnableThread",
+      "last_session": "srv:",
+      "requested_service": "cfg:u",
+      "header": "0x00050100",
+      "service_result": "0xD0406401",
+      "pc": "0x0024B324",
+      "thread": 1,
+      "dispatch_rounds": 68,
+      "host_exit_code": 3
+    }
+  ],
+  "implementation_scope": {
+    "InitializeWithSdkVersion": "Exact header/CallingPid descriptor. Bind kernel caller PID and trusted single-program host ID to each new FS session. SDK version retained for diagnostics only; pinned HLE does not apply compatibility logic.",
+    "host_program_id": "00040000000AD500 from supported_revision.json; runner is fixed to the verified game image, not a multi-program loader.",
+    "pid_placeholder": "Ignored as required by kernel CallerPid translation semantics. No general IPC descriptor translator added; this narrowly resolves the initialization caller.",
+    "priority": "Pinned FS_USER module-global u32, default 0xFFFFFFFF. SetPriority stores it across sessions. No thread-priority or filesystem worker scheduling effect.",
+    "session_factory": "Opt-in IpcService::CreateSessionHandler supplies a fresh per-connection FS endpoint. Null keeps existing APT/NDM shared-handler policy. DuplicateHandle refers to the same original session.",
+    "unsupported": "Older Initialize, GetPriority, archive/file commands, malformed requests and priority before initialization remain explicit host stops.",
+    "no_filesystem_io": "No archive mounting, file reads, writes, save success or directory enumeration implemented or claimed."
+  },
+  "validation": {
+    "gcc": "Full 599-page baseline build plus changed-source rebuild/relink; 11/11 CTest",
+    "clang": "Fresh full 599-page build; 11/11 CTest",
+    "sanitizers": "Clang ASan/UBSan 11/11 ROM-free CTest, detect_leaks=1, halt_on_error=1",
+    "real_startup_logs_identical": true,
+    "fresh_hosted_ci": "GitHub Actions 37262006851 passed on ed036aae5499ce39b58328071356a7511fee1b24; rechecked in the next work turn.",
+    "tests": "Exact response/register preservation; effective PID not spoofable via placeholder; repeated init; isolated sessions, shared priority; DuplicateHandle identity; guest srv lookup; response preflight; handle exhaustion; unknown request preservation."
+  },
+  "artifacts": {
+    "FS-BASELINE.txt": {
+      "bytes": 863,
+      "sha256": "e617bd467a3f63950b3876e3d3ce2dcf240d85d0ed98ee7e8bb9f6b0c0ea7968"
+    },
+    "FS-FIRST-REQUEST.txt": {
+      "bytes": 850,
+      "sha256": "e220d3b9487036f4ed7fbdbef0a2e8f84fc20195d828d0e8ce5e7cbac8ae32ea"
+    },
+    "FS-AFTER-INIT.txt": {
+      "bytes": 850,
+      "sha256": "f839fc56c7b3a9e702114558d186d66172c1e983f5b0039d0f8c4dbb419fb3be"
+    },
+    "FS-AFTER-PRIORITY.txt": {
+      "bytes": 861,
+      "sha256": "8d819f3d06a1c2c564c7d8a6b654dc6d9e0a318c9b9221a98d48cd470e3d57ea"
+    },
+    "FS-STARTUP-GCC.txt": {
+      "bytes": 861,
+      "sha256": "8d819f3d06a1c2c564c7d8a6b654dc6d9e0a318c9b9221a98d48cd470e3d57ea"
+    },
+    "FS-STARTUP-CLANG.txt": {
+      "bytes": 861,
+      "sha256": "8d819f3d06a1c2c564c7d8a6b654dc6d9e0a318c9b9221a98d48cd470e3d57ea"
+    },
+    "FS-CTEST-GCC.txt": {
+      "bytes": 1352,
+      "sha256": "7724d7627121782eefa38054b7edf90feb06e4075d7d0d9faf32f848ab646e5d"
+    },
+    "FS-CTEST-CLANG.txt": {
+      "bytes": 1356,
+      "sha256": "2a7ba153a993bb3298b2ad8dae34544502364d4a328d3401a096513863fb7259"
+    },
+    "FS-CTEST-ASAN.txt": {
+      "bytes": 1354,
+      "sha256": "32694c61c6a1a09b3a82e453147759b9b5991db815593797961948e90974b7b6"
+    }
+  },
+  "binary_sha256": {
+    "build-gcc": "bcf40275287dfdca6a9761d74ef45cf99060ddf2af99063b3489403bee4d012c",
+    "build-clang": "b00ea433fe4465ce8bc50be79c43789acf7f4f9041a7c84de0b37d4913d6838f"
+  },
+  "behavior_sources": [
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/fs/fs_user.cpp#L1084-L1123",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/fs/fs_user.h",
+    "https://github.com/azahar-emu/azahar/blob/6280521bf26ef1393974cd8c898de29cf75f5752/src/core/hle/kernel/hle_ipc.cpp"
+  ],
+  "limitations": [
+    "No cfg:u implementation yet; stop preserves missing-service error.",
+    "No hardware FS parity, general FSREG/program manager, guest file access or title-screen/gameplay claim.",
+    "Inherited APT/NDM scope and kernel/clock/scheduler limitations remain.",
+    "No new shared-page, kernel or vendor modifications. No original game/AOT bytes changed."
+  ],
+  "published_implementation_commit": "ed036aae5499ce39b58328071356a7511fee1b24",
+  "historical_scope_note": "This records the earlier FS initialization checkpoint; subsequent shared archive work is reported separately in FS-SHARED-ARCHIVE.json."
+}

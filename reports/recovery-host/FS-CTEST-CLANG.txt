@@ -1,0 +1,28 @@
+Internal ctest changing into directory: /mnt/data/lego_recovery/build-clang
+Test project /mnt/data/lego_recovery/build-clang
+      Start  1: ctr_kernel_test
+ 1/11 Test  #1: ctr_kernel_test ..................   Passed    0.00 sec
+      Start  2: ctr_runner_test
+ 2/11 Test  #2: ctr_runner_test ..................   Passed    0.00 sec
+      Start  3: ctr_ipc_test
+ 3/11 Test  #3: ctr_ipc_test .....................   Passed    0.00 sec
+      Start  4: ctr_startup_test
+ 4/11 Test  #4: ctr_startup_test .................   Passed    0.01 sec
+      Start  5: ctr_apt_test
+ 5/11 Test  #5: ctr_apt_test .....................   Passed    0.01 sec
+      Start  6: ctr_apt_enable_test
+ 6/11 Test  #6: ctr_apt_enable_test ..............   Passed    0.00 sec
+      Start  7: ctr_apt_notify_test
+ 7/11 Test  #7: ctr_apt_notify_test ..............   Passed    0.00 sec
+      Start  8: ctr_apt_utility_test
+ 8/11 Test  #8: ctr_apt_utility_test .............   Passed    0.00 sec
+      Start  9: ctr_ndm_test
+ 9/11 Test  #9: ctr_ndm_test .....................   Passed    0.00 sec
+      Start 10: ctr_clock_test
+10/11 Test #10: ctr_clock_test ...................   Passed    0.00 sec
+      Start 11: ctr_fs_user_test
+11/11 Test #11: ctr_fs_user_test .................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 11
+
+Total Test time (real) =   0.04 sec

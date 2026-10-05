@@ -1,0 +1,13 @@
+code_sha256=5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f
+registry_pages=599 blocks=111043 instruction_words_verified=545111
+rtc_epoch_ms_since_1900=3155673600000 guest_time_source=kernel_ns
+shared_clock_counter=1 snapshot_ms_since_1900=3155673600000 snapshot_tick=0 guest_now_ns=0
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=68
+r0=0x00048015 r1=0x00030002 r2=0x00000007 r3=0x00000002
+r4=0x1ff82080 r5=0x0ffff5e8 r6=0x1ff82090 r7=0x080c00c2
+r8=0x00000000 r9=0x00000000 r10=0x00000000 r11=0x00000000
+r12=0x0ffff610 r13=0x0ffff5c8 r14=0x002484f8 r15=0x0025947c
+cpsr=0x60000010 fpscr=0x23000010 tls=0x1ff82000
+last_ipc_session=fs:USER requested_service= request_header=0x080c00c2
+ipc_words= 080c00c2 00000007 00000002 0000000c 00030002 0ffff610 00000000 00000000
+ipc_static_buffer0= 00000000 00000000

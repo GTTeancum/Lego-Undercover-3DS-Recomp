@@ -1,0 +1,151 @@
+{
+  "format": "lego_shared_extdata_mount_checkpoint_v1",
+  "run_utc": "2026-10-05T04:18:44.987140+00:00",
+  "prior_remote_commit": "bbc48d52afce5cded88907967a678988f04a349c",
+  "recovered_fs_commit": "ed036aae5499ce39b58328071356a7511fee1b24",
+  "recovered_fs_tree": "e687a42e1e07c474e255aa2724ae05e6733ac918",
+  "source_commit": "5df8d42164d26e6e4c49b5965fa84ff11161904d",
+  "source_tree_verified": "be320b9cc6e51a97dd378b47317d545f744268ff",
+  "private_aot": {
+    "all_603_archive_members_unchanged": true,
+    "page_cpp_files": 599,
+    "verified_instruction_words": 545111,
+    "registry_blocks": 111043
+  },
+  "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "baseline": {
+    "stop": "WaitingNoRunnableThread",
+    "missing_service": "cfg:u",
+    "pc": "0x0024B324",
+    "dispatch_rounds": 68,
+    "reproduced_byte_identically": true
+  },
+  "cfg_discovery": {
+    "scope": "Registered endpoint only; all configuration commands remain unsupported",
+    "next_actual_request": "FS OpenArchive, not a CFG query",
+    "header": "0x080C00C2",
+    "archive_id": 7,
+    "path_type": 2,
+    "path_bytes_hex": "000000000b0000f000000000",
+    "media": 0,
+    "low_id": "F000000B",
+    "caller_high_id": 0,
+    "input_descriptor": "0x00030002",
+    "input_address": "0x0FFFF610"
+  },
+  "host_mount_policy": {
+    "option": "--shared-extdata-root DIR",
+    "required_target": "DIR/00048000/F000000B/user",
+    "defaults": "No root, no archive success. Nothing created or seeded by the service.",
+    "explicit_test_profile": "An empty directory was provisioned by the developer in private scratch; it is not recovered NAND or original console data.",
+    "reference": "Pinned Azahar shared extdata corrects high ID to 0x48000 and ignores the media field; host directory availability determines mount success.",
+    "wire": "Three normal response words: Result and u64 archive ID. Separate from kernel handles.",
+    "safety": "Exact 12-byte binary input, bounded pointer arithmetic, complete writable IPC preflight, numeric path components and symlink rejection below canonical root.",
+    "limits": "Containment guards are host policy. No open directory descriptor is retained yet; future file operations must revalidate/use race-resistant opens. No guest file operations or archive close implemented."
+  },
+  "after": {
+    "profile": "Explicit empty existing shared archive",
+    "stop": "UnsupportedIpc",
+    "service": "fs:USER",
+    "command": "CreateFile",
+    "header": "0x08080202",
+    "path": "/gamecoin.dat",
+    "path_encoding": "UTF-16LE including NUL",
+    "path_bytes": 28,
+    "file_size_requested": 20,
+    "descriptor": "0x00070002",
+    "path_address": "0x0036A046",
+    "pc": "0x0025947C",
+    "thread": 1,
+    "dispatch_rounds": 69,
+    "host_exit_code": 3,
+    "file_created": false
+  },
+  "negative_native_runs": {
+    "root_omitted": "UnsupportedIpc at OpenArchive; request unchanged",
+    "existing_root_missing_archive": "FS 0xC8A04554 NotFormatted; then original Break SVC 0x3C at 0x0011FB80, round 70, exit 3",
+    "nonexistent_root": "Host startup configuration error, exit 2; path was not created"
+  },
+  "validation": {
+    "gcc": "Full 599-page baseline build and changed-source rebuild/relink; 12/12 CTest",
+    "clang": "Fresh full 599-page build; 12/12 CTest",
+    "sanitizers": "Clang ASan/UBSan 12/12 ROM-free CTest; detect_leaks=1 and halt_on_error=1",
+    "real_native_logs_identical": true,
+    "hosted_ci": "GitHub Actions 37262887897: both compiler jobs passed on 5df8d42164d26e6e4c49b5965fa84ff11161904d.",
+    "tests": "Explicit/absent roots; missing mount; corrected high ID; distinct u64 mount IDs/shared table; no kernel-handle allocation; exact shape/short/wrapping inputs; response preflight; no creation, symlink escape, root rebase, guessed CFG values, thread wake or time progression."
+  },
+  "artifacts": {
+    "CFG-BASELINE.txt": {
+      "bytes": 861,
+      "sha256": "8d819f3d06a1c2c564c7d8a6b654dc6d9e0a318c9b9221a98d48cd470e3d57ea"
+    },
+    "CFG-FIRST-REQUEST.txt": {
+      "bytes": 850,
+      "sha256": "8f88d9aa99d676d106e588d9cf19f8624cca7b875550016421c6834fe7eaf2dc"
+    },
+    "CFG-ARCHIVE-PATH.txt": {
+      "bytes": 898,
+      "sha256": "aaf5cb64429bf02d0a82ee668778e715a30c7182077c65377592a35ecb211c52"
+    },
+    "CFG-UNCONFIGURED.txt": {
+      "bytes": 850,
+      "sha256": "8f88d9aa99d676d106e588d9cf19f8624cca7b875550016421c6834fe7eaf2dc"
+    },
+    "CFG-ARCHIVE-GCC.txt": {
+      "bytes": 923,
+      "sha256": "fb1a69eeedcfdf48923be8d0f27abebaade01b5f3378775c3995af23ff7e5273"
+    },
+    "CFG-ARCHIVE-CLANG.txt": {
+      "bytes": 923,
+      "sha256": "fb1a69eeedcfdf48923be8d0f27abebaade01b5f3378775c3995af23ff7e5273"
+    },
+    "CFG-CREATEFILE-INSPECT.txt": {
+      "bytes": 1065,
+      "sha256": "e2fba7c62189015625a0f58b09bae7002c873005529553f5da8711600a1e9f5e"
+    },
+    "CFG-MISSING-ARCHIVE.txt": {
+      "bytes": 922,
+      "sha256": "763545026b6a4d6a1d1232ea7ded069ee95410a0fc4c65769b52675d4ce39f5d"
+    },
+    "CFG-INVALID-ROOT.txt": {
+      "bytes": 201,
+      "sha256": "367a654dcee4563e2b1eb8809ecbe13f785f40341663e3251f3bb7cdf22bec45"
+    },
+    "CFG-CTEST-GCC.txt": {
+      "bytes": 1460,
+      "sha256": "c7f155b1471dace1142947ffdd26a77f99a1b06b41ec689ca6606346b08bb74c"
+    },
+    "CFG-CTEST-CLANG.txt": {
+      "bytes": 1464,
+      "sha256": "51712360456b1c47d538411aa8000118a59b84e72c0e0dfc9e745666c5489a44"
+    },
+    "CFG-CTEST-ASAN.txt": {
+      "bytes": 1462,
+      "sha256": "27a06db712b74833751cbb820c1af078b6c77c4faa218be93ee96b870862c19e"
+    }
+  },
+  "binaries": {
+    "build-gcc": {
+      "bytes": 10155424,
+      "sha256": "e830816549f0b253a3de027cde910563e88a7d5372fc6055be14e9d8afe465d9"
+    },
+    "build-clang": {
+      "bytes": 10127288,
+      "sha256": "ff81e91ca11731277e829d7b68c18ab051e05647fad4b73c95fdaeb42135def3"
+    }
+  },
+  "limits": [
+    "No configuration values returned; cfg:u is a strict discovery endpoint.",
+    "No CreateFile/OpenFile/read/write/close, gamecoin contents, save success, title screen, controls, audio or gameplay claim.",
+    "Mount and missing-directory results follow bounded reference HLE, not on-device FS formatting or permission parity.",
+    "Original game and generated-page bytes remain unchanged. Prior clock/DMB/kernel limitations remain; kernel guest time is zero in startup.",
+    "No new original-ROM upload was required."
+  ],
+  "sources": [
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/fs/archive.h",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/fs/fs_user.cpp#L667-L698",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/file_sys/archive_extsavedata.cpp",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/file_sys/errors.h",
+    "https://3dbrew.org/wiki/Extdata"
+  ]
+}
