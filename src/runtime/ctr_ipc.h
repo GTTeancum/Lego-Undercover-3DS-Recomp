@@ -91,6 +91,11 @@ public:
     // nullopt is a host stop, not a fabricated guest Result.
     std::optional<Result> SendSyncRequest(Kernel& kernel, GuestMemory& memory, Handle handle);
 
+    // Dynamic host failures (e.g. contained file I/O) stop without committing an
+    // IPC response. Any host-side partial effect must be reported by the service.
+    void RequestHostStop(std::string error);
+    [[nodiscard]] const std::string& last_host_error() const noexcept { return last_host_error_; }
+
     [[nodiscard]] bool unsupported_request() const noexcept { return unsupported_request_; }
 
     [[nodiscard]] bool HasService(std::string_view name) const;
@@ -110,6 +115,7 @@ private:
                             const IpcCommandBuffer& command) const;
 
     bool unsupported_request_{};
+    std::string last_host_error_;
     std::string last_session_name_;
     std::string last_lookup_name_;
     IpcCommandBuffer last_request_{};

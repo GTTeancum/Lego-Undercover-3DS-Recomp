@@ -151,6 +151,8 @@ int main(int argc,char** argv) {
                   << " requested_service=" << runner.ipc().last_lookup_name()
                   << " request_header=0x" << std::setw(8)
                   << runner.ipc().last_request()[0] << '\n';
+        if (!runner.ipc().last_host_error().empty())
+            std::cout << "host_ipc_error=" << runner.ipc().last_host_error() << '\n';
         const auto cb=kernel.current_thread()->tls_address+ctr::kIpcCommandBufferOffset;
         std::cout<<"ipc_words=";
         for (unsigned i=0;i<8;++i) {

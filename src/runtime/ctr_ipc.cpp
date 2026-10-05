@@ -209,9 +209,15 @@ Result IpcRouter::ConnectToService(Kernel& kernel, std::string_view name,
         std::make_shared<ClientSessionObject>(std::string(name), std::move(handler)));
 }
 
+void IpcRouter::RequestHostStop(std::string error) {
+    unsupported_request_ = true;
+    last_host_error_ = std::move(error);
+}
+
 std::optional<Result> IpcRouter::SendSyncRequest(Kernel& kernel, GuestMemory& memory,
                                   Handle handle) {
     unsupported_request_ = false;
+    last_host_error_.clear();
     const auto session =
         std::dynamic_pointer_cast<ClientSessionObject>(kernel.handles().Get(handle));
     if (!session || !session->service) {
@@ -242,6 +248,7 @@ std::optional<Result> IpcRouter::SendSyncRequest(Kernel& kernel, GuestMemory& me
     const Result dispatch_result =
         session->service->Handle(*this, kernel, memory,
                                  *kernel.current_thread(), command);
+    if (unsupported_request_) return std::nullopt;
     if (dispatch_result != kResultSuccess) {
         return dispatch_result;
     }
