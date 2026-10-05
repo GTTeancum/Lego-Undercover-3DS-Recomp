@@ -1,0 +1,25 @@
+{
+  "paired_compiler_logs_byte_identical": true,
+  "scenarios": [
+    "fresh",
+    "existing",
+    "mode-off",
+    "rtc-next-day",
+    "no-romfs",
+    "no-root",
+    "missing-archive",
+    "invalid-root",
+    "invalid-mode",
+    "missing-romfs",
+    "wrong-romfs-size"
+  ],
+  "state_root": "/mnt/data/lego_recovery/private-state/queue-validation.s3v8pcme",
+  "test_state": "guest-created new state; older checkpoints untouched",
+  "unchanged_private_aot_files": 603,
+  "private_aot_pages": 599,
+  "romfs_sha256": "6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf",
+  "binary_sha256": {
+    "gcc": "a79fc0a20ecd24596c4fe73e18666beb7725d7379d99da76428c9fd4e47adaf4",
+    "clang": "dd2714fb8a706e82e020e059b737267b739a3dc9155cd8c89d121135b8c10b5c"
+  }
+}

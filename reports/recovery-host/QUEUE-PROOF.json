@@ -1,0 +1,130 @@
+{
+  "reference_pin": "86a9f9236ae42bb5a2b995dbc933d599d8ea07ac",
+  "remote_base": "05b01f75d05b1ef6762ca44f1ff183860326762e",
+  "trace_kind": "logging-only alternate IPC object; normal production independently reproduces stop",
+  "cacheflush": {
+    "packet_words": [
+      "00000105",
+      "14003790",
+      "00007480",
+      "00000000",
+      "00000000",
+      "00000000",
+      "00000000",
+      "00000000"
+    ],
+    "region_address": "14003790",
+    "region_bytes": 29824,
+    "region_sha256": "824caecf736fbd9febe688ee15b2f1da3913f9c19cf9f5a89e4539e540877c73",
+    "exact_region_unchanged": true,
+    "reply": [
+      "000c0040",
+      "00000000"
+    ],
+    "consumed_packets": 1
+  },
+  "queue_states": [
+    {
+      "phase": "BEFORE",
+      "slot": 0,
+      "owns_rights": true,
+      "header": "00000100",
+      "event_signaled": false,
+      "page_sha256": "d2531c5e39bb7588224934f764b6b1c148b005e6c2d905a58631e0ac49f9699c"
+    },
+    {
+      "phase": "AFTER",
+      "slot": 0,
+      "owns_rights": true,
+      "header": "00000001",
+      "event_signaled": false,
+      "page_sha256": "d1c3027175b0ae442901563c55190904ed58443ba2e9b51c037279a61ddf5997"
+    },
+    {
+      "phase": "BEFORE",
+      "slot": 0,
+      "owns_rights": true,
+      "header": "00000101",
+      "event_signaled": false,
+      "page_sha256": "a8df46c356cf1acbaa3545d5ab705664ba4155dc6b3b5892da97bdae96d513b9"
+    },
+    {
+      "phase": "AFTER",
+      "slot": 0,
+      "owns_rights": true,
+      "header": "00000101",
+      "event_signaled": false,
+      "page_sha256": "a8df46c356cf1acbaa3545d5ab705664ba4155dc6b3b5892da97bdae96d513b9"
+    }
+  ],
+  "independent_full_page_replay_matches": true,
+  "next_untouched_packet": {
+    "name": "SubmitCmdList",
+    "packet_words": [
+      "01000101",
+      "14003790",
+      "00007480",
+      "00000000",
+      "00000000",
+      "00000000",
+      "00000000",
+      "00000000"
+    ],
+    "index": 1,
+    "pending_count": 1,
+    "address": "14003790",
+    "size_bytes": 29824,
+    "stop_byte": 0,
+    "flags": 0,
+    "do_flush": 0,
+    "processed": false
+  },
+  "romfs_reads": [
+    {
+      "offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "original_matches": true
+    },
+    {
+      "offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "original_matches": true
+    },
+    {
+      "offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "original_matches": true
+    },
+    {
+      "offset": 40,
+      "bytes": 12,
+      "sha256": "40dbd4bf447910236f9715182ba0984fd2399a6dfc85cca65d425b019ef727ea",
+      "original_matches": true
+    },
+    {
+      "offset": 52,
+      "bytes": 68,
+      "sha256": "5f5b3b08521b139dee77f2dfaca83c267ac5a58e9e7621b6db9661aa7996d151",
+      "original_matches": true
+    },
+    {
+      "offset": 120,
+      "bytes": 212,
+      "sha256": "06dd806e72993f72eabf6e9ccd24e52b263c353260fffd9abdba8796fd288c09",
+      "original_matches": true
+    },
+    {
+      "offset": 332,
+      "bytes": 4480,
+      "sha256": "ba74fac4b1752e852393f05c980f56ed988188bef08c15fe5d18286d032733f1",
+      "original_matches": true
+    }
+  ],
+  "romfs_total_bytes": 4892,
+  "guest_now_ns": 0,
+  "gpu_execution": false,
+  "rendering": false
+}
