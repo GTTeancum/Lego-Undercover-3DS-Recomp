@@ -1,0 +1,46 @@
+{
+  "raw_bytes": 769179648,
+  "raw_sha256": "6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf",
+  "view_offset": 4096,
+  "view_bytes": 769175552,
+  "level3_data_bytes": 763161254,
+  "ivfc_levels": [
+    {
+      "level": 1,
+      "physical_offset": 763166720,
+      "logical_offset": 0,
+      "data_bytes": 46592,
+      "block_bytes": 4096,
+      "blocks_verified": 12
+    },
+    {
+      "level": 2,
+      "physical_offset": 763215872,
+      "logical_offset": 49152,
+      "data_bytes": 5962208,
+      "block_bytes": 4096,
+      "blocks_verified": 1456
+    },
+    {
+      "level": 3,
+      "physical_offset": 4096,
+      "logical_offset": 6012928,
+      "data_bytes": 763161254,
+      "block_bytes": 4096,
+      "blocks_verified": 186319
+    }
+  ],
+  "header_u32": [
+    40,
+    40,
+    12,
+    52,
+    68,
+    120,
+    212,
+    332,
+    4480,
+    4816
+  ],
+  "provenance": "exact USA CCI-derived input; complete raw hash and IVFC hash chain verified"
+}
