@@ -1,0 +1,18 @@
+code_sha256=5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f
+registry_pages=599 blocks=111043 instruction_words_verified=545111
+romfs_sha256=6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf raw_bytes=769179648 view_offset=4096 view_bytes=769175552
+shared_extdata_root=/mnt/data/lego_recovery/private-state/transfer-validation.31ss8qc0/fresh
+ptm_step_source=explicit_empty_history total_steps=0 sensor_input=none
+gpu_vram_source=pinned_hle_zero_initialization bytes=6291456 cpu_mapping=none
+rtc_epoch_ms_since_1900=3155673600000 guest_time_source=kernel_ns
+shared_clock_counter=1 snapshot_ms_since_1900=3155673600000 snapshot_tick=0 guest_now_ns=0
+stop=MissingBlock pc=0x001301f8 detail=0x00000000 thread=3 dispatch_rounds=164
+r0=0x0059f524 r1=0x00000000 r2=0x00000001 r3=0x00000000
+r4=0x00371c40 r5=0x00002bef r6=0x00000005 r7=0xd8a02bf8
+r8=0xd8a02a02 r9=0x4ec4ec4f r10=0x00000000 r11=0x00000000
+r12=0x00000000 r13=0x00372c60 r14=0x0024aba4 r15=0x001301f8
+cpsr=0x60000010 fpscr=0x03000000 tls=0x1ff82400
+last_ipc_session=gsp::Gpu requested_service= request_header=0x000c0000
+ipc_words= 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+ipc_static_buffer0= 00000000 00000000
+host_exit_code=3

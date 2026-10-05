@@ -1,190 +1,188 @@
 # LEGO Chase Begins — canonical recovery handoff
 
-Updated October 5, 2026. Read this first. Continue in scratch, NOT the user's PC or
-Work. Project: LEGO City Undercover: The Chase Begins (Nintendo 3DS USA), not LEGO
-Batman. Historical Recovery F/J gameplay is not current proof. The native build
-is headless startup reconstruction, not a playable port. Post this file every turn.
+Updated October 5, 2026. Continue in scratch, NOT on the user's PC or Work.
+Project: LEGO City Undercover: The Chase Begins (Nintendo 3DS USA), not LEGO Batman.
+Historical Recovery F/J gameplay is not current proof. This native executable is
+headless startup reconstruction, not a playable port. POST THIS FILE EVERY WORK TURN.
 
 ## Published implementation and verified baseline
 
-Implementation: `a136cdeb05c500f9426007a05f3acbf9563b2a9c`.
-Exact tested/uploaded implementation tree: `e40bd3048979a6f78c5f9e11fb5562da5b2054ec`.
-Baseline main: `19139e9fcbdc53c1eda6076f47f34af615183ca2`.
-Baseline tree: `e00c04ac723be2a662a56f8bb3a15781f3e9f4a1`.
-All 370 prior manifest entries and 272 indexed source files verified. The full GCC
-baseline reproduced the SubmitCmdList stop at round 167 before edits. Private code,
-AOT and prepared RomFS were restored and hash-verified without user reuploads or
-original CCI extraction. Local Git is a snapshot/index, NOT remote commit history.
-The attached handoff's final receipt records the delivery commit and backup name.
+Implementation: `dfe787298ad8c1ae5ff3cde1fd8a4630bf9536cd`.
+Exact tested/uploaded implementation tree: `59d5e04bf5840af94594d3fcf06cce5fe5e4d5d7`.
+Baseline main: `ffd6b88e2e9452d18a054222ac23e16f2b440939`.
+Baseline tree: `88041f1d514ec879e3bb118fbacd62e1c16a172b`.
+All 561 prior manifest entries and 282 indexed source files verified. The full GCC
+baseline reproduced the original DisplayTransfer stop at round 170 before editing.
+Code/AOT and prepared RomFS were restored and hash-verified without user reuploads,
+original CCI extraction or user-PC access. Local Git is a snapshot/index, NOT remote
+history. Publish through connector with the verified current parent and force=false.
+The attached final receipt records the report/delivery commit and backup filename.
 
-GitHub Actions run `37355280419` passed both GCC and Clang jobs on implementation
-a136cde. Hosted tests are ROM-free, not game-data execution. Publish through the
-connector with the current remote parent and force=false; never force-push snapshots.
+## Required distinction: default strict versus explicit reference VRAM
 
-## Actual progress: original non-drawing PICA list executes
+Baseline inspection found the transfer's VRAM source unmapped on the CPU bus and
+the destination fully writable. It did NOT find recovered source pixels.
 
-The original queued SubmitCmdList at guest 0x14003790 is 29824 bytes, SHA-256
-824caecf736fbd9febe688ee15b2f1da3913f9c19cf9f5a89e4539e540877c73.
-It now executes 559 command packets / 6590 register writes, including 4096 shader
-program-word uploads, 96 uniform vectors and 1792 lighting-table writes. Every
-implemented register and upload buffer matches an independent Python replay.
+New CLI option: `--gpu-vram-mode reference-zero`. This explicitly creates a 6 MiB
+DEVICE-OWNED VRAM bank before service sessions connect, following the inspected
+pinned HLE's `MemorySystem::Impl` zero-initializing `make_unique<u8[]>(VRAM_SIZE)`.
+It is not measured hardware reset state, recovered console VRAM, original artwork
+or a per-transfer zero substitution. No CPU mapping is added. The bank persists,
+reads use its actual current bytes, and configuration cannot replace an active bank.
 
-The 4096 program uploads comprise 512 VS words and 3584 GS words; VS mirroring
-fills the remaining GS prefix. Final known program coverage is GS 4096, VS 512.
-The original initialization values happen to be zero; these are guest writes, NOT
-pre-seeded code or executed shader instructions. GS has 96 known float vectors;
-VS has none. Unwritten uniforms retain explicit unknown flags. Lighting tables
-0 through 6 receive 256 words each. This list has no draw-register writes.
+Without this option the bank stays unconfigured. The pending transfer remains an
+untouched host stop at round 170, with no output, dequeue or PPF. Invalid mode names
+and missing arguments are CLI errors. Do not silently enable the reference policy.
 
-The list's final irq_request value 0x12345678 matches the inherited reference-HLE
-comparator and requests autostop. After supported effects succeed, the queue
-advances index 1/count 1 to index 2/count 0, and P3D interrupt ID 5 is placed in
-the owner's real relay ring. The retained one-shot EventObject is signaled.
+## Actual progress and next stopping point
 
-The original waiting thread 3 is genuinely woken: WaitSynchAny -> Ready,
-pending_wake=true, Result=0. It consumes the one-shot signal immediately, so the
-event is already UNSIGNALED in the post-IPC snapshot. Do not misdiagnose that as
-missing notification. The original thread subsequently executes and waits in
-address arbitration. No fabricated wake, handle or unconditional completion signal.
-
-IRQ delivery is explicitly synchronous host policy, NOT accurate GPU duration or
-hardware scheduling. Kernel time remains zero. No vblank or frame completion exists.
-
-## Next untouched packet: DisplayTransfer
-
-Fresh startup now reaches:
+The original pending packet is:
 
 ```text
-stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=170
-last_ipc_session=gsp::Gpu requested_service= request_header=0x000c0000
-host_ipc_error=GSP queue packet requires unimplemented GPU execution
-queue_header=00000102
-packet=01000103 1f5f8000 14013950 00800080 00800080 00004400 00000000 00000000
+01000103 1f5f8000 14013950 00800080 00800080 00004400 00000000 00000000
 ```
 
-The packet is ID 3, DisplayTransfer, at index 2 / guest 0x10000860. Input address
-0x1F5F8000, output 0x14013950, size words 0x00800080 each, flags 0x00004400.
-It remains pending and UNEXECUTED. Full shared-page and GPU-state snapshots are
-unchanged across the rejected call. Shared-page SHA-256:
-83cf491b296dc411027337df9876776c907b67eabf222853b423dbeedbb3ee03.
-Do not infer valid source pixels, VRAM initialization or conversion success yet.
-No rendered frame, main menu, shader execution, audio, controls or gameplay proof.
-Packet/write/dispatch counts are not frames or a completion percentage.
+It now executes under the explicit option: 128 x 128 RGBA4, tiled Morton 8x8 source
+to linear destination, 32768 bytes. Source selector 0x1F5F8000 uses device physical
+0x185F8000. Destination VA 0x14013950 maps through the supported linear-heap slice
+to PA 0x20013950. Transfer registers are populated, staged bytes committed, trigger
+cleared and PPF interrupt ID 4 queued only after byte effects succeed.
 
-Fresh uses a NEW empty archive, explicit --ptm-step-mode empty and verified --romfs.
-Existing gamecoin reaches DisplayTransfer at round 162, skipping initialization.
-No RomFS retains OpenFileDirectly round 79; no empty PTM retains step count round 71.
-Existing-file startup is not gamecoin readback or gameplay save/load. The game still
-writes/closes its own 20-byte gamecoin.dat, default RTC SHA:
-970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6.
-Seven original RomFS metadata reads match all 4892 bytes: 0/40 three times, then
-40/12, 52/68, 120/212 and 332/4480. These are filesystem tables, not rendered assets.
+Queue header 0x00000102 becomes 0x00000003. Source is unchanged, output matches an
+independent inverse-Morton replay, all shared-page changes are independently checked,
+and PICA upload state is preserved. The retained event is signaled after transfer.
+Thread 3 was in address arbitration, not an event wait at that instant: do NOT
+claim PPF immediately woke it. The prior genuine P3D event-wait wake remains verified.
+Kernel time stays zero; interrupt delivery is synchronous host policy, not GPU timing.
 
-## Implemented scope and explicit limits
+IMPORTANT: both the source bank region and original destination were already zero
+in this startup. Their common SHA-256 is
+`c35020473aed1b4642cd726cad727b63fff2824ad68cedd7ffb73c7cbd890479`.
+The boot trace alone is not proof of nonzero-pixel conversion. Separate ROM-free
+nonzero-pattern tests cover all 65536 RGBA4 encodings, non-square/tile-edge cases
+and the 1 MiB bound. No game image or rendered output has been demonstrated.
 
-New StagePicaStartupList interprets PICA command headers separately from direct
-MMIO. It handles LE value/header pairs, byte-mask expansion, repeated/sequential
-parameters, 8-byte padding, passive registers and observed upload side effects.
-Raw upload-port values are retained where the reference uses the raw argument,
-even with mask zero. Program capacities, VS/GS mirroring, integer/bool uniforms,
-packed float24/float32 transfers and lighting type/index wrap follow inspected code.
-Float values are IEEE32 bit patterns matching the reference f24 container, not a
-claim of implemented shader arithmetic or hardware precision. Partial upload
-vectors persist between successful lists; unwritten uniforms must remain unknown.
+With a NEW empty archive, explicit empty PTM, original RomFS and reference-zero VRAM:
 
-Topology/restart reconfigure/reset only an EMPTY assembler: all draw and immediate
-paths stop. Draw 0x22E/0x22F and chaining 0x23C/0x23D are rejected even for zero data
-or zero mask. Immediate/default attributes, swizzle, fog/procedural uploads,
-out-of-range registers and ambiguous repeated non-upload special batches also stop.
-The reference sometimes ignores invalid input; these stricter stops are host policy.
+```text
+stop=MissingBlock pc=0x001301f8 detail=0x00000000 thread=3 dispatch_rounds=172
+```
 
-Submit accepts only the observed readable, 8-byte-aligned linear-heap slice, flags=0,
-do_flush=0, length <=1 MiB. The cap is host work policy, not console capacity.
-Channel-0 size/address/trigger setup uses the inspected VA-to-physical conversion;
-trigger clears only after success. General GPU physical addressing is not modeled.
-Snapshots reject aliases with the GSP page or IPC response, including shared backing
-aliases. Response capacity and all eligible packets are checked before mutation.
+Existing gamecoin reaches the same PC at round 164, skipping file initialization.
+Default strict VRAM stops at DisplayTransfer round 170; no RomFS retains the old
+OpenFileDirectly round 79; fresh without empty PTM retains step-count round 71.
+Keep those branches separate. Existing-file startup is not gamecoin readback or
+proof of gameplay save/load. No rendering, main menu, shader execution, audio,
+controls, completed initializer count or gameplay is established. Rounds are not frames.
 
-A disposable plan stages all register/upload changes. Invalid/unsupported later
-packets or IRQ-ring state leave even a valid prefix pending, with no partial GPU
-state, queue advance or event. This whole-batch atomicity is diagnostic host policy,
-not established console error precedence. Unknown/full/failed interrupt rings stop;
-overflow recovery is not implemented. A list without a matching IRQ request never
-creates P3D merely because it reaches the end.
+## Next exact work: a block-interior return, NOT missing original code
 
-The real retained-object event helper mirrors existing one-shot/sticky/pulse wake
-semantics, including handles closed after registration. It allocates no handle and
-advances no time. Scheduler algorithms and old handle-based SignalEvent source are
-unchanged. CacheFlush behavior, real shared mappings, ownership/slots and earlier
-FS/RomFS/PTM/APT/NDM/CFG behavior remain inherited. No new draw/transfer, cache model,
-async GPU timing, Windows or macOS build is claimed.
+The unchanged private AOT page already contains:
 
-Ten implementation files changed: CMakeLists.txt, cmake/LEGOHostRuntime.cmake,
-ctr_kernel.h (declaration only), new ctr_service_event.cpp, gsp_gpu_service.h,
-gsp_command_queue.cpp, new pica_startup.h/.cpp and two new tests. Original game bytes,
-private AOT, vendor, production IPC, ctr_kernel.cpp and filesystem backends unchanged.
+```text
+{0x001301E8U, kLegoPage00130Ops + 121U, 11U}
+```
 
-## Validation and reproducible evidence
+0x001301F4 is raw 0x112FFF30 (conditional BLXNE r0). The callback return address
+0x001301F8 is word offset 4 inside that recorded block; its raw word is 0xE5D41076.
+Current vendor `FindBlock()` accepts only exact block starts. No dispatcher or AOT
+fix was applied this turn. Next inspect `a32_runtime.cpp` dispatch/ExecuteBlock and
+the original callback path, then support validated recorded suffix entry or correct
+generation. Do not restart the prefix, jump over the missing return, invent an
+instruction or add a catch-all interpreter/success path. Test alignment, gaps,
+block ends, indirect conditional calls, exact starts and packed op metadata.
 
-Full GCC and Clang native builds link all 599 unchanged private page units.
-Final GCC 28/28 CTest, Clang 28/28 and Clang ASan/UBSan 28/28 ROM-free suites pass,
-with leak checking/halt-on-error enabled. Eleven production scenarios match byte-for-
-byte between compilers: fresh, existing, PTM-off, alternate RTC, no RomFS, no root,
-missing archive, invalid root, invalid mode, missing RomFS and wrong RomFS size.
-All 603 AOT members, original code and raw RomFS match their verified backups. Full
-IVFC-block verification was not repeated; raw SHA matches the prior verified image.
-Registry 111043 blocks / 545111 words remains STATIC inventory, not executed CPU count.
+Then run original code again with the four explicit inputs/options below and a NEW
+empty test root. The next actual request determines subsequent work. Preserve PICA
+uploads, real P3D behavior and completed byte transfer; do not fabricate vblank.
 
-New tests cover all byte masks, grouping/padding, raw upload ports, upload capacities,
-mirroring, packed float golden values, partial vectors, LUT wrap/type guards, IRQ
-match/autostop, unsupported effects, atomic batches, source/reply aliases, real
-waiters, relay wrap/fullness, nonowner calls and retained-event/full-handle behavior.
-One test compile needed an explicit method return type; failure log retained and
-fixed before final passing builds. An unsupported streaming-container invocation
-ran no build; normal finite drivers performed the successful builds. No suppressed
-failure. Final trace was rebuilt from the final source after the event-helper split.
+## Implementation scope and safety policies
 
-Current private evidence: submit-checkpoint/. Baseline: baseline-game.txt and
-baseline-run.json; final tests: ctest-gcc/clang/asan.txt and final-finished.json.
-Production matrix: validate.py, validation-summary.json and scenario logs.
-trace_submit.py builds a logging-only alternate IPC object; production IPC is unchanged.
-verify_submit.py independently replays original-command-list.bin against BEFORE/AFTER
-snapshots and checks every implemented state array/known bitmap, the full relay page,
-real thread-3 wake and next packet remaining untouched. It also verifies RomFS reads.
-Public summaries: reports/recovery-host/PICA-STARTUP-SUBMIT.md, SUBMIT-PROOF.json,
-SUBMIT-VALIDATION.json, SUBMIT-FRESH-GCC.txt and SUBMIT-EXISTING-GCC.txt.
-Captured list/state bytes remain PRIVATE, excluded from GitHub. Trace binaries and
-objects are excluded from source/evidence backups; their build scripts are retained.
+Only exact transfer flags 0x4400, equal nonzero whole-tile dimensions, 8-byte-aligned
+VRAM input and private writable linear-heap output are supported. Maximum staged
+bytes is 1 MiB (host work bound, NOT console capacity). RGBA4 decoding/re-encoding
+is a per-pixel identity, so the two source bytes are moved according to Morton
+addressing. No scaling, flip, crop, other format/layout, texture copy, fill, active
+MMIO trigger, drawing, generic GPU physical mapping or CPU VRAM mapping is added.
 
-## Next exact work
+The whole eligible queue batch is preflighted/staged before any dequeue, register,
+output or IRQ mutation. Invalid/unsupported tails roll back valid prefixes. A later
+PICA list depending on an earlier staged transfer output remains unsupported;
+dependency forwarding is not implemented. Independent mixed PICA/transfer batches
+preserve register and IRQ order, with 15-packet wrap tested. Whole-batch atomicity
+and stricter malformed-input stops are host policy, not console error precedence.
 
-Inspect the pending DisplayTransfer packet and its actual source/destination backing
-before implementing it. Read pinned GPU::Execute DisplayTransfer, MemoryTransfer,
-software blitter addressing/format/tiling/conversion, and current guest memory/VRAM
-mapping. Do not create empty VRAM just to make a transfer succeed or assume the
-0x1F5F8000 source has valid pixels. Derive flags/size behavior from inspected code and
-original memory. A transfer must move/convert actual bytes before any PPF notification.
-Preserve PICA upload state and the demonstrated real P3D wake. Run a NEW empty
-shared archive with explicit empty PTM and original RomFS; observe the next request.
+New device-write preparation preallocates exclusive epoch metadata without changing
+bytes or existing tokens. Commit performs no allocation, writes preflighted private
+backing, and invalidates affected reservation granules. Shared service-backed,
+protected, unmapped and cross-region output is rejected. IPC/GSP backing aliases
+are rejected. The real relay ring and event are checked before effects; full or
+invalid relay rings stop. No unconditional interrupt/completion signal is used.
+A hypothetical commit-invariant failure explicitly reports partial state after
+dequeue and emits no PPF; none occurred in the tested synchronous path.
 
-Primary reference: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
-This turn read pica_core.cpp parser/batch/special handlers, shader_setup.cpp/.h,
-packed_attribute.h, pica_types.h, regs_shader.h, regs_lighting.h, pica_core.h and
-gsp_interrupt.h; earlier GPU SubmitCmdList/physical routing and GSP relay code are
-also available. Prefix src/video_core/ for PICA files, src/core/hle/service/gsp/ for
-interrupts. Exact blob identities: submit-checkpoint/references.json. Full transfer
-semantics are NEXT work, not already implemented.
+13 implementation files changed: CMakeLists.txt, cmake/LEGOHostRuntime.cmake,
+src/host/main.cpp, ctr_memory.h, ctr_runner.h/.cpp, new ctr_device_write.cpp,
+gsp_gpu_service.h, gsp_command_queue.cpp, new gsp_display_transfer.h/.cpp, and two
+new display/queue transfer suites. Runtime paths use src/runtime/, service paths
+src/services/. Vendor, production IPC, ctr_kernel.cpp/scheduler, ctr_memory.cpp,
+PICA implementation and filesystem backends are unchanged. No Windows/macOS build.
 
-## Scratch paths and build commands
+## Validation and exact evidence
 
-Root /mnt/data/lego_recovery/. Source repo/, private pages generated2/,
-code restored/code.bin, raw RomFS game/prepared-romfs/romfs.bin. Prepared raw parts
+Full GCC and Clang native builds link all 599 unchanged private AOT page units.
+Final GCC 30/30 CTest, Clang 30/30 and Clang ASan/UBSan 30/30 ROM-free suites pass,
+leak checking and halt-on-error enabled. Fourteen production scenarios produce
+byte-identical compiler logs: fresh, existing, strict-no-vram, invalid-vram-mode,
+missing-vram-mode, mode-off, rtc-next-day, no-romfs, no-root, missing-archive,
+invalid-root, invalid-mode, missing-romfs and wrong-romfs-size.
+
+All 603 AOT members (599 page files), original code and raw RomFS remain unchanged.
+Full IVFC block verification was not repeated; raw SHA matches the prior verified
+image. Registry 111043 blocks / 545111 words is STATIC inventory, not executed CPU
+count. Independent replay rechecks the prior PICA list: 6590 writes, 4096 program
+uploads, 96 uniform vectors and 1792 lighting-table writes, with genuine P3D wake.
+Seven original RomFS metadata reads still match all 4892 bytes. The guest creates,
+writes and closes its own 20-byte gamecoin.dat, default-clock SHA:
+`970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6`.
+
+Current private evidence: `transfer-checkpoint/`. Final receipt final-finished.json
+records zero for every build/test/trace/proof/matrix step. Tests: ctest-gcc.txt,
+ctest-clang.txt, ctest-asan.txt. Matrix: validate.py and validation-summary.json.
+Proofs: transfer-proof.json, verify_transfer.py, submit-proof.json and
+verify_inherited_submit.py. trace_transfer.py builds a logging-only alternate IPC
+object; production IPC is unchanged. Private captures include the original PICA
+list, GPU/upload/page snapshots and transfer input/output; do not publish raw bytes.
+Trace/native binaries and .o objects are excluded from the source/log archive.
+
+Public: reports/recovery-host/GSP-DISPLAY-TRANSFER.md, TRANSFER-FRESH-GCC.txt,
+TRANSFER-EXISTING-GCC.txt, TRANSFER-STRICT-GCC.txt, TRANSFER-PROOF.json and
+TRANSFER-VALIDATION.json. A validation driver exceeded one container call's timeout
+after passing builds/proofs; the complete finite rerun passed all steps. Setup
+failures are recorded in interrupted-validation-note.txt, not hidden or called tests.
+
+## Inspected primary references
+
+Pin: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
+- src/core/memory.cpp: explicit device VRAM allocation/zero-init, blob b5eb9b829293cbbc722111e28a3c2f0e93824d86.
+- src/video_core/gpu.cpp: transfer routing, physical conversion, trigger/PPF order, blob 40f29fea0867b0e8cf4d89a8753ddabf02c3b54b.
+- src/video_core/renderer_software/sw_blitter.cpp: dimensions/format/layout, blob 0a68afd07c3e22fdfaaf441d4744ef79abb2a86f.
+- src/video_core/utils.h: Morton addressing, blob 5ad06ef398300162166ca339b9ffe8ebfd872919.
+Earlier regs_external.h and gsp_interrupt.h define RGBA4 and PPF=4. Exact reference
+receipt: transfer-checkpoint/references.json. These are pinned HLE semantics, not
+blanket hardware parity. Do not use mutable upstream to silently alter the baseline.
+
+## Scratch paths and commands
+
+Root: /mnt/data/lego_recovery/. Source repo/; private AOT generated2/;
+code restored/code.bin; raw RomFS game/prepared-romfs/romfs.bin; prepared raw parts
 romfs-library-roundtrip/. Builds build-gcc/, build-clang/, build-asan/.
-Current evidence submit-checkpoint/; previous queue-checkpoint/ preserved.
-NEW final matrix: private-state/submit-validation.58ohmzz7/. Other submit-* roots
-are this turn's diagnostics; their exact trace path is in trace-console.txt.
-These files are guest-created TEST state, not recovered NAND. Older roots remain
-untouched. The paired validator resets only its own byte-verified fresh test file.
+Current evidence transfer-checkpoint/; previous submit-checkpoint/ and queue-checkpoint/
+are retained. Historical register material remains in historical/, never over repo/.
+Final NEW matrix root: private-state/transfer-validation.31ss8qc0/. Other transfer-*
+roots belong to this turn's diagnostics; trace-run.json records its exact path.
+These are newly guest-created TEST files, not recovered NAND. Older roots remain
+untouched; the paired validator resets only its owned, byte-verified fresh files.
 
 ```sh
 cd /mnt/data/lego_recovery
@@ -192,28 +190,29 @@ cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPI
 cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure
 mkdir -p private-state
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/gsp-transfer-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/block-return-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
-./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin
+./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero
 ```
 
-Expected diagnostic exit 3: DisplayTransfer pending, round 170. Use clang++ for
-Clang; omit LEGO_AOT_DIR for ROM-free tests. Sanitizer flags and commands are in
-submit-checkpoint/build_remaining.py and final_validate.py. No user-PC development.
+Expected diagnostic exit 3: MissingBlock at 0x001301F8, thread 3, round 172.
+Omit the VRAM option to reproduce strict DisplayTransfer stop, not the new boundary.
+Use clang++ for Clang; omit LEGO_AOT_DIR for ROM-free tests. Sanitizer commands:
+transfer-checkpoint/build_remaining.py; final driver: final_validate.py.
 
-## Reset recovery and every-turn mandate
+## Durable recovery and continuing mandate
 
-GitHub GTTeancum/Lego-Undercover-3DS-Recomp, main. Library /LEGO-Chase-Recovery/.
-Restore latest source/evidence archive and handoff, NOT the historical pending
-register checkpoint. Verify CHECKPOINT-MANIFEST.json with verify_checkpoint.py;
-unpack repo/logs beneath the root above. SOURCE-INDEX.json preserves exact Git
-paths/blob hashes/modes, including ignored-but-tracked logs. Reconstruct the index
-faithfully but never treat its local history as the remote history.
+GitHub: GTTeancum/Lego-Undercover-3DS-Recomp main. Library: /LEGO-Chase-Recovery/.
+Restore latest source/evidence archive and handoff, NOT historical pending source.
+Verify CHECKPOINT-MANIFEST.json using verify_checkpoint.py; unpack repo/logs under
+the root above. SOURCE-INDEX.json records exact tracked paths, Git blob identities
+and modes including ignored-but-tracked logs. Reconstruct the index faithfully;
+its local snapshot history must NEVER replace the remote history.
 
 Private inputs have separate backups: code.bin, unchanged
 LEGO-Chase-current-AOT-599pages-2026-10-03.tgz, and Prepared-RomFS/ two raw parts plus
-romfs-parts.json. Put code in restored/; unpack AOT at the root (creates generated2/).
-Raw parts are 402653184 and 366526464 bytes. Restore without repeating CCI extraction:
+romfs-parts.json. Put code in restored/; unpack AOT in the root (creates generated2/).
+Prepared parts are 402653184 and 366526464 bytes. Do not repeat original CCI extraction.
 
 ```sh
 mkdir -p game/prepared-romfs
@@ -221,20 +220,26 @@ python repo/tools/restore_romfs_parts.py game/romfs-persistence/romfs-parts.json
 python repo/tools/verify_romfs.py game/prepared-romfs/romfs.bin
 ```
 
-Restore refuses existing output; verify rather than overwrite it.
-Raw RomFS 769179648 bytes; view offset 4096, size 769175552. Do not expose IVFC prefix
-as filesystem header or discard trailing tables. Raw SHA:
+Restore refuses existing output. Verify rather than overwrite it. Raw RomFS is
+769179648 bytes, view offset 4096 and size 769175552; do not expose IVFC prefix as
+filesystem header or drop trailing tables. SHA:
 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
 Code SHA: 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
 AOT SHA: 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
 Historical CCI SHA: 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
-Original six archive parts under Game-archive/ remain an alternate recovery route.
-Older GSP-REGISTERS-PENDING is preserved separately/nested under historical/; never
-overlay it on newer repo/. Scratch may reset. Library/GitHub are recovery routes;
-Actions source snapshots expire after 30 days. Connector writes work in this turn.
+Original six archive parts in Game-archive/ remain an alternate recovery path.
 
-MANDATE: tested checkpoints; publish source/reports and durable backups when available;
-never invent push/CI/persistence success. Keep original game data, private AOT/native
-binaries/test state OUT of public Git. Update this canonical handoff and POST A
-DOWNLOADABLE COPY EVERY WORK TURN plus the source/evidence checkpoint. A new chat
-must be able to restore, rebuild, reproduce the actual stop and continue from it.
+Scratch may reset. Library inputs/checkpoints and GitHub are recovery paths;
+Actions source snapshots expire after 30 days. Keep original game bytes, private
+AOT/native binaries/test captures OUT of public Git. Update this canonical handoff
+and POST A DOWNLOADABLE COPY EVERY WORK TURN, plus a durable source/log checkpoint.
+Never fabricate push, CI, persistence, rendering or gameplay success. A new chat
+must be able to restore, rebuild, reproduce the actual boundary and continue.
+
+## Hosted CI status at report publication
+
+Actions run `37369854262` targets implementation `dfe7872`. Clang completed
+successfully. The GCC job is still queued, with no test result yet. Local full GCC
+and Clang builds and all 30 suites passed as documented above; do not report a
+hosted GCC success without checking that job. The final attached receipt retains
+the latest status actually observed.
