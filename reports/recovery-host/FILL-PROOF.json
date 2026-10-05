@@ -1,0 +1,45 @@
+{
+  "implementation": "8a2cf0153f39ffcbf75e98bcd77b6378b07749b6",
+  "original_fill_bytes": 819200,
+  "original_vram_changed_bytes": 0,
+  "original_psc_ids": [
+    0
+  ],
+  "original_replay_all_bytes_registers_relay_match": true,
+  "original_pica_uploads_unchanged": true,
+  "thread_3_transition": "WaitSynchAny -> Ready; pending_wake=true; Result=0; one-shot event consumed",
+  "synthetic_changed_bytes": {
+    "single32": 819200,
+    "dual-overlap": 2304,
+    "fill24": 384
+  },
+  "synthetic_gcc_clang_captures_identical": true,
+  "synthetic_replay_all_bytes_registers_relay_match": true,
+  "next": {
+    "header": "0000010a",
+    "packet": [
+      "01000103",
+      "1f070800",
+      "1f300000",
+      "01900200",
+      "019001e0",
+      "01001004",
+      "00000000",
+      "00000000"
+    ],
+    "unconsumed": true,
+    "captured_state_unchanged": true,
+    "page_sha256": "b633bcdb420102646e9ba4288ca37c649ae50f12dde7d1c5e258806802d405fc"
+  },
+  "game_input_identities": {
+    "baseline_commit": "8bad0fc0e253489ccf24c31dac7d92b00adb1c81",
+    "baseline_tree": "431bd3c3dcb6e6faf4b0b17bb1a6aea532921b2d",
+    "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+    "romfs_sha256": "6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf",
+    "aot_archive_sha256": "2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9",
+    "aot_members_unchanged": 603,
+    "full_ivfc_check_repeated": false
+  },
+  "full_private_evidence": "fill-checkpoint/fill-proof.json and capture folders",
+  "no_rendering_claim": true
+}

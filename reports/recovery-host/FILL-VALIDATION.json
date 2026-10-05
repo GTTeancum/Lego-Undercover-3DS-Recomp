@@ -1,0 +1,85 @@
+{
+  "gcc_full_native_build": true,
+  "clang_full_native_build": true,
+  "private_aot_pages": 599,
+  "ctest_suites": {
+    "gcc": 33,
+    "clang": 33,
+    "clang_asan_ubsan_romfree": 33
+  },
+  "scenarios": [
+    {
+      "case": "fresh",
+      "exit": 3,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "existing",
+      "exit": 3,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "strict-no-vram",
+      "exit": 3,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "ptm-off",
+      "exit": 3,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "rtc-next-day",
+      "exit": 3,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "no-romfs",
+      "exit": 3,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "no-root",
+      "exit": 3,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "missing-archive",
+      "exit": 3,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "invalid-root",
+      "exit": 2,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "invalid-ptm",
+      "exit": 2,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "invalid-vram",
+      "exit": 2,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "missing-vram",
+      "exit": 2,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "missing-romfs",
+      "exit": 2,
+      "gcc_clang_identical": true
+    },
+    {
+      "case": "wrong-romfs-size",
+      "exit": 2,
+      "gcc_clang_identical": true
+    }
+  ],
+  "hosted_ci_run": 37384971072,
+  "hosted_gcc": "success",
+  "hosted_clang": "success"
+}
