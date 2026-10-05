@@ -6,7 +6,7 @@ compatibility patch is intentional and tested.
 
 File: recomp/a32_runtime.cpp, ExecuteBlock, Opcode::CoreAlu.
 Baseline file SHA-256: c1ff86cb41aaa857c2c2ca4fc36a20c8dc852f716e164936271e283ee28d9bb0
-Patched file SHA-256: cb8d5db7bc79fc2c5920993a46204c0d29b23e3bdb81f23dedacaa252247ea5f
+Prior DMB/DSB-patched file SHA-256: cb8d5db7bc79fc2c5920993a46204c0d29b23e3bdb81f23dedacaa252247ea5f
 
 The private LLVM-derived page archive classifies the observed CP15 DMB form as
 CoreAlu. Its raw word at guest PC 0x00117BC0 is 0xEE074FBA. The pinned
@@ -48,3 +48,32 @@ CP15 form; valid DSB coverage now resides in the dedicated suite.
 The previously documented generator correction covers DMB. DSB regeneration is
 NOT changed in this checkpoint; the retained archive is handled by the narrow
 runtime compatibility route. This remains a LOCAL patch, not upstream parity.
+
+## October 5 callback-return continuation: recorded A32 suffix entries
+
+The original callback returns to 0x001301F8, word 4 of the existing eleven-word
+block at 0x001301E8. No original code or private PackedOp metadata is missing.
+FindBlock retains its exact-start API. Dispatch now resolves an exact miss to a
+bounded recorded suffix only in A32 state, using the actual requested PC and
+remaining operations. The view is local and non-owning; immutable arrays are not
+modified, and a native-candidate flag for the prefix is not inherited by a suffix.
+There is no catch-all instruction decoder or successful missing-block fallback.
+
+The helper rejects unaligned entry, Thumb state, gaps, end/overflow, missing
+operation storage, cross-shard extent and an overlapping following record. The
+existing immutable/sorted registry contract still applies: global validation and
+raw-image matching occur in the host before execution, not in each lookup.
+Exact-start lookup, explicit callbacks and unsupported operation handling are
+otherwise unchanged. PC-relative operands use the actual suffix instruction PC.
+Block budgets still count dispatched blocks, not instruction words.
+
+ctr_block_entry_test covers conditional indirect call/return without prefix replay,
+every retained word, repeated lookups, PC-relative access, packed condition/link
+metadata, precise faults, unsupported fallback, exact/missing entries, callbacks,
+native-candidate isolation, budgets, malformed extents and no invented events/time.
+A diagnostic one-word partition of every ORIGINAL PackedOp reaches identical
+final CPU/thread/GPU state and all 16388 readable CPU pages (67125248 bytes).
+That oracle shares instruction backends and is not independent ARM emulation.
+Neither the private AOT archive nor any opcode backend is changed by this slice.
+
+Current recomp/a32_runtime.cpp SHA-256: 952fac140b5d860cd472c56c313231c4dcc8eb7b1719caeaa341503015030773
