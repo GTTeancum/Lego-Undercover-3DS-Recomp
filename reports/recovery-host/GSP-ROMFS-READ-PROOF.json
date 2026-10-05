@@ -1,0 +1,49 @@
+{
+  "state": "/mnt/data/lego_recovery/private-state/priority-trace.zjisz4z1",
+  "reads": [
+    {
+      "view_offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "matches_original": true
+    },
+    {
+      "view_offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "matches_original": true
+    },
+    {
+      "view_offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "matches_original": true
+    },
+    {
+      "view_offset": 40,
+      "bytes": 12,
+      "sha256": "40dbd4bf447910236f9715182ba0984fd2399a6dfc85cca65d425b019ef727ea",
+      "matches_original": true
+    },
+    {
+      "view_offset": 52,
+      "bytes": 68,
+      "sha256": "5f5b3b08521b139dee77f2dfaca83c267ac5a58e9e7621b6db9661aa7996d151",
+      "matches_original": true
+    },
+    {
+      "view_offset": 120,
+      "bytes": 212,
+      "sha256": "06dd806e72993f72eabf6e9ccd24e52b263c353260fffd9abdba8796fd288c09",
+      "matches_original": true
+    },
+    {
+      "view_offset": 332,
+      "bytes": 4480,
+      "sha256": "ba74fac4b1752e852393f05c980f56ed988188bef08c15fe5d18286d032733f1",
+      "matches_original": true
+    }
+  ],
+  "read_bytes": 4892,
+  "trace": "logging-only alternate IPC translation unit; no game changes"
+}
