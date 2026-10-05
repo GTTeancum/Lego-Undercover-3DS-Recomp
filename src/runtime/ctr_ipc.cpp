@@ -202,7 +202,10 @@ Result IpcRouter::ConnectToService(Kernel& kernel, std::string_view name,
     if (it == services_.end()) {
         return kResultServiceNotRegistered;
     }
-    auto handler = it->second->CreateSessionHandler();
+    if (out_handle == nullptr) return kResultInvalidPointer;
+    std::shared_ptr<IpcService> handler;
+    const Result connection_result = it->second->CreateSessionHandler(&handler);
+    if (connection_result != kResultSuccess) return connection_result;
     if (!handler) handler = it->second;
     return kernel.handles().Create(
         out_handle,

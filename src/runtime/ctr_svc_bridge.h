@@ -19,6 +19,7 @@ inline constexpr std::uint32_t kSvcReleaseSemaphore = 0x16U;
 inline constexpr std::uint32_t kSvcCreateEvent = 0x17U;
 inline constexpr std::uint32_t kSvcSignalEvent = 0x18U;
 inline constexpr std::uint32_t kSvcClearEvent = 0x19U;
+inline constexpr std::uint32_t kSvcMapMemoryBlock = 0x1FU;
 inline constexpr std::uint32_t kSvcCreateAddressArbiter = 0x21U;
 inline constexpr std::uint32_t kSvcArbitrateAddress = 0x22U;
 inline constexpr std::uint32_t kSvcCloseHandle = 0x23U;

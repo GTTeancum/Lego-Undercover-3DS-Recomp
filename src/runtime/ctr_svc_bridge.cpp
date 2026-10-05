@@ -4,6 +4,7 @@
 #include "runtime/ctr_clock.h"
 
 #include <vector>
+#include <new>
 
 namespace lego::ctr {
 namespace {
@@ -76,6 +77,33 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
         state.r[0] = result;
         if (result == kResultSuccess) state.r[1] = out_address;
         return ResumeAfterSvc(exit.pc, state);
+    }
+
+    case kSvcMapMemoryBlock: {
+        auto* guest_memory=dynamic_cast<GuestMemory*>(memory);
+        if (!guest_memory) return exit;
+        const auto object=std::dynamic_pointer_cast<ServiceSharedMemoryObject>(kernel_.handles().Get(state.r[0]));
+        Result result=kResultInvalidHandle;
+        if (object) {
+            const auto address=state.r[1], permissions=state.r[2], other=state.r[3];
+            // Only service-allocated, explicitly addressed, page-aligned mappings.
+            // Address-zero selection and heap-backed/CreateMemoryBlock are not implemented.
+            if (address==0 || (address & (kPageSize-1U))!=0) return exit;
+            if (permissions==0 || (permissions & ~object->other_permissions())!=0 || other!=0x10000000U)
+                result=kResultInvalidCombination;
+            else if (address<0x08000000U || std::uint64_t(address)+object->size()>=0x14000000ULL)
+                result=0xE0E01BF5U; // Pinned InvalidAddress; use u64 rather than wrapping.
+            else {
+                try {
+                    result=guest_memory->MapSharedServicePage(address,object,static_cast<MemoryPermission>(permissions))
+                           ? kResultSuccess : 0xE0A01BF5U; // Pinned InvalidAddressState.
+                } catch (const std::bad_alloc&) {
+                    return exit; // Explicit host stop, no fabricated guest allocation Result.
+                }
+            }
+        }
+        state.r[0]=result;
+        return ResumeAfterSvc(exit.pc,state);
     }
 
     case kSvcCreateThread: {

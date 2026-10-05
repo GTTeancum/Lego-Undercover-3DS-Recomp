@@ -9,6 +9,7 @@
 #include "recomp/a32_runtime.h"
 #include "runtime/ctr_kernel.h"
 #include "runtime/ctr_clock.h"
+#include "runtime/ctr_shared_memory.h"
 
 namespace lego::ctr {
 namespace a32 = oot3d::recomp::a32;
@@ -57,6 +58,11 @@ public:
 
     bool Map(std::uint32_t base, std::uint32_t size,
              MemoryPermission permissions);
+    // Only the bounded service-allocated page kind is currently modeled.
+    // Retain the backing object; mappings never receive a detached zero-filled copy.
+    bool MapSharedServicePage(std::uint32_t base,
+                              std::shared_ptr<ServiceSharedMemoryObject> object,
+                              MemoryPermission permissions);
     bool IsMapped(std::uint32_t address, std::uint32_t size = 1) const noexcept;
     bool IsReadable(std::uint32_t address, std::uint32_t size = 1) const noexcept;
     bool IsWritable(std::uint32_t address, std::uint32_t size = 1) const noexcept;
@@ -102,6 +108,10 @@ private:
         std::uint32_t size{};
         MemoryPermission permissions{MemoryPermission::None};
         std::vector<std::uint8_t> bytes{};
+        std::shared_ptr<ServiceSharedMemoryObject> shared;
+        [[nodiscard]] std::span<const std::uint8_t> Data() const noexcept {
+            return shared ? shared->bytes() : std::span<const std::uint8_t>(bytes);
+        }
     };
 
     Region* FindRegion(std::uint32_t address, std::uint32_t size) noexcept;

@@ -82,7 +82,7 @@ void Guards(){
     Fixture f;
     for(auto q:{IpcCommandBuffer{0x00160040,0,0,kCurrentProcessPseudoHandle},IpcCommandBuffer{0x00161042,0,0,kCurrentProcessPseudoHandle},
                 IpcCommandBuffer{0x00160042,1,0,kCurrentProcessPseudoHandle},IpcCommandBuffer{0x00160042,0,0x10,kCurrentProcessPseudoHandle},
-                IpcCommandBuffer{0x00160042,0,0x20,kCurrentProcessPseudoHandle},IpcCommandBuffer{0x00130042,1,0,0},
+                IpcCommandBuffer{0x00160042,0,0x20,kCurrentProcessPseudoHandle},IpcCommandBuffer{0x00130043,1,0,0},
                 IpcCommandBuffer{0x00170000},IpcCommandBuffer{0x00150002,0,kCurrentProcessPseudoHandle},IpcCommandBuffer{0x000C0000}})f.Stop(q);
     for(Handle object:{0U,kCurrentThreadPseudoHandle,f.handle,0xDEADBEEFU}){
         const IpcCommandBuffer q{0x00160042,0,0,object};f.Put(q);
@@ -100,7 +100,9 @@ void Guards(){
         std::uint32_t word=0;CHECK(blocked.Read32(f.cb(),&word) && word==q[0]);
     }
     f.Acquire();
-    f.Stop({0x00130042,1,0,other});CHECK(f.endpoint->rights_held());
+    f.Put({0x00130042,1,0,other});
+    CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==kResultInvalidHandle);
+    CHECK(f.endpoint->rights_held() && !f.Session()->registered());
 }
 }
-int main(){Discovery();Ownership();Guards();if(failures)return EXIT_FAILURE;std::cout<<"PASS: GSP discovery and first uncontended ownership; no queue, memory, interrupt or GPU completion fabricated\n";return EXIT_SUCCESS;}
+int main(){Discovery();Ownership();Guards();if(failures)return EXIT_FAILURE;std::cout<<"PASS: GSP discovery and first uncontended ownership; no interrupt or GPU completion fabricated\n";return EXIT_SUCCESS;}

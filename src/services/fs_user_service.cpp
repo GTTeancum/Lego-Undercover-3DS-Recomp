@@ -10,10 +10,12 @@ FsUserService::FsUserService(std::uint64_t program_id)
 FsUserService::FsUserService(std::shared_ptr<SharedState> shared)
     : shared_(std::move(shared)) {}
 
-std::shared_ptr<IpcService> FsUserService::CreateSessionHandler() {
+Result FsUserService::CreateSessionHandler(std::shared_ptr<IpcService>* out) {
+    if (!out) return kResultInvalidPointer;
     // A new connection gets its own initialization/program binding. Ordinary
     // DuplicateHandle keeps the same ClientSessionObject and handler instead.
-    return std::shared_ptr<IpcService>(new FsUserService(shared_));
+    *out = std::shared_ptr<IpcService>(new FsUserService(shared_));
+    return kResultSuccess;
 }
 
 bool FsUserService::CanHandle(const IpcCommandBuffer& command) const noexcept {

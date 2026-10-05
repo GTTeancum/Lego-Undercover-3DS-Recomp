@@ -16,6 +16,7 @@ namespace lego::ctr {
 inline constexpr std::size_t kIpcCommandBufferWords = 0x100U / sizeof(std::uint32_t);
 inline constexpr std::uint32_t kIpcCommandBufferOffset = 0x80U;
 
+inline constexpr Result kResultMaxConnectionsReached = 0xD0401834U;
 inline constexpr Result kResultServiceNotRegistered = 0xD0406401U;
 inline constexpr Result kResultInvalidServiceNameSize = 0xD9006405U;
 inline constexpr Result kResultServiceNameContainsNul = 0xD9006407U;
@@ -59,9 +60,14 @@ class IpcRouter;
 class IpcService {
 public:
     virtual ~IpcService() = default;
-    // Opt-in per-connection endpoint. Null means retain the existing shared
+    // Opt-in per-connection endpoint with explicit connection failure. A successful
+    // null handler means retain the existing shared
     // service handler (APT/NDM). This does not run a guest command.
-    virtual std::shared_ptr<IpcService> CreateSessionHandler() { return {}; }
+    virtual Result CreateSessionHandler(std::shared_ptr<IpcService>* out) {
+        if (!out) return kResultInvalidPointer;
+        out->reset();
+        return kResultSuccess;
+    }
     // False requests a host diagnostic stop without changing guest state.
     virtual bool CanHandle(const IpcCommandBuffer&) const noexcept { return true; }
     virtual Result Handle(IpcRouter& router, Kernel& kernel, GuestMemory& memory,

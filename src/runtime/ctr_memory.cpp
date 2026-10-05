@@ -43,6 +43,22 @@ bool GuestMemory::Map(std::uint32_t base, std::uint32_t size,
     return true;
 }
 
+bool GuestMemory::MapSharedServicePage(std::uint32_t base,
+                                        std::shared_ptr<ServiceSharedMemoryObject> object,
+                                        MemoryPermission permissions) {
+    if (!object || (base & (kPageSize-1U)) != 0 ||
+        static_cast<unsigned>(permissions) == 0 ||
+        (static_cast<unsigned>(permissions) & ~object->other_permissions()) != 0)
+        return false;
+    const std::uint64_t end=std::uint64_t(base)+object->size();
+    if (end>0x100000000ULL) return false;
+    for (const auto& region:regions_)
+        if (base<std::uint64_t(region.base)+region.size && region.base<end) return false;
+    regions_.push_back({base,object->size(),permissions,{},std::move(object)});
+    std::sort(regions_.begin(),regions_.end(),[](const Region& a,const Region& b){return a.base<b.base;});
+    return true;
+}
+
 GuestMemory::Region* GuestMemory::FindRegion(
     std::uint32_t address, std::uint32_t size) noexcept {
     const std::uint64_t end =
@@ -108,6 +124,7 @@ bool GuestMemory::LoadBytes(std::uint32_t address,
         return false;
     }
     const std::size_t offset = address - region->base;
+    if (region->shared) return region->shared->Write(static_cast<std::uint32_t>(offset),data);
     std::copy(data.begin(), data.end(), region->bytes.begin() + offset);
     return true;
 }
@@ -121,6 +138,10 @@ bool GuestMemory::ZeroBytes(std::uint32_t address, std::uint32_t size) {
         return false;
     }
     const std::size_t offset = address - region->base;
+    if (region->shared) {
+        const std::array<std::uint8_t,ServiceSharedMemoryObject::kSize> zero{};
+        return region->shared->Write(static_cast<std::uint32_t>(offset),std::span(zero).first(size));
+    }
     std::fill(region->bytes.begin() + offset,
               region->bytes.begin() + offset + size, 0);
     return true;
@@ -226,7 +247,7 @@ bool GuestMemory::Read8(std::uint32_t address, std::uint8_t* value) {
         !HasPermission(region->permissions, MemoryPermission::Read)) {
         return false;
     }
-    *value = region->bytes[address - region->base];
+    *value = region->Data()[address - region->base];
     return true;
 }
 
@@ -279,7 +300,7 @@ bool GuestMemory::ReadSized(std::uint32_t address, std::uint8_t size,
     const std::size_t offset = address - region->base;
     std::uint64_t result = 0;
     for (std::uint8_t index = 0; index < size; ++index) {
-        result |= static_cast<std::uint64_t>(region->bytes[offset + index])
+        result |= static_cast<std::uint64_t>(region->Data()[offset + index])
                   << (index * 8U);
     }
     *value = result;
@@ -297,6 +318,11 @@ bool GuestMemory::WriteSized(std::uint32_t address, std::uint8_t size,
         return false;
     }
     const std::size_t offset = address - region->base;
+    if (region->shared) {
+        std::array<std::uint8_t,8> data{};
+        for (std::uint8_t n=0;n<size;++n) data[n]=static_cast<std::uint8_t>(value>>(n*8U));
+        return region->shared->Write(static_cast<std::uint32_t>(offset),std::span(data).first(size));
+    }
     for (std::uint8_t index = 0; index < size; ++index) {
         region->bytes[offset + index] =
             static_cast<std::uint8_t>(value >> (index * 8U));
@@ -328,6 +354,8 @@ bool GuestMemory::Write64(std::uint32_t address, std::uint64_t value,
 }
 
 std::uint64_t GuestMemory::EpochFor(std::uint32_t address) const noexcept {
+    const auto* region=FindRegion(address,1);
+    if (region && region->shared) return region->shared->Epoch(address-region->base);
     const std::uint32_t granule = address & ~7U;
     const auto it = exclusive_epochs_.find(granule);
     return it == exclusive_epochs_.end() ? 0U : it->second;

@@ -18,7 +18,7 @@ public:
         shared_->romfs=std::move(image);
     }
     [[nodiscard]] const SharedArchiveMounts& archives() const noexcept { return shared_->archives; }
-    std::shared_ptr<IpcService> CreateSessionHandler() override;
+    Result CreateSessionHandler(std::shared_ptr<IpcService>* out) override;
     bool CanHandle(const IpcCommandBuffer& command) const noexcept override;
     Result Handle(IpcRouter&, Kernel&, GuestMemory&, ThreadObject&,
                   IpcCommandBuffer& command) override;
