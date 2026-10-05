@@ -1,0 +1,16 @@
+code_sha256=5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f
+registry_pages=599 blocks=111043 instruction_words_verified=545111
+shared_extdata_root=/mnt/data/lego_recovery/private-state/open-validation.9lz42yxz/fresh
+ptm_step_source=explicit_empty_history total_steps=0 sensor_input=none
+rtc_epoch_ms_since_1900=3155673600000 guest_time_source=kernel_ns
+shared_clock_counter=1 snapshot_ms_since_1900=3155673600000 snapshot_tick=0 guest_now_ns=0
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=71
+r0=0x00048015 r1=0x00030002 r2=0x00000800 r3=0x00000003
+r4=0x1ff82080 r5=0x0ffff5e8 r6=0x0ffff628 r7=0x1ff820ac
+r8=0x00000000 r9=0x00000001 r10=0x00000002 r11=0x00000001
+r12=0x0000000c r13=0x0ffff588 r14=0x0012ae00 r15=0x0025947c
+cpsr=0x20000010 fpscr=0x23000010 tls=0x1ff82000
+last_ipc_session=fs:USER requested_service= request_header=0x08030204
+ipc_words= 08030204 00000000 00000003 00000001 00000001 00000002 0000000c 00000001
+ipc_static_buffer0= 00000000 00000000
+host_exit_code=3
