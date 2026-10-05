@@ -141,6 +141,7 @@ public:
     ScopedFd(const ScopedFd&) = delete;
     ScopedFd& operator=(const ScopedFd&) = delete;
     int get() const noexcept { return fd_; }
+    int release() noexcept { const int fd = fd_; fd_ = -1; return fd; }
     void reset(int value) { if (fd_ >= 0) ::close(fd_); fd_ = value; }
 private:
     int fd_;
@@ -219,6 +220,77 @@ Result SharedArchiveMounts::CreateFile(std::uint64_t handle, std::u16string_view
     return kResultSuccess;
 #else
     throw std::logic_error("contained file creation is unavailable on this host");
+#endif
+}
+SharedArchiveFile::~SharedArchiveFile() {
+#ifdef LEGO_HAS_CONTAINED_FILE_CREATE
+    if (fd_ >= 0) ::close(fd_);
+#endif
+}
+
+Result SharedArchiveMounts::OpenFile(std::uint64_t handle, std::u16string_view path,
+                                    std::uint32_t mode,
+                                    std::unique_ptr<SharedArchiveFile>* out_file) const {
+    if (!out_file || *out_file) throw std::logic_error("OpenFile requires an empty output owner");
+    const auto* mount = Find(handle);
+    if (!mount) return kResultFsInvalidArchiveHandle;
+    if (!CanOpenFiles() || (mode & ~7U) != 0)
+        throw std::logic_error("unsupported shared-extdata OpenFile backend/flags");
+    std::vector<std::string> parts;
+    if (!PathComponents(path, parts)) return kResultFsInvalidPath;
+    // Pinned extdata rejects an empty mode or create flag, then always opens r+b.
+    if (mode == 0 || (mode & 4U) != 0) return kResultFsUnsupportedOpenFlags;
+#ifdef LEGO_HAS_CONTAINED_FILE_CREATE
+    ScopedFd parent(::fcntl(native_root_->fd, F_DUPFD_CLOEXEC, 0));
+    if (parent.get() < 0) HostFileError("shared-extdata root duplication");
+    for (const auto& part : mount->lexically_relative(root_)) {
+        const Result result = Descend(parent, part.string());
+        if (result != kResultSuccess) return result;
+    }
+    for (std::size_t i = 0; i + 1 < parts.size(); ++i) {
+        const Result result = Descend(parent, parts[i]);
+        if (result != kResultSuccess) return result;
+    }
+    const auto& leaf = parts.back();
+    struct stat before{};
+    if (::fstatat(parent.get(), leaf.c_str(), &before, AT_SYMLINK_NOFOLLOW) != 0) {
+        if (errno == ENOENT) return kResultFsFileNotFound;
+        HostFileError("shared-extdata open destination check");
+    }
+    if (S_ISLNK(before.st_mode)) return kResultFsInvalidPath;
+    if (!S_ISREG(before.st_mode)) return kResultFsUnexpectedFileOrDirectory;
+    // Host-only hard-link guard: never permit a writable external alias. This
+    // is not claimed to be firmware behavior or protection against host admins.
+    if (before.st_nlink != 1) return kResultFsInvalidPath;
+    ScopedFd file(::openat(parent.get(), leaf.c_str(),
+                          O_RDWR | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK));
+    if (file.get() < 0) {
+        if (errno == ENOENT) return kResultFsFileNotFound;
+        if (errno == ELOOP) return kResultFsInvalidPath;
+        if (errno == EISDIR) return kResultFsUnexpectedFileOrDirectory;
+        HostFileError("shared-extdata existing file open");
+    }
+    struct stat opened{};
+    if (::fstat(file.get(), &opened) != 0) HostFileError("shared-extdata opened file check");
+    if (!S_ISREG(opened.st_mode)) return kResultFsUnexpectedFileOrDirectory;
+    if (opened.st_nlink != 1) return kResultFsInvalidPath;
+    // Detect a leaf replacement across check/open instead of silently adopting
+    // an unvalidated object. Parent traversal stays descriptor-relative.
+    if (before.st_dev != opened.st_dev || before.st_ino != opened.st_ino)
+        throw std::runtime_error("shared-extdata file changed during OpenFile");
+    if (opened.st_size < 0) throw std::runtime_error("negative shared-extdata file size");
+    const int flags = ::fcntl(file.get(), F_GETFL);
+    if (flags < 0 || ::fcntl(file.get(), F_SETFL, flags & ~O_NONBLOCK) != 0)
+        HostFileError("shared-extdata file flags");
+    // Allocate before transferring ownership, so allocation failure closes the
+    // descriptor exactly once. No file creation, truncation or content writes.
+    auto owner = std::unique_ptr<SharedArchiveFile>(
+        new SharedArchiveFile(file.get(), static_cast<std::uint64_t>(opened.st_size)));
+    file.release();
+    *out_file = std::move(owner);
+    return kResultSuccess;
+#else
+    throw std::logic_error("contained file opening is unavailable on this host");
 #endif
 }
 } // namespace lego::ctr

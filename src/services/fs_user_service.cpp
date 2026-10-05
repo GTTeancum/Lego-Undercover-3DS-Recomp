@@ -1,4 +1,5 @@
 #include "services/fs_user_service.h"
+#include "services/fs_file_service.h"
 #include <utility>
 #include <string>
 
@@ -21,6 +22,12 @@ bool FsUserService::CanHandle(const IpcCommandBuffer& command) const noexcept {
         return command[2] == IpcCallingPidDesc();
     if (!initialized_) return false;
     if (command[0] == IpcMakeHeader(0x0862, 1, 0)) return true;
+    if (command[0] == IpcMakeHeader(0x0802, 7, 2)) {
+        const auto bytes = command[5];
+        return shared_->archives.CanOpenFiles() && command[4] == 4 &&
+               bytes >= 4 && bytes <= 0x1000 && (bytes & 1) == 0 &&
+               command[8] == ((bytes << 14) | 2) && (command[6] & ~7U) == 0;
+    }
     if (command[0] == IpcMakeHeader(0x0808, 8, 2)) {
         const auto bytes = command[5];
         const auto size = std::uint64_t(command[7]) | (std::uint64_t(command[8]) << 32);
@@ -49,6 +56,45 @@ Result FsUserService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& mem
         // Matches pinned FS_USER's service-global field; not thread priority
         // and not yet a modeled filesystem worker scheduler.
         shared_->priority = command[1];
+    }
+    if (id == 0x0802) {
+        const auto bytes = command[5];
+        const auto address = command[9];
+        if (std::uint64_t(address) + bytes > 0x100000000ULL || !memory.IsReadable(address, bytes))
+            return kResultInvalidPointer;
+        Result result = kResultFsInvalidPath;
+        ::lego::ctr::Handle file_handle = 0;
+        try {
+            std::u16string path;
+            path.reserve(bytes / 2);
+            for (std::uint32_t offset = 0; offset < bytes; offset += 2) {
+                std::uint16_t unit = 0;
+                if (!memory.Read16(address + offset, &unit)) return kResultInvalidPointer;
+                path += static_cast<char16_t>(unit);
+            }
+            if (path.back() == 0) {
+                path.pop_back();
+                const auto archive = std::uint64_t(command[2]) | (std::uint64_t(command[3]) << 32);
+                std::unique_ptr<SharedArchiveFile> file;
+                result = shared_->archives.OpenFile(archive, path, command[6], &file);
+                if (result == kResultSuccess) {
+                    auto service = std::make_shared<FsFileService>(std::move(file));
+                    result = kernel.handles().Create(&file_handle,
+                        std::make_shared<ClientSessionObject>("fs:File", std::move(service)));
+                }
+            }
+        } catch (const std::exception& error) {
+            router.RequestHostStop(error.what());
+            return kResultSuccess; // No response committed; all temporary owners unwind.
+        }
+        // Same reply shape on success and failure; a failed open moves null.
+        // Transaction/attributes are ignored by the pinned extdata backend.
+        command.fill(0);
+        command[0] = IpcMakeHeader(id, 1, 2);
+        command[1] = result;
+        command[2] = IpcMoveHandleDesc();
+        command[3] = file_handle;
+        return kResultSuccess;
     }
     if (id == 0x0808) {
         const auto bytes = command[5];

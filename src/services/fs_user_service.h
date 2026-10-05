@@ -4,7 +4,7 @@
 
 namespace lego::ctr {
 // Bounded FS endpoint for the verified single-program runner. Shared archive
-// opens/creation require an explicit host mount. Open/read/write remain unsupported.
+// opens/creation require an explicit host mount. Only file GetSize is supported.
 class FsUserService final : public IpcService {
 public:
     explicit FsUserService(std::uint64_t program_id);

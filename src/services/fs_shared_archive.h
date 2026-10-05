@@ -18,6 +18,23 @@ inline constexpr Result kResultFsUnexpectedFileOrDirectory = 0xE0C04702U;
 // Explicit host safety limit, NOT a discovered console capacity.
 inline constexpr std::uint64_t kMaxSharedCreateSize = 16ULL * 1024 * 1024;
 
+// One actually-opened regular file. The descriptor remains owned until the last
+// client-session reference is released. Extdata opens force effective read/write
+// mode, and capture a fixed-size bound for subsequent operations.
+class SharedArchiveFile final {
+public:
+    ~SharedArchiveFile();
+    SharedArchiveFile(const SharedArchiveFile&) = delete;
+    SharedArchiveFile& operator=(const SharedArchiveFile&) = delete;
+    [[nodiscard]] std::uint64_t size() const noexcept { return size_; }
+    [[nodiscard]] std::uint32_t effective_mode() const noexcept { return 3; }
+private:
+    friend class SharedArchiveMounts;
+    SharedArchiveFile(int fd, std::uint64_t size) noexcept : fd_(fd), size_(size) {}
+    int fd_;
+    const std::uint64_t size_;
+};
+
 // Host-backed shared-extdata mount table. No implicit directory creation.
 // The host explicitly supplies a root containing 00048000/<LOW-ID>/user.
 class SharedArchiveMounts final {
@@ -28,6 +45,9 @@ public:
     [[nodiscard]] const std::filesystem::path* Find(std::uint64_t handle) const noexcept;
     Result Open(std::uint32_t low_id, std::uint64_t* out_handle);
     [[nodiscard]] bool CanCreateFiles() const noexcept;
+    [[nodiscard]] bool CanOpenFiles() const noexcept { return CanCreateFiles(); }
+    Result OpenFile(std::uint64_t handle, std::u16string_view path,
+                    std::uint32_t mode, std::unique_ptr<SharedArchiveFile>* out_file) const;
     Result CreateFile(std::uint64_t handle, std::u16string_view path,
                       std::uint64_t size) const;
 private:
