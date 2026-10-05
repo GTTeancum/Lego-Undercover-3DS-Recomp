@@ -202,9 +202,11 @@ Result IpcRouter::ConnectToService(Kernel& kernel, std::string_view name,
     if (it == services_.end()) {
         return kResultServiceNotRegistered;
     }
+    auto handler = it->second->CreateSessionHandler();
+    if (!handler) handler = it->second;
     return kernel.handles().Create(
         out_handle,
-        std::make_shared<ClientSessionObject>(std::string(name), it->second));
+        std::make_shared<ClientSessionObject>(std::string(name), std::move(handler)));
 }
 
 std::optional<Result> IpcRouter::SendSyncRequest(Kernel& kernel, GuestMemory& memory,

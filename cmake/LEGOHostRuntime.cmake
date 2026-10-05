@@ -12,6 +12,7 @@ function(lego_add_ctr_runtime target_name)
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_ipc.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/apt_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/ndm_service.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/fs_user_service.cpp"
     )
     target_compile_features(${target_name} PUBLIC cxx_std_20)
     target_include_directories(${target_name}

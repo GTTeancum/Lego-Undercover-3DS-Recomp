@@ -59,6 +59,9 @@ class IpcRouter;
 class IpcService {
 public:
     virtual ~IpcService() = default;
+    // Opt-in per-connection endpoint. Null means retain the existing shared
+    // service handler (APT/NDM). This does not run a guest command.
+    virtual std::shared_ptr<IpcService> CreateSessionHandler() { return {}; }
     // False requests a host diagnostic stop without changing guest state.
     virtual bool CanHandle(const IpcCommandBuffer&) const noexcept { return true; }
     virtual Result Handle(IpcRouter& router, Kernel& kernel, GuestMemory& memory,
