@@ -136,7 +136,7 @@ void UnsupportedEnableShapesPreserveState() {
              IpcCommandBuffer{0x00030000}, IpcCommandBuffer{0x00030080, 0, 0},
              IpcCommandBuffer{0x00030041, 0}, IpcCommandBuffer{0x00030040, 1},
              IpcCommandBuffer{0x00030040, 0x20}, IpcCommandBuffer{0x00030040, 0xFFFFFFFF},
-             IpcCommandBuffer{0x00430040, 0x300}}) {
+             IpcCommandBuffer{0x00440000}}) {
         f.Put(request);
         const auto cpu = f.cpu;
         CHECK(f.Call().kind == a32::ExitKind::Svc);

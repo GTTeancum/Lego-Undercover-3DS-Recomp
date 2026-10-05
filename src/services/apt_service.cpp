@@ -10,6 +10,8 @@ bool AptService::CanHandle(const IpcCommandBuffer& command) const noexcept {
         return !initialized_ && command[1] == 0x300 && command[2] == 0;
     if (command[0] == IpcMakeHeader(3, 1, 0))
         return initialized_ && command[1] == 0;
+    if (command[0] == IpcMakeHeader(0x43, 1, 0))
+        return initialized_ && registered_ && command[1] == 0x300;
     if (command[0] == IpcMakeHeader(0xE, 2, 0) ||
         command[0] == IpcMakeHeader(0xD, 2, 0))
         return initialized_ && command[1] == 0x300 && command[2] <= 0x1000;
@@ -20,6 +22,18 @@ Result AptService::Handle(IpcRouter&, Kernel& kernel, GuestMemory& memory, Threa
                           IpcCommandBuffer& command) {
     if (IpcCommandId(command[0]) == 0xE || IpcCommandId(command[0]) == 0xD)
         return ReadLaunchParameter(memory, thread, command);
+    if (IpcCommandId(command[0]) == 0x43) {
+        // Observed NotifyToWait(app=0x300). The pinned Azahar apt.cpp handler
+        // acknowledges this command with one Result word and NO side effects;
+        // upstream explicitly labels it STUBBED. This is that bounded HLE
+        // compatibility policy, not a claim of complete hardware semantics.
+        // In particular, do not consume/requeue the launch message, signal an
+        // event, block/wake a thread, or advance guest time because of its name.
+        command.fill(0);
+        command[0] = IpcMakeHeader(0x43, 1, 0);
+        command[1] = kResultSuccess;
+        return kResultSuccess;
+    }
     if (IpcCommandId(command[0]) == 1) {
         const auto attributes = command[1];
         ::lego::ctr::Handle handle = 0;
