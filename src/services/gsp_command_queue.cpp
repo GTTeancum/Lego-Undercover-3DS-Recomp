@@ -67,7 +67,10 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
     // Packets behind a stop marker are not eligible and are not inspected.
     std::array<bool,kPacketCount> stop_after{};
     std::array<std::unique_ptr<PicaListPlan>,kPacketCount> plans{};
-    const PicaListPlan* preceding=nullptr;
+    std::array<std::unique_ptr<DisplayTransferPlan>,kPacketCount> transfers{};
+    std::array<PicaGpuRegisters,kPacketCount> transfer_registers{};
+    auto staged_registers=shared_->register_words;
+    const auto* staged_uploads=&shared_->pica_uploads;
     std::uint32_t total_irqs=0;
     std::uint32_t eligible = 0;
     if (count != 0 && should_stop == 0 && status != kStatusStopped) {
@@ -91,6 +94,13 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                 if(size&&(memory.UsesSharedBacking(address,size,*shared_->memory) ||
                          memory.SpansAlias(address,size,static_cast<std::uint32_t>(response),sizeof(command))))
                     return stop("GSP SubmitCmdList source aliases mutable queue or IPC state");
+                // A previous staged transfer must not change this list between
+                // preflight and execution. Dependency forwarding is not implemented.
+                for (std::uint32_t prior=0;prior<n;++prior) {
+                    if (transfers[prior] && memory.SpansAlias(address,size,
+                            transfers[prior]->request.output,transfers[prior]->bytes))
+                        return stop("GSP SubmitCmdList depends on an earlier staged transfer");
+                }
                 try {
                     std::vector<std::uint8_t> list(size);
                     for(std::uint32_t i=0;i<size;++i) {
@@ -99,12 +109,12 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                     }
                     auto plan=std::make_unique<PicaListPlan>();
                     // GPU::Execute configures channel 0 before ProcessCmdList.
-                    auto registers=preceding?preceding->registers:shared_->register_words;
+                    auto registers=staged_registers;
                     registers[0x638]=size/8;
                     registers[0x63A]=((address-0x14000000U+0x20000000U)>>3)&0x0FFFFFFFU;
                     registers[0x63C]=1;
                     if(!StagePicaStartupList(list,registers,
-                            preceding?preceding->uploads:shared_->pica_uploads,*plan)) {
+                            *staged_uploads,*plan)) {
                         std::ostringstream error;
                         error<<plan->result.error<<" at list byte 0x"<<std::hex
                              <<plan->result.byte_offset<<" register 0x"<<plan->result.register_id;
@@ -113,9 +123,36 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                     // GPU::SubmitCmdList clears channel 0 trigger after execution.
                     plan->registers[0x63C]=0;
                     total_irqs+=plan->result.irqs;
-                    preceding=plan.get();plans[n]=std::move(plan);
+                    staged_registers=plan->registers;
+                    staged_uploads=&plan->uploads; plans[n]=std::move(plan);
                 } catch(const std::exception& error) {
                     router.RequestHostStop(error.what());return kResultSuccess;
+                }
+            } else if(kind==3) {
+                try {
+                    const DisplayTransferRequest request{ReadWord(bytes,packet+4),ReadWord(bytes,packet+8),
+                        ReadWord(bytes,packet+12),ReadWord(bytes,packet+16),ReadWord(bytes,packet+20)};
+                    auto plan=std::make_unique<DisplayTransferPlan>();
+                    const char* error=nullptr;
+                    if (!StageDisplayTransfer(request,shared_->vram.get(),*plan,error)) return stop(error);
+                    if (!memory.IsWritable(request.output,plan->bytes))
+                        return stop("DisplayTransfer destination lacks complete writable backing");
+                    if (memory.UsesSharedBacking(request.output,plan->bytes,*shared_->memory) ||
+                        memory.SpansAlias(request.output,plan->bytes,
+                                          static_cast<std::uint32_t>(response),sizeof(command)))
+                        return stop("DisplayTransfer destination aliases mutable queue or IPC state");
+                    // GPU::Execute sets the transfer registers. The equal RGBA4
+                    // path performs actual detiling before clearing trigger bit 0.
+                    staged_registers[0x300]=(request.input-kGpuVramVirtualBase+kGpuVramPhysicalBase)>>3;
+                    staged_registers[0x301]=(request.output-0x14000000U+0x20000000U)>>3;
+                    staged_registers[0x302]=request.output_size;
+                    staged_registers[0x303]=request.input_size;
+                    staged_registers[0x304]=request.flags;
+                    staged_registers[0x306]&=~1U;
+                    transfer_registers[n]=staged_registers;
+                    ++total_irqs; transfers[n]=std::move(plan);
+                } catch (const std::exception& error) {
+                    router.RequestHostStop(error.what()); return kResultSuccess;
                 }
             } else if(kind==kCacheFlush) {
                 for (std::uint32_t region = 0; region < 3; ++region) {
@@ -139,20 +176,30 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
     const auto relay=owner->slot*0x40U;
     if(total_irqs) {
         if(!owner->registered || !owner->event)
-            return stop("PICA IRQ requires a registered real GSP event");
+            return stop("GSP IRQ requires a registered real GSP event");
         const auto irq_index=bytes[relay],irq_count=bytes[relay+1];
         if(irq_index>=0x34 || irq_count>0x34 || bytes[relay+2]!=0 ||
            total_irqs>0x34U-irq_count)
-            return stop("PICA IRQ relay has invalid/full/failed state");
+            return stop("GSP IRQ relay has invalid/full/failed state");
     }
-    const auto publish_irq=[&]() {
+    // Allocation for private-memory reservation metadata is done before dequeue.
+    // Preparing changes neither bytes nor tokens; the later commit is allocation-free.
+    try {
+        for (std::uint32_t n=0;n<eligible;++n) {
+            if (transfers[n] && !memory.PrepareDeviceWrite(transfers[n]->request.output,transfers[n]->bytes))
+                return stop("DisplayTransfer destination is not supported private device-write backing");
+        }
+    } catch (const std::exception& error) {
+        router.RequestHostStop(error.what());return kResultSuccess;
+    }
+    const auto publish_irq=[&](std::uint8_t interrupt_id) {
         const auto current=shared_->memory->bytes();
         const auto irq_index=current[relay],irq_count=current[relay+1];
         const auto next=(std::uint32_t(irq_index)+irq_count)%0x34U;
-        const std::array<std::uint8_t,1> count_byte{static_cast<std::uint8_t>(irq_count+1)},id{5};
+        const std::array<std::uint8_t,1> count_byte{static_cast<std::uint8_t>(irq_count+1)},id{interrupt_id};
         (void)shared_->memory->Write(relay+1,count_byte);
         (void)shared_->memory->Write(relay+12+next,id);
-        // A genuine irq_request in the completely executed list justifies P3D.
+        // An executed PICA irq_request justifies P3D; a completed byte transfer justifies PPF.
         // Explicit synchronous host policy: no simulated GPU delay or vblank.
         kernel.SignalEventObject(*owner->event);
     };
@@ -178,7 +225,15 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                 shared_->register_words=plans[n]->registers;
                 shared_->pica_uploads=plans[n]->uploads;
                 shared_->last_pica_result=plans[n]->result;
-                for(std::uint32_t i=0;i<plans[n]->result.irqs;++i)publish_irq();
+                for(std::uint32_t i=0;i<plans[n]->result.irqs;++i)publish_irq(5);
+            }
+            if (transfers[n]) {
+                shared_->register_words=transfer_registers[n];
+                shared_->register_words[0x306]|=1U;
+                if (!memory.CommitDeviceWrite(transfers[n]->request.output,transfers[n]->output))
+                    return stop("DisplayTransfer internal commit invariant failed after dequeue; no PPF delivered");
+                shared_->register_words[0x306]&=~1U;
+                publish_irq(4); // Real bytes are committed first. No vblank or frame is implied.
             }
             if (stop_after[n]) {
                 header = (header & ~0x00FF0000U) | (kStatusStopped << 16);

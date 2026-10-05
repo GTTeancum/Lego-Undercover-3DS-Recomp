@@ -17,11 +17,17 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
                            std::uint64_t rtc_epoch_ms,
                            const std::filesystem::path& shared_extdata_root,
                            PtmStepMode ptm_step_mode,
-                           std::shared_ptr<const RomfsImage> romfs)
+                           std::shared_ptr<const RomfsImage> romfs,
+                           GpuVramMode vram_mode)
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_) {
     ipc_.RegisterService("APT:U", std::make_shared<AptService>());
     ipc_.RegisterService("cfg:u", std::make_shared<CfgService>());
-    ipc_.RegisterService("gsp::Gpu", std::make_shared<GspGpuService>());
+    auto gsp=std::make_shared<GspGpuService>();
+    if (vram_mode==GpuVramMode::ReferenceZero)
+        gsp->ConfigureVram(GpuVramBank::ReferenceZero());
+    else if (vram_mode!=GpuVramMode::Unconfigured)
+        throw std::invalid_argument("invalid GPU VRAM mode");
+    ipc_.RegisterService("gsp::Gpu",std::move(gsp));
     ipc_.RegisterService("ptm:u", std::make_shared<PtmService>(ptm_step_mode));
     ipc_.RegisterService("ndm:u", std::make_shared<NdmService>());
     auto fs = std::make_shared<FsUserService>(0x00040000000AD500ULL);

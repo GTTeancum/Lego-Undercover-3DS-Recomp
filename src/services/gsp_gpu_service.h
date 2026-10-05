@@ -3,6 +3,7 @@
 #include "runtime/ctr_ipc.h"
 #include "runtime/ctr_shared_memory.h"
 #include "services/pica_startup.h"
+#include "services/gsp_display_transfer.h"
 
 namespace lego::ctr {
 // ErrCodes::FirstInitialization(519), GX(10), Success summary/level.
@@ -12,10 +13,18 @@ inline constexpr std::uint32_t kGspRelaySlots = 4;
 // Bounded startup GSP state. Registration and passive MMIO writes do not
 // generate GPU work by themselves. The queue supports CacheFlush and staged
 // non-drawing PICA startup lists, including their genuine P3D IRQ requests.
-// Drawing, transfers, active MMIO triggers and vblank remain unsupported.
+// A bounded RGBA4 DisplayTransfer uses explicitly configured device VRAM.
+// Drawing, other transfers, active MMIO triggers and vblank remain unsupported.
 class GspGpuService final : public IpcService {
 public:
     GspGpuService() : shared_(std::make_shared<SharedState>()) {}
+    // Configure only before clients connect; never reset/replace VRAM in flight.
+    bool ConfigureVram(std::shared_ptr<GpuVramBank> bank) {
+        if (!bank || shared_->vram) return false;
+        for (const auto& slot:shared_->slots) if (!slot.expired()) return false;
+        shared_->vram=std::move(bank); return true;
+    }
+    [[nodiscard]] std::shared_ptr<GpuVramBank> vram_bank() const noexcept { return shared_->vram; }
     Result CreateSessionHandler(std::shared_ptr<IpcService>* out) override {
         if (!out) return kResultInvalidPointer;
         for (std::uint32_t slot=0; slot<kGspRelaySlots; ++slot) {
@@ -163,6 +172,7 @@ private:
         PicaGpuRegisters register_words{};
         PicaUploadState pica_uploads{};
         PicaListResult last_pica_result{};
+        std::shared_ptr<GpuVramBank> vram;
 
     };
     GspGpuService(std::shared_ptr<SharedState> shared,std::uint32_t slot)

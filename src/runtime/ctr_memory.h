@@ -79,6 +79,13 @@ public:
     bool UsesSharedBacking(std::uint32_t address, std::uint32_t size,
                            const ServiceSharedMemoryObject& object) const noexcept;
 
+    // Service/device commit path. Prepare validates a private writable region
+    // and allocates reservation metadata only (epochs/bytes remain unchanged).
+    // Commit performs no allocation and refuses an unprepared span. No mapping
+    // may change between these calls in the synchronous service handler.
+    bool PrepareDeviceWrite(std::uint32_t address, std::uint32_t size);
+    bool CommitDeviceWrite(std::uint32_t address, std::span<const std::uint8_t> data) noexcept;
+
     bool LoadBytes(std::uint32_t address, std::span<const std::uint8_t> data);
     bool ZeroBytes(std::uint32_t address, std::uint32_t size);
 
