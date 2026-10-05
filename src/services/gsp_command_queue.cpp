@@ -98,7 +98,7 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                 // A previous staged transfer must not change this list between
                 // preflight and execution. Dependency forwarding is not implemented.
                 for (std::uint32_t prior=0;prior<n;++prior) {
-                    if (transfers[prior] && memory.SpansAlias(address,size,
+                    if (transfers[prior] && !transfers[prior]->output_vram && memory.SpansAlias(address,size,
                             transfers[prior]->request.output,transfers[prior]->bytes))
                         return stop("GSP SubmitCmdList depends on an earlier staged transfer");
                 }
@@ -152,24 +152,35 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                     const char* error=nullptr;
                     if (!StageDisplayTransfer(request,shared_->vram.get(),*plan,error)) return stop(error);
                     for (std::uint32_t prior=0;prior<n;++prior) {
+                        if (transfers[prior] && transfers[prior]->output_vram) {
+                            const auto& earlier=*transfers[prior];
+                            if (std::uint64_t(request.input)<std::uint64_t(earlier.request.output)+earlier.bytes &&
+                                std::uint64_t(earlier.request.output)<std::uint64_t(request.input)+plan->input_bytes)
+                                return stop("DisplayTransfer depends on an earlier staged VRAM transfer");
+                        }
                         if (!fills[prior]) continue;
                         for (const auto& channel:fills[prior]->channels) {
                             const auto start=std::uint64_t(kGpuVramVirtualBase)+channel.offset;
                             if (channel.triggered && std::uint64_t(request.input)<start+channel.output.size() &&
-                                start<std::uint64_t(request.input)+plan->bytes)
+                                start<std::uint64_t(request.input)+plan->input_bytes)
                                 return stop("DisplayTransfer depends on an earlier staged VRAM fill");
                         }
                     }
-                    if (!memory.IsWritable(request.output,plan->bytes))
-                        return stop("DisplayTransfer destination lacks complete writable backing");
-                    if (memory.UsesSharedBacking(request.output,plan->bytes,*shared_->memory) ||
-                        memory.SpansAlias(request.output,plan->bytes,
-                                          static_cast<std::uint32_t>(response),sizeof(command)))
-                        return stop("DisplayTransfer destination aliases mutable queue or IPC state");
-                    // GPU::Execute sets the transfer registers. The equal RGBA4
-                    // path performs actual detiling before clearing trigger bit 0.
+                    if (!plan->output_vram) {
+                        if (!memory.IsWritable(request.output,plan->bytes))
+                            return stop("DisplayTransfer destination lacks complete writable backing");
+                        if (memory.UsesSharedBacking(request.output,plan->bytes,*shared_->memory) ||
+                            memory.SpansAlias(request.output,plan->bytes,
+                                              static_cast<std::uint32_t>(response),sizeof(command)))
+                            return stop("DisplayTransfer destination aliases mutable queue or IPC state");
+                    }
+                    // Device VRAM never resolves through unrelated CPU mappings.
+                    // GPU::Execute programs the unscaled dimensions, then actual
+                    // bytes must commit before trigger-clear and PPF.
                     staged_registers[0x300]=(request.input-kGpuVramVirtualBase+kGpuVramPhysicalBase)>>3;
-                    staged_registers[0x301]=(request.output-0x14000000U+0x20000000U)>>3;
+                    staged_registers[0x301]=plan->output_vram
+                        ? (request.output-kGpuVramVirtualBase+kGpuVramPhysicalBase)>>3
+                        : (request.output-0x14000000U+0x20000000U)>>3;
                     staged_registers[0x302]=request.output_size;
                     staged_registers[0x303]=request.input_size;
                     staged_registers[0x304]=request.flags;
@@ -211,7 +222,7 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
     // Preparing changes neither bytes nor tokens; the later commit is allocation-free.
     try {
         for (std::uint32_t n=0;n<eligible;++n) {
-            if (transfers[n] && !memory.PrepareDeviceWrite(transfers[n]->request.output,transfers[n]->bytes))
+            if (transfers[n] && !transfers[n]->output_vram && !memory.PrepareDeviceWrite(transfers[n]->request.output,transfers[n]->bytes))
                 return stop("DisplayTransfer destination is not supported private device-write backing");
         }
     } catch (const std::exception& error) {
@@ -270,7 +281,11 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
             if (transfers[n]) {
                 shared_->register_words=transfer_registers[n];
                 shared_->register_words[0x306]|=1U;
-                if (!memory.CommitDeviceWrite(transfers[n]->request.output,transfers[n]->output))
+                const auto& transfer=*transfers[n];
+                const bool written=transfer.output_vram
+                    ? shared_->vram && shared_->vram->Write(transfer.request.output-kGpuVramVirtualBase,transfer.output)
+                    : memory.CommitDeviceWrite(transfer.request.output,transfer.output);
+                if (!written)
                     return stop("DisplayTransfer internal commit invariant failed after dequeue; no PPF delivered");
                 shared_->register_words[0x306]&=~1U;
                 publish_irq(4); // Real bytes are committed first. No vblank or frame is implied.

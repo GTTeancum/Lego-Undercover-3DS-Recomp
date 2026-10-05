@@ -31,13 +31,16 @@ struct DisplayTransferRequest {
 };
 struct DisplayTransferPlan {
     DisplayTransferRequest request{};
-    std::uint32_t width{}, height{}, bytes{};
+    std::uint32_t width{}, height{}, bytes{}, input_bytes{};
+    bool output_vram{};
     std::vector<std::uint8_t> output;
 };
 
-// Current slice: equal-size, unscaled RGBA4, Morton 8x8 tiled VRAM -> linear
-// FCRAM. Format/layout flags must be exactly the observed 0x4400. Unsupported
-// modes stop; they are not silently treated as a memcpy or successful blit.
+// Supported slices: 0x4400 equal-size RGBA4 tiled VRAM -> private linear heap;
+// 0x01001004 horizontally halved RGBA8 tiled VRAM -> RGB8 linear device VRAM.
+// The latter uses the programmed output rectangle as a left/top crop, then halves
+// its width. Other format/flag combinations remain unsupported. Both declared
+// input and output spans are bounded separately; overlapping device spans stop.
 // Stages all bytes without touching the VRAM source or any guest destination.
 bool StageDisplayTransfer(const DisplayTransferRequest& request,
                           const GpuVramBank* vram, DisplayTransferPlan& plan,
