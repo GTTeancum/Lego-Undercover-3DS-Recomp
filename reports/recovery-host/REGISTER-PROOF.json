@@ -1,0 +1,74 @@
+{
+  "reference_policy": "Pinned Azahar MMIO store route plus explicit PicaCore reset image; not hardware reset/timing parity",
+  "direct_write_requests": 64,
+  "masked_write_requests": 4,
+  "romfs_reads": [
+    {
+      "offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "matches": true
+    },
+    {
+      "offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "matches": true
+    },
+    {
+      "offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "matches": true
+    },
+    {
+      "offset": 40,
+      "bytes": 12,
+      "sha256": "40dbd4bf447910236f9715182ba0984fd2399a6dfc85cca65d425b019ef727ea",
+      "matches": true
+    },
+    {
+      "offset": 52,
+      "bytes": 68,
+      "sha256": "5f5b3b08521b139dee77f2dfaca83c267ac5a58e9e7621b6db9661aa7996d151",
+      "matches": true
+    },
+    {
+      "offset": 120,
+      "bytes": 212,
+      "sha256": "06dd806e72993f72eabf6e9ccd24e52b263c353260fffd9abdba8796fd288c09",
+      "matches": true
+    },
+    {
+      "offset": 332,
+      "bytes": 4480,
+      "sha256": "ba74fac4b1752e852393f05c980f56ed988188bef08c15fe5d18286d032733f1",
+      "matches": true
+    }
+  ],
+  "queue": {
+    "address_hex": "10000800",
+    "header_hex": "00000100",
+    "index": 0,
+    "pending_count": 1,
+    "packet_hex": "00000105 14003790 00007480 00000000 00000000 00000000 00000000 00000000",
+    "id": 5,
+    "reference_name": "CacheFlush",
+    "region_address_hex": "14003790",
+    "region_bytes": 29824,
+    "not_executed": true
+  },
+  "event_signaled": false,
+  "guest_time_ns": 0,
+  "final_page_sha256": "d2531c5e39bb7588224934f764b6b1c148b005e6c2d905a58631e0ac49f9699c",
+  "barrier": {
+    "pc_hex": "00248404",
+    "raw_hex": "ee071f9a",
+    "archived_category": "CoreAlu",
+    "existing_native_handler": "legacy DSB seq_cst fence",
+    "original_pages_unchanged": true
+  },
+  "trace_provenance": "Logging-only alternate IPC object; ordinary production compiler runs separately reproduce boundary",
+  "all_68_writes_match_independent_replay": true,
+  "full_private_proof_sha256": "f2f3d2ef0fccc1ffc1acd028687e5520765bd9754a70fb2279834b82bc614574"
+}
