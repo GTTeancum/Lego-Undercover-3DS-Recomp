@@ -8,15 +8,18 @@ namespace lego::ctr {
 
 NativeRunner::NativeRunner(const a32::Registry& registry,
                            GuestMemory& memory,
-                           Kernel& kernel) noexcept
-    : registry_(registry), memory_(memory), kernel_(kernel), ipc_(), svc_(kernel, &ipc_) {
+                           Kernel& kernel,
+                           std::uint64_t rtc_epoch_ms) noexcept
+    : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_) {
     ipc_.RegisterService("APT:U", std::make_shared<AptService>());
     ipc_.RegisterService("ndm:u", std::make_shared<NdmService>());
 }
 
 bool NativeRunner::InitializeMainThread(std::uint32_t entry_point,
                                         std::uint32_t stack_top) noexcept {
-    if (!memory_.EnsureMainStack() || !memory_.EnsureTlsMappings(kernel_)) {
+    if (!ValidRtcEpoch(rtc_epoch_ms_) ||
+        !memory_.EnsureMainStack() || !memory_.EnsureTlsMappings(kernel_) ||
+        !memory_.EnsureSharedClockPage(kernel_.now_ns(), rtc_epoch_ms_)) {
         return false;
     }
 
@@ -83,6 +86,13 @@ RunnerResult NativeRunner::Run(std::uint32_t block_limit_per_dispatch,
     }
 
     for (std::uint32_t round = 1U; round <= host_event_limit; ++round) {
+        // Guest execution is single-host-threaded. Publish a complete snapshot
+        // before entering it; never advance guest time merely to unblock code.
+        if (!memory_.EnsureSharedClockPage(kernel_.now_ns(), rtc_epoch_ms_)) {
+            return Stop(RunnerStopReason::MemoryFault,
+                        {a32::ExitKind::MemoryFault, live_state_.r[15],
+                         a32::FallbackReason::None, kSharedPageBase}, round);
+        }
         const a32::ExecutionResult exit = a32::Dispatch(
             registry_, live_state_.r[15], live_state_, memory_,
             nullptr, nullptr, block_limit_per_dispatch);

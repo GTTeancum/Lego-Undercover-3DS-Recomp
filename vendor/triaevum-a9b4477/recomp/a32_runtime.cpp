@@ -769,8 +769,17 @@ ExecutionResult ExecuteBlock(
             if (opcode == Opcode::CoreSystem) {
                 result = internal::ExecuteCoreSystem(op.raw, pc, state);
             } else if (opcode == Opcode::CoreAlu) {
-                result =
-                    internal::ExecuteCoreAlu(op.raw, pc, state, memory);
+                // Local LEGO recovery patch: the archived LLVM AOT metadata
+                // mislabels the legacy CP15 DMB as ALU. Use the existing native
+                // system fence and continue this block (not a mid-block exit).
+                // Only the observed architectural form is rerouted; all other
+                // ALU/system failures retain the original strict stop behavior.
+                if ((op.raw & 0x0FFF0FFFU) == 0x0E070FBAU &&
+                    (op.raw >> 28U) != 15U && ((op.raw >> 12U) & 15U) != 15U) {
+                    result = internal::ExecuteCoreSystem(op.raw, pc, state);
+                } else {
+                    result = internal::ExecuteCoreAlu(op.raw, pc, state, memory);
+                }
             } else {
                 result =
                     internal::ExecuteCoreMemory(op.raw, pc, state, memory);

@@ -1,6 +1,7 @@
 #include "runtime/ctr_svc_bridge.h"
 
 #include "runtime/ctr_ipc.h"
+#include "runtime/ctr_clock.h"
 
 #include <vector>
 
@@ -175,13 +176,7 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
     }
 
     case kSvcGetSystemTick: {
-        // CTR ARM11 base clock recovered from Citra/Azahar timing. Keep the
-        // source deterministic and guest-time based rather than host wall time.
-        constexpr std::uint64_t kArm11TicksPerSecond = 268111856ULL;
-        const std::uint64_t ticks =
-            (kernel_.now_ns() / 1000000000ULL) * kArm11TicksPerSecond +
-            ((kernel_.now_ns() % 1000000000ULL) * kArm11TicksPerSecond) /
-                1000000000ULL;
+        const std::uint64_t ticks = SystemTicksFromNanoseconds(kernel_.now_ns());
         state.r[0] = static_cast<std::uint32_t>(ticks);
         state.r[1] = static_cast<std::uint32_t>(ticks >> 32U);
         return ResumeAfterSvc(exit.pc, state);

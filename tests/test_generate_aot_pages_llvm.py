@@ -14,6 +14,14 @@ spec.loader.exec_module(mod)
 
 
 class LlvmRecoveryTests(unittest.TestCase):
+    def test_legacy_dmb_is_system_not_alu(self):
+        for rt in range(15):
+            raw = 0xEE070FBA | (rt << 12)
+            self.assertEqual(mod.classify(raw, "mcr"),
+                             ("CoreSystem", "Al", 0, "core_system"))
+        self.assertNotEqual(mod.classify(0xEE074F9A, "mcr")[0], "CoreSystem")
+        self.assertNotEqual(mod.classify(0xEE07FFBA, "mcr")[0], "CoreSystem")
+
     def test_direct_branch_classification(self):
         opcode, cond, flags, category = mod.classify(0xEA000000, "b")
         self.assertEqual((opcode, cond, flags, category), ("Branch", "Al", 0, "fast_path"))

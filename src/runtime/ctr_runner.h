@@ -35,7 +35,8 @@ struct RunnerResult {
 class NativeRunner final {
 public:
     NativeRunner(const a32::Registry& registry, GuestMemory& memory,
-                 Kernel& kernel) noexcept;
+                 Kernel& kernel,
+                 std::uint64_t rtc_epoch_ms = kDefaultRtcMsSince1900) noexcept;
 
     bool InitializeMainThread(std::uint32_t entry_point = kTextBase,
                               std::uint32_t stack_top = kMainStackTop) noexcept;
@@ -61,6 +62,7 @@ private:
     const a32::Registry& registry_;
     GuestMemory& memory_;
     Kernel& kernel_;
+    std::uint64_t rtc_epoch_ms_;
     IpcRouter ipc_;
     SvcBridge svc_;
     a32::GuestState live_state_{};

@@ -8,6 +8,7 @@
 
 #include "recomp/a32_runtime.h"
 #include "runtime/ctr_kernel.h"
+#include "runtime/ctr_clock.h"
 
 namespace lego::ctr {
 namespace a32 = oot3d::recomp::a32;
@@ -67,6 +68,12 @@ public:
     bool EnsureMainStack();
     bool EnsureTlsMappings(const Kernel& kernel);
 
+    // Dedicated host-owned read-only page. Unknown non-clock fields remain
+    // unmodeled (zero); this does not claim hardware/battery/network state.
+    // Refresh only observes supplied guest time; it never advances the kernel.
+    bool EnsureSharedClockPage(std::uint64_t now_ns,
+                              std::uint64_t rtc_epoch_ms = kDefaultRtcMsSince1900);
+
     bool Read8(std::uint32_t address, std::uint8_t* value) override;
     bool Read16(std::uint32_t address, std::uint16_t* value) override;
     bool Read32(std::uint32_t address, std::uint32_t* value) override;
@@ -112,6 +119,11 @@ private:
     std::vector<Region> regions_{};
     std::unordered_map<std::uint32_t, std::uint64_t> exclusive_epochs_{};
     std::uint64_t next_epoch_{1};
+    bool shared_clock_initialized_{};
+    std::uint64_t shared_clock_epoch_ms_{};
+    std::uint64_t shared_clock_last_seen_ns_{};
+    std::uint64_t shared_clock_last_update_ns_{};
+    std::uint32_t shared_clock_counter_{};
 };
 
 }  // namespace lego::ctr

@@ -77,16 +77,24 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
         std::uint32_t block_limit=1000000,event_limit=4096;
+        std::uint64_t rtc_epoch_ms=ctr::kDefaultRtcMsSince1900;
         for (int i=2; i<argc; i+=2) {
             if (i+1==argc) throw std::runtime_error("missing option value");
             const std::string_view option(argv[i]);
             if (option=="--block-limit") block_limit=PositiveNumber(argv[i+1]);
             else if (option=="--host-event-limit") event_limit=PositiveNumber(argv[i+1]);
+            else if (option=="--rtc-ms-since-1900") {
+                const std::string_view value(argv[i+1]);
+                const auto parsed=std::from_chars(value.data(),value.data()+value.size(),rtc_epoch_ms);
+                if (parsed.ec!=std::errc{} || parsed.ptr!=value.data()+value.size() ||
+                    !ctr::ValidRtcEpoch(rtc_epoch_ms))
+                    throw std::runtime_error("invalid RTC epoch (decimal milliseconds since 1900; minimum 2000-01-01)");
+            }
             else throw std::runtime_error("unknown option");
         }
         std::ifstream input(argv[1],std::ios::binary|std::ios::ate);
@@ -104,10 +112,24 @@ int main(int argc,char** argv) {
         ctr::GuestMemory memory;
         if (!memory.LoadLegoCodeImage(code)) throw std::runtime_error("image mapping failed");
         ctr::Kernel kernel;
-        ctr::NativeRunner runner(registry,memory,kernel);
+        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms);
         if (!runner.InitializeMainThread()) throw std::runtime_error("main thread setup failed");
+        std::cout << "rtc_epoch_ms_since_1900=" << rtc_epoch_ms
+                  << " guest_time_source=kernel_ns\n";
         const auto result=runner.Run(block_limit,event_limit);
         const auto& state=runner.live_state();
+        std::uint32_t clock_counter=0, clock_fault=0;
+        std::uint64_t clock_date=0, clock_tick=0;
+        if (memory.Read32(ctr::kSharedPageBase,&clock_counter)) {
+            const auto record=ctr::kSharedPageBase+ctr::kSharedClockSnapshot0Offset+
+                              (clock_counter&1U)*ctr::kSharedClockSnapshotBytes;
+            if (memory.Read64(record,&clock_date,&clock_fault) &&
+                memory.Read64(record+8,&clock_tick,&clock_fault))
+                std::cout << "shared_clock_counter=" << clock_counter
+                          << " snapshot_ms_since_1900=" << clock_date
+                          << " snapshot_tick=" << clock_tick
+                          << " guest_now_ns=" << kernel.now_ns() << '\n';
+        }
         std::cout<<"stop="<<StopName(result.reason)<<" pc=0x"<<std::hex
                  <<std::setw(8)<<std::setfill('0')<<result.exit.pc
                  <<" detail=0x"<<std::setw(8)<<result.exit.detail

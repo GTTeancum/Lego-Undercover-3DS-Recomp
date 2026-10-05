@@ -36,3 +36,6 @@ Thumbs.db
 # Logs/temp
 *.log
 *.tmp
+
+# Python test/import caches
+__pycache__/

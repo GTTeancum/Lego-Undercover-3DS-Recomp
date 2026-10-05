@@ -462,6 +462,10 @@ def classify(raw: int, mn: str) -> tuple[str,str,int,str]:
     # MRC p15,0,Rt,c13,c0,3 reads CP15_THREAD_URO (the per-thread
     # TLS pointer). Rt varies, so classify the architectural form rather
     # than a single observed raw word.
+    # Legacy ARM11 DMB has a native system-fence backend too. LLVM calls it
+    # MCR; do not classify this known system form as an ALU candidate.
+    if (raw & 0x0FFF0FFF) == 0x0E070FBA and cond != 15 and ((raw >> 12) & 15) != 15:
+        return ('CoreSystem',CONDITIONS[cond],flags,'core_system')
     if (raw & 0x0FFF0FFF) == 0x0E1D0F70:
         return ('CoreSystem',CONDITIONS[cond],flags,'core_system')
     if (raw&0x0f000000)==0x0f000000: return ('Svc',CONDITIONS[cond],flags,'fast_path')
