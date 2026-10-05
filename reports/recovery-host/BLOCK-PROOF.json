@@ -1,0 +1,48 @@
+{
+  "comparison": {
+    "gpu-state.txt": {
+      "bytes": 49952,
+      "identical": true,
+      "sha256": "17c5c84fcde8d52d375bb83634c2c898d64a644637cbd4299624ea55cd8a5221"
+    },
+    "next-packet.txt": {
+      "bytes": 102,
+      "identical": true,
+      "sha256": "5b887776a404dd061c36d0574ed62c84ade5c5e9452740ae697aa300713afeae"
+    },
+    "gsp-page.bin": {
+      "bytes": 4096,
+      "identical": true,
+      "sha256": "fb19a0d24f575388031f8e87965bd71b3c3fe78a51cc192ca59ae07c633b0470"
+    },
+    "cpu-pages.txt": {
+      "bytes": 1238510,
+      "identical": true,
+      "sha256": "96c47f2170796d408b8da544a0b3b2f0654cc215ef8c08de347c6c5190af1e72"
+    },
+    "cpu-threads.txt": {
+      "bytes": 994,
+      "identical": true,
+      "sha256": "a0e206373caca15aace042d1dc9006e2f8ec36eb0c401735b95a789fbbacee38"
+    }
+  },
+  "final_logs_equal_after_root_normalization": true,
+  "scope": "same instruction backends, independent block partition; not an independent ARM emulator",
+  "cpu_pages_summary": "pages=16388 bytes=67125248 sha256=4cb50710efe41be8a45ae239d9311015862c08a7398c2cbd2a781e31539eb605",
+  "next_packet": "queue_header=00000109\npacket=01000102 1f070800 00000000 1f138800 00000000 00000000 000c8000 02010201 \n",
+  "implementation": "f8f7ad5117e8d8f0ca6de940e1f72746f8ac22d4",
+  "baseline": "2aa22c0d35c612c796a090921c2f5f6c243203b0",
+  "fresh_round": 193,
+  "existing_round": 185,
+  "recorded_suffix_entries": 5,
+  "suffix_pc": "0x001301F8",
+  "original_block_pc": "0x001301E8",
+  "word_offset": 4,
+  "remaining_words": 7,
+  "next_packet_consumed": false,
+  "next_packet_id": 2,
+  "next_packet_name": "MemoryFill",
+  "new_rendering": false,
+  "production_block_budget_changed": false,
+  "diagnostic_block_budget": 100000000
+}

@@ -1,188 +1,163 @@
 # LEGO Chase Begins — canonical recovery handoff
 
-Updated October 5, 2026. Continue in scratch, NOT on the user's PC or Work.
-Project: LEGO City Undercover: The Chase Begins (Nintendo 3DS USA), not LEGO Batman.
-Historical Recovery F/J gameplay is not current proof. This native executable is
-headless startup reconstruction, not a playable port. POST THIS FILE EVERY WORK TURN.
+Updated October 5, 2026. Continue in scratch, NOT the user's PC or Work.
+Project: LEGO City Undercover: The Chase Begins, Nintendo 3DS USA, not LEGO Batman.
+The executable remains headless startup reconstruction. Historical Recovery F/J
+claims are not current gameplay proof. POST THIS HANDOFF EVERY WORK TURN.
 
-## Published implementation and verified baseline
+## Published implementation and source reconciliation
 
-Implementation: `dfe787298ad8c1ae5ff3cde1fd8a4630bf9536cd`.
-Exact tested/uploaded implementation tree: `59d5e04bf5840af94594d3fcf06cce5fe5e4d5d7`.
-Baseline main: `ffd6b88e2e9452d18a054222ac23e16f2b440939`.
-Baseline tree: `88041f1d514ec879e3bb118fbacd62e1c16a172b`.
-All 561 prior manifest entries and 282 indexed source files verified. The full GCC
-baseline reproduced the original DisplayTransfer stop at round 170 before editing.
-Code/AOT and prepared RomFS were restored and hash-verified without user reuploads,
-original CCI extraction or user-PC access. Local Git is a snapshot/index, NOT remote
-history. Publish through connector with the verified current parent and force=false.
-The attached final receipt records the report/delivery commit and backup filename.
+Implementation: `f8f7ad5117e8d8f0ca6de940e1f72746f8ac22d4`.
+Exact tested/uploaded implementation tree: `4635ba40d8ddfed32006fe89a68ab02f173b570f`.
+Baseline main: `2aa22c0d35c612c796a090921c2f5f6c243203b0`.
+Baseline tree: `4c121762330199bc7c0a1fbd5957dd8ba30c968a`.
+The downloadable handoff appends the final report/delivery commit and backup receipt.
+Local Git is a reconstructed snapshot/index, NOT remote history. Publish with the
+verified current remote parent and force=false; never force-push the local history.
 
-## Required distinction: default strict versus explicit reference VRAM
+The prior chat attachment DISPLAY-TRANSFER-PENDING was older than the fresh remote.
+All 769 archive-manifest entries and 292 source blobs were checked and the archive
+preserved separately, NOT discarded or overlaid onto the newer working repo.
+Library preservation: /LEGO-Chase-Recovery/Preserved-Pending-Transfer/.
+Local old source: pending-transfer-preserved/; the new backup nests its exact archive
+under historical/. Never replace repo/ with that historical pending source.
 
-Baseline inspection found the transfer's VRAM source unmapped on the CPU bus and
-the destination fully writable. It did NOT find recovered source pixels.
+The newer baseline already implemented explicit device-owned reference-zero VRAM
+and the original transfer. Those are INHERITED, not this turn's implementation.
+Source-snapshot run 37370604146 initially failed; a retry succeeded and produced
+artifact 11371699542, downloaded as /mnt/data/LEGO-source-2aa22c0.zip. The ZIP/tar
+checksums and full local source tree matched the remote before edits. The baseline
+MissingBlock at 0x001301F8, thread 3, round 172 was reproduced in a full native build.
+No game re-extraction, user upload or user-PC access was needed.
 
-New CLI option: `--gpu-vram-mode reference-zero`. This explicitly creates a 6 MiB
-DEVICE-OWNED VRAM bank before service sessions connect, following the inspected
-pinned HLE's `MemorySystem::Impl` zero-initializing `make_unique<u8[]>(VRAM_SIZE)`.
-It is not measured hardware reset state, recovered console VRAM, original artwork
-or a per-transfer zero substitution. No CPU mapping is added. The bank persists,
-reads use its actual current bytes, and configuration cannot replace an active bank.
+## New progress: recorded callback-return suffixes
 
-Without this option the bank stays unconfigured. The pending transfer remains an
-untouched host stop at round 170, with no output, dequeue or PPF. Invalid mode names
-and missing arguments are CLI errors. Do not silently enable the reference policy.
+Conditional BLXNE r0 at 0x001301F4 returns to 0x001301F8. That PC is word 4 inside
+an existing eleven-word block starting at 0x001301E8, with seven operations left.
+The return instruction is raw 0xE5D41076, PackedOp metadata 0xE0D. It was present in
+the unchanged private archive; exact-start-only dispatch was the problem.
 
-## Actual progress and next stopping point
+Dispatch now resolves an exact miss to a validated recorded A32 suffix. It uses the
+actual requested PC and remaining immutable operations without prefix replay, code
+rewriting, an interpreter fallback, or an invented instruction. FindBlock keeps its
+exact-start public contract and cache. ExecuteBlock and all opcode backends are
+unchanged. The temporary view is never cached and does not inherit the original
+entry's native-candidate flag. Production block budgets are unchanged.
 
-The original pending packet is:
+Five successful original-game entries through this suffix are recorded. Startup
+then executes three additional supported PICA lists of 32, 176 and 48 bytes, with
+their CacheFlush packets, and reaches the next real unsupported GPU operation.
+No drawing implementation was added by this dispatcher correction.
 
-```text
-01000103 1f5f8000 14013950 00800080 00800080 00004400 00000000 00000000
-```
+## Current untouched boundary: MemoryFill
 
-It now executes under the explicit option: 128 x 128 RGBA4, tiled Morton 8x8 source
-to linear destination, 32768 bytes. Source selector 0x1F5F8000 uses device physical
-0x185F8000. Destination VA 0x14013950 maps through the supported linear-heap slice
-to PA 0x20013950. Transfer registers are populated, staged bytes committed, trigger
-cleared and PPF interrupt ID 4 queued only after byte effects succeed.
-
-Queue header 0x00000102 becomes 0x00000003. Source is unchanged, output matches an
-independent inverse-Morton replay, all shared-page changes are independently checked,
-and PICA upload state is preserved. The retained event is signaled after transfer.
-Thread 3 was in address arbitration, not an event wait at that instant: do NOT
-claim PPF immediately woke it. The prior genuine P3D event-wait wake remains verified.
-Kernel time stays zero; interrupt delivery is synchronous host policy, not GPU timing.
-
-IMPORTANT: both the source bank region and original destination were already zero
-in this startup. Their common SHA-256 is
-`c35020473aed1b4642cd726cad727b63fff2824ad68cedd7ffb73c7cbd890479`.
-The boot trace alone is not proof of nonzero-pixel conversion. Separate ROM-free
-nonzero-pattern tests cover all 65536 RGBA4 encodings, non-square/tile-edge cases
-and the 1 MiB bound. No game image or rendered output has been demonstrated.
-
-With a NEW empty archive, explicit empty PTM, original RomFS and reference-zero VRAM:
+With a NEW empty shared archive, empty PTM, original RomFS and reference-zero VRAM:
 
 ```text
-stop=MissingBlock pc=0x001301f8 detail=0x00000000 thread=3 dispatch_rounds=172
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=193
+last_ipc_session=gsp::Gpu requested_service= request_header=0x000c0000
+host_ipc_error=GSP queue packet requires unimplemented GPU execution
+queue_header=00000109
+packet=01000102 1f070800 00000000 1f138800 00000000 00000000 000c8000 02010201
 ```
 
-Existing gamecoin reaches the same PC at round 164, skipping file initialization.
-Default strict VRAM stops at DisplayTransfer round 170; no RomFS retains the old
-OpenFileDirectly round 79; fresh without empty PTM retains step-count round 71.
-Keep those branches separate. Existing-file startup is not gamecoin readback or
-proof of gameplay save/load. No rendering, main menu, shader execution, audio,
-controls, completed initializer count or gameplay is established. Rounds are not frames.
+ID 2 is MemoryFill. The owner's slot-0 queue has index 9 and count 1. First range:
+0x1F070800..0x1F138800, 819200 bytes, value zero. The second start is zero with a
+residual end 0xC8000. Both control halfwords are 0x0201. It remains UNEXECUTED and
+queued. The rejected call leaves the full GSP page, GPU registers/upload state and
+device VRAM unchanged, event unsignaled and kernel time zero. No fill or PSC
+notification was manufactured. Rounds and packet counts are not frames.
 
-## Next exact work: a block-interior return, NOT missing original code
+Existing-file startup reaches the same packet at round 185, skipping initialization.
+Default strict VRAM still stops at DisplayTransfer round 170. Without RomFS the
+old OpenFileDirectly stop remains at round 79; fresh without empty PTM still stops
+at step count round 71. Preserve these distinct paths. Existing-file startup is
+not gamecoin readback or gameplay save/load.
 
-The unchanged private AOT page already contains:
+The inherited --gpu-vram-mode reference-zero is an EXPLICIT reference-HLE cold-bank
+policy: 6 MiB device-owned storage, not a CPU mapping, recovered VRAM or artwork.
+The initial 32768-byte RGBA4 transfer's source and destination are both zero in this
+boot; earlier nonzero synthetic tests establish conversion behavior, not game images.
+PICA setup, its genuine P3D waiter notification and supported transfers are inherited.
+GPU timing remains synchronous host policy; no vblank or accurate duration is modeled.
+No rendered frame, main menu, shader execution, audio, controls or gameplay exists yet.
 
-```text
-{0x001301E8U, kLegoPage00130Ops + 121U, 11U}
-```
+## Validation and limits
 
-0x001301F4 is raw 0x112FFF30 (conditional BLXNE r0). The callback return address
-0x001301F8 is word offset 4 inside that recorded block; its raw word is 0xE5D41076.
-Current vendor `FindBlock()` accepts only exact block starts. No dispatcher or AOT
-fix was applied this turn. Next inspect `a32_runtime.cpp` dispatch/ExecuteBlock and
-the original callback path, then support validated recorded suffix entry or correct
-generation. Do not restart the prefix, jump over the missing return, invent an
-instruction or add a catch-all interpreter/success path. Test alignment, gaps,
-block ends, indirect conditional calls, exact starts and packed op metadata.
+Full GCC and Clang builds link all 599 unchanged private page units. Final reruns:
+31/31 CTest with GCC, 31/31 with Clang, and 31/31 ROM-free Clang ASan/UBSan suites,
+with leak checking and halt-on-error enabled. Fourteen production startup scenarios
+have byte-identical compiler logs/exits. Original code, all 603 AOT archive members,
+and raw RomFS hashes match their verified inputs. Full IVFC block verification was
+not repeated; whole-file SHA matches the previously verified image. Registry counts
+111043 blocks / 545111 words are STATIC inventory, not executed CPU totals.
 
-Then run original code again with the four explicit inputs/options below and a NEW
-empty test root. The next actual request determines subsequent work. Preserve PICA
-uploads, real P3D behavior and completed byte transfer; do not fabricate vblank.
+The new suite covers taken/not-taken indirect callbacks without prefix replay, every
+retained word entry, PC-relative access, packed condition/link metadata, exact faults,
+unsupported callbacks, budgets, native-candidate isolation, gaps and malformed extents.
+The helper rejects unaligned, Thumb, empty, missing-ops, cross-shard/overflow and
+following-record-overlap cases. Global immutable/sorted/non-overlap validation and
+raw code identity remain host-loader obligations. This is not arbitrary host-pointer
+validation or full Thumb/interworking parity. No opcode or scheduler fix is hidden here.
 
-## Implementation scope and safety policies
+A diagnostic partitions all 545111 original PackedOps into single-word exact-entry
+blocks. Compared with recorded-block dispatch, it reaches identical captured CPU/
+thread/GPU state, GSP page, next packet, and all 16388 readable CPU pages (67125248
+bytes), with matching permissions. Page aggregate SHA:
+4cb50710efe41be8a45ae239d9311015862c08a7398c2cbd2a781e31539eb605.
+Both variants share instruction backends; this is block-partition equivalence,
+NOT independent ARM emulation or validation of every private kernel internal field.
+The separate logging-only trace reaches those same final snapshots.
 
-Only exact transfer flags 0x4400, equal nonzero whole-tile dimensions, 8-byte-aligned
-VRAM input and private writable linear-heap output are supported. Maximum staged
-bytes is 1 MiB (host work bound, NOT console capacity). RGBA4 decoding/re-encoding
-is a per-pixel identity, so the two source bytes are moved according to Morton
-addressing. No scaling, flip, crop, other format/layout, texture copy, fill, active
-MMIO trigger, drawing, generic GPU physical mapping or CPU VRAM mapping is added.
+The one-word diagnostic initially exhausted its smaller block budget before the
+target and its target-specific dumper rejected that early stop. Logs were retained.
+Both final diagnostic variants use 100000000 blocks; production defaults were not
+changed. Unavailable streaming-exec attempts ran no build. Actual finite drivers
+built and tested the source. No native test failure was suppressed.
 
-The whole eligible queue batch is preflighted/staged before any dequeue, register,
-output or IRQ mutation. Invalid/unsupported tails roll back valid prefixes. A later
-PICA list depending on an earlier staged transfer output remains unsupported;
-dependency forwarding is not implemented. Independent mixed PICA/transfer batches
-preserve register and IRQ order, with 15-packet wrap tested. Whole-batch atomicity
-and stricter malformed-input stops are host policy, not console error precedence.
+Only four implementation paths changed: CMakeLists.txt, tests/ctr_block_entry_test.cpp,
+vendor/triaevum-a9b4477/recomp/a32_runtime.cpp and vendor LOCAL-PATCHES.md.
+Current runtime SHA: 952fac140b5d860cd472c56c313231c4dcc8eb7b1719caeaa341503015030773.
+Original code/AOT, opcode backends, production IPC, GPU services, scheduler and file
+backends are unchanged. No Windows/macOS build or renderer work was performed.
 
-New device-write preparation preallocates exclusive epoch metadata without changing
-bytes or existing tokens. Commit performs no allocation, writes preflighted private
-backing, and invalidates affected reservation granules. Shared service-backed,
-protected, unmapped and cross-region output is rejected. IPC/GSP backing aliases
-are rejected. The real relay ring and event are checked before effects; full or
-invalid relay rings stop. No unconditional interrupt/completion signal is used.
-A hypothetical commit-invariant failure explicitly reports partial state after
-dequeue and emits no PPF; none occurred in the tested synchronous path.
+## Evidence and next exact work
 
-13 implementation files changed: CMakeLists.txt, cmake/LEGOHostRuntime.cmake,
-src/host/main.cpp, ctr_memory.h, ctr_runner.h/.cpp, new ctr_device_write.cpp,
-gsp_gpu_service.h, gsp_command_queue.cpp, new gsp_display_transfer.h/.cpp, and two
-new display/queue transfer suites. Runtime paths use src/runtime/, service paths
-src/services/. Vendor, production IPC, ctr_kernel.cpp/scheduler, ctr_memory.cpp,
-PICA implementation and filesystem backends are unchanged. No Windows/macOS build.
+Current private evidence: block-checkpoint/. Final tests: ctest-final-gcc/clang/asan.txt;
+final-checks.json records original identities and final test results. Production
+matrix: validate.py, validation-summary.json, per-case logs. Exact suffix entries:
+suffix-trace.txt. Queue trace: queue-trace.txt. Partition comparison: run_oracle.py,
+oracle-proof.json, oracle-recorded/, oracle-one-word/. trace-final/ matches both.
+make_trace.py builds logging-only alternate IPC/runtime objects. make_diagnostic.py
+builds the partition oracle. Their binaries/objects are excluded from the backup.
+Public report: reports/recovery-host/A32-BLOCK-SUFFIX.md and BLOCK-PROOF.json,
+BLOCK-VALIDATION.json, BLOCK-FRESH/EXISTING/STRICT-GCC.txt.
 
-## Validation and exact evidence
+Next implement the actual queued MemoryFill, not an unconditional dequeue or signal.
+Reinspect pinned GPU::Execute MemoryFill, GPU::MemoryFill, software blitter and PSC
+interrupt selection/order. Validate the first 819200-byte range against real device
+VRAM and interpret the disabled second start and both controls from source. Fill
+actual bytes before reporting completion; preserve transactional failure behavior,
+PICA state, callback suffixes and real relay/event ownership. Test nonzero patterns
+because this boot's zero VRAM cannot itself demonstrate changed-byte correctness.
+Then rerun unchanged game code on a NEW empty root and observe its next request.
 
-Full GCC and Clang native builds link all 599 unchanged private AOT page units.
-Final GCC 30/30 CTest, Clang 30/30 and Clang ASan/UBSan 30/30 ROM-free suites pass,
-leak checking and halt-on-error enabled. Fourteen production scenarios produce
-byte-identical compiler logs: fresh, existing, strict-no-vram, invalid-vram-mode,
-missing-vram-mode, mode-off, rtc-next-day, no-romfs, no-root, missing-archive,
-invalid-root, invalid-mode, missing-romfs and wrong-romfs-size.
+Primary reference remains azahar-emu/azahar at
+86a9f9236ae42bb5a2b995dbc933d599d8ea07ac. Paths: src/video_core/gpu.cpp,
+src/video_core/renderer_software/sw_blitter.cpp, src/core/hle/service/gsp/gsp_command.h
+and gsp_interrupt.h. These fill semantics are next work, not newly implemented.
+This patch was derived from original code/AOT, local dispatch/metadata ABI and Arm's
+Branch and Call Sequences Explained. Do not silently replace pinned HLE policy.
 
-All 603 AOT members (599 page files), original code and raw RomFS remain unchanged.
-Full IVFC block verification was not repeated; raw SHA matches the prior verified
-image. Registry 111043 blocks / 545111 words is STATIC inventory, not executed CPU
-count. Independent replay rechecks the prior PICA list: 6590 writes, 4096 program
-uploads, 96 uniform vectors and 1792 lighting-table writes, with genuine P3D wake.
-Seven original RomFS metadata reads still match all 4892 bytes. The guest creates,
-writes and closes its own 20-byte gamecoin.dat, default-clock SHA:
-`970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6`.
+## Working paths and reproduction
 
-Current private evidence: `transfer-checkpoint/`. Final receipt final-finished.json
-records zero for every build/test/trace/proof/matrix step. Tests: ctest-gcc.txt,
-ctest-clang.txt, ctest-asan.txt. Matrix: validate.py and validation-summary.json.
-Proofs: transfer-proof.json, verify_transfer.py, submit-proof.json and
-verify_inherited_submit.py. trace_transfer.py builds a logging-only alternate IPC
-object; production IPC is unchanged. Private captures include the original PICA
-list, GPU/upload/page snapshots and transfer input/output; do not publish raw bytes.
-Trace/native binaries and .o objects are excluded from the source/log archive.
-
-Public: reports/recovery-host/GSP-DISPLAY-TRANSFER.md, TRANSFER-FRESH-GCC.txt,
-TRANSFER-EXISTING-GCC.txt, TRANSFER-STRICT-GCC.txt, TRANSFER-PROOF.json and
-TRANSFER-VALIDATION.json. A validation driver exceeded one container call's timeout
-after passing builds/proofs; the complete finite rerun passed all steps. Setup
-failures are recorded in interrupted-validation-note.txt, not hidden or called tests.
-
-## Inspected primary references
-
-Pin: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
-- src/core/memory.cpp: explicit device VRAM allocation/zero-init, blob b5eb9b829293cbbc722111e28a3c2f0e93824d86.
-- src/video_core/gpu.cpp: transfer routing, physical conversion, trigger/PPF order, blob 40f29fea0867b0e8cf4d89a8753ddabf02c3b54b.
-- src/video_core/renderer_software/sw_blitter.cpp: dimensions/format/layout, blob 0a68afd07c3e22fdfaaf441d4744ef79abb2a86f.
-- src/video_core/utils.h: Morton addressing, blob 5ad06ef398300162166ca339b9ffe8ebfd872919.
-Earlier regs_external.h and gsp_interrupt.h define RGBA4 and PPF=4. Exact reference
-receipt: transfer-checkpoint/references.json. These are pinned HLE semantics, not
-blanket hardware parity. Do not use mutable upstream to silently alter the baseline.
-
-## Scratch paths and commands
-
-Root: /mnt/data/lego_recovery/. Source repo/; private AOT generated2/;
-code restored/code.bin; raw RomFS game/prepared-romfs/romfs.bin; prepared raw parts
-romfs-library-roundtrip/. Builds build-gcc/, build-clang/, build-asan/.
-Current evidence transfer-checkpoint/; previous submit-checkpoint/ and queue-checkpoint/
-are retained. Historical register material remains in historical/, never over repo/.
-Final NEW matrix root: private-state/transfer-validation.31ss8qc0/. Other transfer-*
-roots belong to this turn's diagnostics; trace-run.json records its exact path.
-These are newly guest-created TEST files, not recovered NAND. Older roots remain
-untouched; the paired validator resets only its owned, byte-verified fresh files.
+Root: /mnt/data/lego_recovery/. Current source: repo/. AOT: generated2/.
+Code: restored/code.bin. Raw RomFS: game/prepared-romfs/romfs.bin.
+Prepared raw parts: romfs-library-roundtrip/. Builds: build-gcc/, build-clang/,
+build-asan/. Baseline source archive: snapshot-2aa22c0/. Current logs: block-checkpoint/.
+Historical transfer/submit/queue evidence remains in the preserved pending archive.
+New owned roots: private-state/block-*. Final matrix: block-validation.hlg0n17d/.
+All are new TEST state, not recovered NAND saves. Never reset unknown existing saves.
 
 ```sh
 cd /mnt/data/lego_recovery
@@ -190,29 +165,28 @@ cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPI
 cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure
 mkdir -p private-state
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/block-return-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/memory-fill-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
 ./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero
 ```
 
-Expected diagnostic exit 3: MissingBlock at 0x001301F8, thread 3, round 172.
-Omit the VRAM option to reproduce strict DisplayTransfer stop, not the new boundary.
-Use clang++ for Clang; omit LEGO_AOT_DIR for ROM-free tests. Sanitizer commands:
-transfer-checkpoint/build_remaining.py; final driver: final_validate.py.
+Expected exit 3: MemoryFill remains pending at round 193. Use clang++ for Clang;
+omit LEGO_AOT_DIR for ROM-free tests. Sanitizer flags: block-checkpoint/build_remaining.py.
+final_checks.py records the pre-report implementation tree, not the later delivery tree.
 
-## Durable recovery and continuing mandate
+## Durable recovery and every-turn mandate
 
-GitHub: GTTeancum/Lego-Undercover-3DS-Recomp main. Library: /LEGO-Chase-Recovery/.
-Restore latest source/evidence archive and handoff, NOT historical pending source.
-Verify CHECKPOINT-MANIFEST.json using verify_checkpoint.py; unpack repo/logs under
-the root above. SOURCE-INDEX.json records exact tracked paths, Git blob identities
-and modes including ignored-but-tracked logs. Reconstruct the index faithfully;
-its local snapshot history must NEVER replace the remote history.
+GitHub: GTTeancum/Lego-Undercover-3DS-Recomp, main. Library: /LEGO-Chase-Recovery/.
+Restore the latest source/evidence checkpoint and handoff. Verify CHECKPOINT-MANIFEST.json
+with verify_checkpoint.py before extraction. Unpack current repo/logs beneath the root
+above. SOURCE-INDEX.json records exact Git paths, modes and blobs, including ignored
+tracked reports. Reconstruct the local index faithfully; it is not remote history.
+Historical nested archives must be restored elsewhere, never over current repo/.
 
-Private inputs have separate backups: code.bin, unchanged
-LEGO-Chase-current-AOT-599pages-2026-10-03.tgz, and Prepared-RomFS/ two raw parts plus
-romfs-parts.json. Put code in restored/; unpack AOT in the root (creates generated2/).
-Prepared parts are 402653184 and 366526464 bytes. Do not repeat original CCI extraction.
+Private inputs have separate Library backups: code.bin, unchanged
+LEGO-Chase-current-AOT-599pages-2026-10-03.tgz, Prepared-RomFS/ two raw parts and
+romfs-parts.json. Put code in restored/ and unpack AOT at the root (generated2/).
+Prepared parts are 402653184 and 366526464 bytes. Do not repeat CCI extraction.
 
 ```sh
 mkdir -p game/prepared-romfs
@@ -220,26 +194,25 @@ python repo/tools/restore_romfs_parts.py game/romfs-persistence/romfs-parts.json
 python repo/tools/verify_romfs.py game/prepared-romfs/romfs.bin
 ```
 
-Restore refuses existing output. Verify rather than overwrite it. Raw RomFS is
-769179648 bytes, view offset 4096 and size 769175552; do not expose IVFC prefix as
-filesystem header or drop trailing tables. SHA:
+Restore refuses an existing output; verify rather than overwrite. Raw RomFS is
+769179648 bytes, native offset 4096, view size 769175552. Do not expose the IVFC
+prefix as the filesystem header or discard trailing tables. Raw RomFS SHA:
 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
 Code SHA: 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
-AOT SHA: 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
+AOT archive SHA: 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
 Historical CCI SHA: 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
-Original six archive parts in Game-archive/ remain an alternate recovery path.
+Six original archive parts remain in Game-archive/ as an alternate route.
 
-Scratch may reset. Library inputs/checkpoints and GitHub are recovery paths;
-Actions source snapshots expire after 30 days. Keep original game bytes, private
-AOT/native binaries/test captures OUT of public Git. Update this canonical handoff
-and POST A DOWNLOADABLE COPY EVERY WORK TURN, plus a durable source/log checkpoint.
-Never fabricate push, CI, persistence, rendering or gameplay success. A new chat
-must be able to restore, rebuild, reproduce the actual boundary and continue.
+Scratch may reset. Library inputs/checkpoints and GitHub are recovery paths, not a
+promise of permanent scratch. Actions source snapshots expire after 30 days. Direct
+container GitHub DNS failed; connector reads/writes and artifact download worked.
+MANDATE: tested checkpoints, publish source/reports and persist backups when available;
+never invent push/CI/persistence success. Keep game bytes, private AOT/native binaries
+and state captures OUT of public Git. Update this canonical handoff and POST A
+DOWNLOADABLE COPY EVERY WORK TURN plus a durable source/evidence checkpoint. A new
+chat must be able to restore, build, reproduce the actual boundary and continue.
 
-## Hosted CI status at report publication
+## Hosted CI confirmation
 
-Actions run `37369854262` targets implementation `dfe7872`. Clang completed
-successfully. The GCC job is still queued, with no test result yet. Local full GCC
-and Clang builds and all 30 suites passed as documented above; do not report a
-hosted GCC success without checking that job. The final attached receipt retains
-the latest status actually observed.
+GitHub Actions run `37379880223` on implementation `f8f7ad5` completed successfully
+for both GCC and Clang jobs. These hosted suites are ROM-free, not original-game runs.
