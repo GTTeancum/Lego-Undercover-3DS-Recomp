@@ -12,10 +12,14 @@ bool AptService::CanHandle(const IpcCommandBuffer& command) const noexcept {
         return initialized_ && command[1] == 0;
     if (command[0] == IpcMakeHeader(0x43, 1, 0))
         return initialized_ && registered_ && command[1] == 0x300;
-    if (command[0] == IpcMakeHeader(0x4B, 3, 2))
-        return initialized_ && registered_ && command[1] == 7 &&
-               command[2] == 4 && command[3] == 1 &&
-               command[4] == ((4U << 14U) | (1U << 10U) | 2U);
+    if (command[0] == IpcMakeHeader(0x4B, 3, 2)) {
+        // Only the two observed wrappers: SleepIfShellClosed (4) and
+        // UnlockTransition (7). Other utility IDs are still explicit stops.
+        const auto size = command[1] == 4 ? 1U : command[1] == 7 ? 4U : 0U;
+        return initialized_ && registered_ && size != 0 &&
+               command[2] == size && command[3] == 1 &&
+               command[4] == ((size << 14U) | (1U << 10U) | 2U);
+    }
     if (command[0] == IpcMakeHeader(0xE, 2, 0) ||
         command[0] == IpcMakeHeader(0xD, 2, 0))
         return initialized_ && command[1] == 0x300 && command[2] <= 0x1000;
@@ -25,7 +29,7 @@ bool AptService::CanHandle(const IpcCommandBuffer& command) const noexcept {
 Result AptService::Handle(IpcRouter&, Kernel& kernel, GuestMemory& memory, ThreadObject& thread,
                           IpcCommandBuffer& command) {
     if (IpcCommandId(command[0]) == 0x4B)
-        return UnlockTransition(memory, thread, command);
+        return ReplyBoundedUtility(memory, thread, command);
     if (IpcCommandId(command[0]) == 0xE || IpcCommandId(command[0]) == 0xD)
         return ReadLaunchParameter(memory, thread, command);
     if (IpcCommandId(command[0]) == 0x43) {
@@ -93,20 +97,27 @@ Result AptService::Handle(IpcRouter&, Kernel& kernel, GuestMemory& memory, Threa
     return kResultSuccess;
 }
 
-Result AptService::UnlockTransition(GuestMemory& memory, ThreadObject& thread,
-                                    IpcCommandBuffer& command) {
-    // Utility 7 is APT_UnlockTransition in libctru. The pinned Azahar handler
-    // copies the input but implements no transition-lock state: it returns two
-    // success words and a zero-initialized output buffer. Reproduce ONLY the
-    // 4-byte-input/1-byte-output shape, not its blanket utility acknowledgment
-    // (especially not utility 6's explicitly fabricated TryLock success).
-    // This is a bounded HLE policy, not verified hardware transition semantics.
+Result AptService::ReplyBoundedUtility(GuestMemory& memory, ThreadObject& thread,
+                                       IpcCommandBuffer& command) {
+    // libctru: utility 4 = SleepIfShellClosed (1-byte input), utility 7 =
+    // UnlockTransition (4-byte input); both request one output byte. Pinned
+    // Azahar explicitly STUBS these with ignored input, two success words and
+    // zero output. This is that limited HLE policy, NOT real lid/sleep or
+    // transition-lock emulation. No shell state, sleep completion or lock
+    // success is synthesized; utility 6 and all other IDs remain unsupported.
     const auto source = command[5];
-    std::uint32_t transition = 0;
-    if (std::uint64_t(source) + 4U > 0x100000000ULL ||
-        !memory.Read32(source, &transition))
+    const auto size = command[2]; // CanHandle restricts this to 1 or 4.
+    if (std::uint64_t(source) + size > 0x100000000ULL)
         return kResultInvalidPointer;
-    (void)transition; // Read in full; the pinned HLE does not inspect these bits.
+    // Read the exact input extent before writing even when source and output
+    // overlap. In particular utility 4 must not require a four-byte mapping.
+    if (size == 1) {
+        std::uint8_t input = 0;
+        if (!memory.Read8(source, &input)) return kResultInvalidPointer;
+    } else {
+        std::uint32_t input = 0;
+        if (!memory.Read32(source, &input)) return kResultInvalidPointer;
+    }
 
     const auto table = std::uint64_t(thread.tls_address) + 0x180U;
     std::uint32_t descriptor = 0, destination = 0;

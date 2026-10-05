@@ -13,6 +13,7 @@ constexpr auto RW = MemoryPermission::Read | MemoryPermission::Write;
 constexpr std::uint32_t kSource = 0x08000040, kDestination = 0x08000081;
 
 struct Fixture {
+    const std::uint32_t utility;
     Kernel kernel;
     GuestMemory memory;
     IpcRouter router;
@@ -21,13 +22,13 @@ struct Fixture {
     Handle session{}, notification_handle{}, parameter_handle{};
     std::shared_ptr<EventObject> notification, parameter;
     a32::GuestState cpu{};
-    Fixture() {
+    explicit Fixture(std::uint32_t utility = 7) : utility(utility) {
         if (!memory.EnsureTlsMappings(kernel) || !memory.Map(0x08000000, 0x1000, RW) ||
             router.RegisterService("APT:U", apt) != kResultSuccess ||
             router.ConnectToService(kernel, "APT:U", &session) != kResultSuccess)
             throw std::runtime_error("fixture setup failed");
         cpu = kernel.CurrentGuestState();
-        CHECK(memory.Write32(kSource, 0x10));
+        CHECK(memory.Write32(kSource, utility == 4 ? 0U : 0x10U));
         CHECK(memory.Write32(kDestination - 1, 0xA5A5A5A5));
         Descriptor(0x4002, kDestination);
     }
@@ -37,7 +38,10 @@ struct Fixture {
         CHECK(memory.Write32(Table(), descriptor));
         CHECK(memory.Write32(Table() + 4, address));
     }
-    static IpcCommandBuffer Request() { return {0x004B00C2, 7, 4, 1, 0x10402, kSource}; }
+    IpcCommandBuffer Request() const {
+        const std::uint32_t size = utility == 4 ? 1U : 4U;
+        return {0x004B00C2, utility, size, 1, (size << 14U) | 0x402U, kSource};
+    }
     IpcCommandBuffer Read(GuestMemory& m) const {
         IpcCommandBuffer command{};
         for (std::size_t i = 0; i < command.size(); ++i)
@@ -121,8 +125,8 @@ struct Fixture {
     }
 };
 
-void ExactResponseAndStatePreservation() {
-    Fixture f; f.Initialize();
+void ExactResponseAndStatePreservation(std::uint32_t utility) {
+    Fixture f(utility); f.Initialize();
     f.Success(); f.Success();
     CHECK(f.kernel.WaitSynchronization1(f.parameter_handle, 0).result == kResultSuccess);
     f.Success(); // No replacement parameter signal.
@@ -137,26 +141,30 @@ void ExactResponseAndStatePreservation() {
     CHECK(!f.apt->pending_parameter() && !f.parameter->signaled() && !f.notification->signaled());
 }
 
-void UnknownShapesRemainStops() {
-    Fixture f;
-    f.Put(Fixture::Request());
+void UnknownShapesRemainStops(std::uint32_t utility) {
+    Fixture f(utility);
+    f.Put(f.Request());
     const auto early = f.cpu;
     CHECK(f.Call().kind == a32::ExitKind::Svc && f.cpu.r == early.r);
     CHECK(!f.apt->initialized());
     f.Initialize();
     const auto unchanged = f.Save();
-    for (const auto request : {
-        IpcCommandBuffer{0x004B00C2, 6, 4, 1, 0x10402, kSource},
-        IpcCommandBuffer{0x004B00C2, 4, 1, 1, 0x4402, kSource},
-        IpcCommandBuffer{0x004B00C2, 0xFFFFFFFF, 4, 1, 0x10402, kSource},
-        IpcCommandBuffer{0x004B00C0, 7, 4, 1, 0x10402, kSource},
-        IpcCommandBuffer{0x004B0082, 7, 4, 1, 0x10402, kSource},
-        IpcCommandBuffer{0x004B00C2, 7, 3, 1, 0xC402, kSource},
-        IpcCommandBuffer{0x004B00C2, 7, 4, 0, 0x10402, kSource},
-        IpcCommandBuffer{0x004B00C2, 7, 4, 2, 0x10402, kSource},
-        IpcCommandBuffer{0x004B00C2, 7, 4, 1, 0x10002, kSource},
-        IpcCommandBuffer{0x004B00C2, 7, 4, 1, 0x1040A, kSource},
-        IpcCommandBuffer{0x004B00C2, 7, 4, 1, 0x14402, kSource}}) {
+    std::array<IpcCommandBuffer, 13> invalid{};
+    invalid.fill(f.Request());
+    invalid[0][1] = 6; // TryLock must never receive fabricated acquisition success.
+    invalid[1][1] = 5; // Another unimplemented utility, not a blanket dispatcher.
+    invalid[2][1] = 0xFFFFFFFF;
+    invalid[3][0] = 0x004B00C0;
+    invalid[4][0] = 0x004B0082;
+    invalid[5][2] = utility == 4 ? 4 : 1;
+    invalid[6][3] = 0;
+    invalid[7][3] = 2;
+    invalid[8][4] &= ~(1U << 10); // Wrong input static slot.
+    invalid[9][4] |= 8; // Wrong descriptor type.
+    invalid[10][4] += 1U << 14; // Descriptor extent differs from request.
+    invalid[11][2] = 0;
+    invalid[12][3] = 0xFFFFFFFF;
+    for (const auto& request : invalid) {
         f.Put(request);
         const auto cpu = f.cpu;
         CHECK(f.Call().kind == a32::ExitKind::Svc);
@@ -166,28 +174,30 @@ void UnknownShapesRemainStops() {
     }
 }
 
-void BufferValidationBeforeWrites() {
-    Fixture f; f.Initialize();
+void BufferValidationBeforeWrites(std::uint32_t utility) {
+    Fixture f(utility); f.Initialize();
     for (auto descriptor : {0U, 2U, 0x4402U, 0x400AU}) {
         f.Descriptor(descriptor, kDestination);
-        f.PointerFailure(Fixture::Request());
+        f.PointerFailure(f.Request());
     }
     f.Descriptor(0x4002, kDestination);
-    auto request = Fixture::Request(); request[5] = 0x07000000;
+    auto request = f.Request(); request[5] = 0x07000000;
     f.PointerFailure(request);
     CHECK(f.memory.Map(0xFFFFFFFC, 4, RW));
     CHECK(f.memory.Write32(0xFFFFFFFC, 0x10));
-    request[5] = 0xFFFFFFFD; // Would wrap if 4-byte extent were unchecked.
+    request[5] = utility == 7 ? 0xFFFFFFFDU : 0xFFFFFFFBU;
+    // Four-byte read would wrap for utility 7; utility 4 points one byte
+    // before this mapping. Its valid single-byte upper bound is tested below.
     f.PointerFailure(request);
     CHECK(f.memory.Map(0x09000000, 1, MemoryPermission::Read));
     for (const auto destination : {0x07000000U, 0x09000000U, f.Address(), f.Address() + 0xFF,
                                    f.Table(), f.Table() + 7}) {
         f.Descriptor(0x4002, destination);
-        f.PointerFailure(Fixture::Request());
+        f.PointerFailure(f.Request());
     }
     // Larger receive capacity must not cause padding beyond requested one byte.
     f.Descriptor(0x4000002, kDestination);
-    f.Put(Fixture::Request());
+    f.Put(f.Request());
     CHECK(f.Call().kind == a32::ExitKind::Fallthrough && f.cpu.r[0] == 0);
     CHECK(f.Byte(kDestination) == 0 && f.Byte(kDestination + 1) == 0xA5);
 
@@ -199,9 +209,9 @@ void BufferValidationBeforeWrites() {
     CHECK(f.Byte(0xFFFFFFFF) == 0);
 }
 
-void MissingDescriptorAndProtectedResponse() {
-    Fixture f; f.Initialize();
-    const auto request = Fixture::Request();
+void MissingDescriptorAndProtectedResponse(std::uint32_t utility) {
+    Fixture f(utility); f.Initialize();
+    const auto request = f.Request();
     for (const int mode : {0, 1, 2}) {
         GuestMemory m;
         if (mode == 0) {
@@ -228,16 +238,16 @@ void MissingDescriptorAndProtectedResponse() {
     }
 }
 
-void GuestWriteInvalidatesReservationAndSnapshotsInput() {
-    Fixture f; f.Initialize();
-    // Reference HLE ignores mask content; it never mutates the input buffer.
+void GuestWriteInvalidatesReservationAndSnapshotsInput(std::uint32_t utility) {
+    Fixture f(utility); f.Initialize();
+    // Reference HLE ignores either input value; it never mutates the input buffer.
     for (const auto mask : {0U, 0x10U, 0xFFFFFFFFU}) {
         CHECK(f.memory.Write32(kSource, mask));
         f.Success();
         std::uint32_t value = 0; CHECK(f.memory.Read32(kSource, &value) && value == mask);
     }
     f.Descriptor(0x4002, kDestination);
-    f.Put(Fixture::Request());
+    f.Put(f.Request());
     std::uint64_t value = 0, token = 0; std::uint32_t fault = 0;
     CHECK(f.memory.LoadExclusive(kDestination, 1, &value, &token, &fault));
     CHECK(f.Call().kind == a32::ExitKind::Fallthrough);
@@ -247,16 +257,45 @@ void GuestWriteInvalidatesReservationAndSnapshotsInput() {
 
     CHECK(f.memory.Write32(kSource, 0xAABBCC10));
     f.Descriptor(0x4002, kSource);
-    f.Put(Fixture::Request());
+    f.Put(f.Request());
     CHECK(f.Call().kind == a32::ExitKind::Fallthrough && f.cpu.r[0] == 0);
     std::uint32_t input = 0; CHECK(f.memory.Read32(kSource, &input) && input == 0xAABBCC00);
 }
+void SingleByteInputAndOutputBounds() {
+    Fixture f(4); f.Initialize();
+    CHECK(f.memory.Map(0xFFFFFFFF, 1, RW));
+    auto request = f.Request(); request[5] = 0xFFFFFFFF;
+    for (const auto input : {0U, 1U, 0xFFU}) {
+        CHECK(f.memory.Write8(0xFFFFFFFF, static_cast<std::uint8_t>(input)));
+        f.Descriptor(0x4002, kDestination);
+        CHECK(f.memory.Write8(kDestination, 0xA5));
+        f.Put(request);
+        const auto saved = f.Save();
+        CHECK(f.Call().kind == a32::ExitKind::Fallthrough && f.cpu.r[0] == kResultSuccess);
+        CHECK(f.Byte(0xFFFFFFFF) == input && f.Byte(kDestination) == 0);
+        f.Same(saved);
+    }
+    // A one-byte output can be the final byte of the guest address space.
+    f.Descriptor(0x4002, 0xFFFFFFFF);
+    f.Put(f.Request());
+    CHECK(f.Call().kind == a32::ExitKind::Fallthrough && f.cpu.r[0] == kResultSuccess);
+    CHECK(f.Byte(0xFFFFFFFF) == 0);
+
+    // Readable input is required even though pinned HLE ignores the value.
+    CHECK(f.memory.Map(0x09001000, 1, MemoryPermission::Write));
+    request[5] = 0x09001000;
+    f.Descriptor(0x4002, kDestination);
+    f.PointerFailure(request);
+}
 } // namespace
 int main() {
-    ExactResponseAndStatePreservation(); UnknownShapesRemainStops();
-    BufferValidationBeforeWrites(); MissingDescriptorAndProtectedResponse();
-    GuestWriteInvalidatesReservationAndSnapshotsInput();
+    for (const auto utility : {7U, 4U}) {
+        ExactResponseAndStatePreservation(utility); UnknownShapesRemainStops(utility);
+        BufferValidationBeforeWrites(utility); MissingDescriptorAndProtectedResponse(utility);
+        GuestWriteInvalidatesReservationAndSnapshotsInput(utility);
+    }
+    SingleByteInputAndOutputBounds();
     if (failures) return EXIT_FAILURE;
-    std::cout << "PASS: bounded UnlockTransition utility, static buffers, unchanged APT/kernel state\n";
+    std::cout << "PASS: bounded APT utilities 4/7, exact buffers, unchanged APT/kernel state\n";
     return EXIT_SUCCESS;
 }
