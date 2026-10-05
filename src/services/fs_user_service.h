@@ -1,12 +1,17 @@
 #pragma once
 #include "runtime/ctr_ipc.h"
+#include "services/fs_shared_archive.h"
 
 namespace lego::ctr {
-// Startup-only FS endpoint. Program identity is supplied by the host for the
-// verified, single-program runner. No archive or file success is synthesized.
+// Bounded FS endpoint for the verified single-program runner. Shared archive
+// opens require an explicit host mount; file operations remain unsupported.
 class FsUserService final : public IpcService {
 public:
     explicit FsUserService(std::uint64_t program_id);
+    bool ConfigureSharedExtdataRoot(const std::filesystem::path& root) {
+        return shared_->archives.ConfigureRoot(root);
+    }
+    [[nodiscard]] const SharedArchiveMounts& archives() const noexcept { return shared_->archives; }
     std::shared_ptr<IpcService> CreateSessionHandler() override;
     bool CanHandle(const IpcCommandBuffer& command) const noexcept override;
     Result Handle(IpcRouter&, Kernel&, GuestMemory&, ThreadObject&,
@@ -21,6 +26,7 @@ private:
     struct SharedState {
         std::uint64_t program_id;
         std::uint32_t priority{0xFFFFFFFFU};
+        SharedArchiveMounts archives;
     };
     explicit FsUserService(std::shared_ptr<SharedState> shared);
     std::shared_ptr<SharedState> shared_;

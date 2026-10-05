@@ -18,10 +18,15 @@ bool FsUserService::CanHandle(const IpcCommandBuffer& command) const noexcept {
     if (shared_->program_id == 0) return false;
     if (command[0] == IpcMakeHeader(0x0861, 1, 2))
         return command[2] == IpcCallingPidDesc();
-    return initialized_ && command[0] == IpcMakeHeader(0x0862, 1, 0);
+    if (!initialized_) return false;
+    if (command[0] == IpcMakeHeader(0x0862, 1, 0)) return true;
+    return shared_->archives.configured() &&
+           command[0] == IpcMakeHeader(0x080C, 3, 2) && command[1] == 7 &&
+           command[2] == 2 && command[3] == 12 && command[4] == 0x00030002;
+
 }
 
-Result FsUserService::Handle(IpcRouter&, Kernel& kernel, GuestMemory&, ThreadObject&,
+Result FsUserService::Handle(IpcRouter&, Kernel& kernel, GuestMemory& memory, ThreadObject&,
                              IpcCommandBuffer& command) {
     if (!CanHandle(command)) return kResultNotFound;
     const auto id = IpcCommandId(command[0]);
@@ -32,10 +37,30 @@ Result FsUserService::Handle(IpcRouter&, Kernel& kernel, GuestMemory&, ThreadObj
         program_id_ = shared_->program_id;
         sdk_version_ = command[1];
         initialized_ = true;
-    } else {
+    } else if (id == 0x0862) {
         // Matches pinned FS_USER's service-global field; not thread priority
         // and not yet a modeled filesystem worker scheduler.
         shared_->priority = command[1];
+    }
+    if (id == 0x080C) {
+        const auto address = command[5];
+        if (std::uint64_t(address) + 12 > 0x100000000ULL || !memory.IsReadable(address, 12))
+            return kResultInvalidPointer;
+        std::uint32_t media = 0, low_id = 0, high_id = 0;
+        if (!memory.Read32(address, &media) || !memory.Read32(address+4, &low_id) ||
+            !memory.Read32(address+8, &high_id)) return kResultInvalidPointer;
+        // Pinned SharedExtSaveData ignores media and replaces high_id with
+        // 0x48000. No caller-provided string becomes a host path component.
+        (void)media;
+        (void)high_id;
+        std::uint64_t handle = 0;
+        const Result result = shared_->archives.Open(low_id, &handle);
+        command.fill(0);
+        command[0] = IpcMakeHeader(id, 3, 0);
+        command[1] = result;
+        command[2] = static_cast<std::uint32_t>(handle);
+        command[3] = static_cast<std::uint32_t>(handle >> 32);
+        return kResultSuccess;
     }
     command.fill(0);
     command[0] = IpcMakeHeader(id, 1, 0);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 
 #include "recomp/a32_runtime.h"
 #include "runtime/ctr_ipc.h"
@@ -36,7 +37,8 @@ class NativeRunner final {
 public:
     NativeRunner(const a32::Registry& registry, GuestMemory& memory,
                  Kernel& kernel,
-                 std::uint64_t rtc_epoch_ms = kDefaultRtcMsSince1900) noexcept;
+                 std::uint64_t rtc_epoch_ms = kDefaultRtcMsSince1900,
+                 const std::filesystem::path& shared_extdata_root = {});
 
     bool InitializeMainThread(std::uint32_t entry_point = kTextBase,
                               std::uint32_t stack_top = kMainStackTop) noexcept;

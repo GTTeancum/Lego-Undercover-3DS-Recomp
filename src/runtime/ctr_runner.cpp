@@ -2,19 +2,26 @@
 #include "services/apt_service.h"
 #include "services/ndm_service.h"
 #include "services/fs_user_service.h"
+#include "services/cfg_service.h"
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace lego::ctr {
 
 NativeRunner::NativeRunner(const a32::Registry& registry,
                            GuestMemory& memory,
                            Kernel& kernel,
-                           std::uint64_t rtc_epoch_ms) noexcept
+                           std::uint64_t rtc_epoch_ms,
+                           const std::filesystem::path& shared_extdata_root)
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_) {
     ipc_.RegisterService("APT:U", std::make_shared<AptService>());
+    ipc_.RegisterService("cfg:u", std::make_shared<CfgService>());
     ipc_.RegisterService("ndm:u", std::make_shared<NdmService>());
-    ipc_.RegisterService("fs:USER", std::make_shared<FsUserService>(0x00040000000AD500ULL));
+    auto fs = std::make_shared<FsUserService>(0x00040000000AD500ULL);
+    if (!shared_extdata_root.empty() && !fs->ConfigureSharedExtdataRoot(shared_extdata_root))
+        throw std::invalid_argument("shared-extdata root must be an existing directory");
+    ipc_.RegisterService("fs:USER", std::move(fs));
 }
 
 bool NativeRunner::InitializeMainThread(std::uint32_t entry_point,
