@@ -12,6 +12,10 @@ bool AptService::CanHandle(const IpcCommandBuffer& command) const noexcept {
         return initialized_ && command[1] == 0;
     if (command[0] == IpcMakeHeader(0x43, 1, 0))
         return initialized_ && registered_ && command[1] == 0x300;
+    if (command[0] == IpcMakeHeader(0x4B, 3, 2))
+        return initialized_ && registered_ && command[1] == 7 &&
+               command[2] == 4 && command[3] == 1 &&
+               command[4] == ((4U << 14U) | (1U << 10U) | 2U);
     if (command[0] == IpcMakeHeader(0xE, 2, 0) ||
         command[0] == IpcMakeHeader(0xD, 2, 0))
         return initialized_ && command[1] == 0x300 && command[2] <= 0x1000;
@@ -20,6 +24,8 @@ bool AptService::CanHandle(const IpcCommandBuffer& command) const noexcept {
 
 Result AptService::Handle(IpcRouter&, Kernel& kernel, GuestMemory& memory, ThreadObject& thread,
                           IpcCommandBuffer& command) {
+    if (IpcCommandId(command[0]) == 0x4B)
+        return UnlockTransition(memory, thread, command);
     if (IpcCommandId(command[0]) == 0xE || IpcCommandId(command[0]) == 0xD)
         return ReadLaunchParameter(memory, thread, command);
     if (IpcCommandId(command[0]) == 0x43) {
@@ -84,6 +90,51 @@ Result AptService::Handle(IpcRouter&, Kernel& kernel, GuestMemory& memory, Threa
     command[2] = IpcCopyHandleDesc(2);
     command[3] = notification_handle;
     command[4] = parameter_handle;
+    return kResultSuccess;
+}
+
+Result AptService::UnlockTransition(GuestMemory& memory, ThreadObject& thread,
+                                    IpcCommandBuffer& command) {
+    // Utility 7 is APT_UnlockTransition in libctru. The pinned Azahar handler
+    // copies the input but implements no transition-lock state: it returns two
+    // success words and a zero-initialized output buffer. Reproduce ONLY the
+    // 4-byte-input/1-byte-output shape, not its blanket utility acknowledgment
+    // (especially not utility 6's explicitly fabricated TryLock success).
+    // This is a bounded HLE policy, not verified hardware transition semantics.
+    const auto source = command[5];
+    std::uint32_t transition = 0;
+    if (std::uint64_t(source) + 4U > 0x100000000ULL ||
+        !memory.Read32(source, &transition))
+        return kResultInvalidPointer;
+    (void)transition; // Read in full; the pinned HLE does not inspect these bits.
+
+    const auto table = std::uint64_t(thread.tls_address) + 0x180U;
+    std::uint32_t descriptor = 0, destination = 0;
+    if (table + 8U > 0x100000000ULL ||
+        !memory.Read32(static_cast<std::uint32_t>(table), &descriptor) ||
+        !memory.Read32(static_cast<std::uint32_t>(table + 4U), &destination) ||
+        (descriptor & 0x3FFFU) != 2U || (descriptor >> 14U) < 1U ||
+        !memory.IsWritable(destination, 1U))
+        return kResultInvalidPointer;
+
+    // Reject aliasing our own response/receive descriptor rather than silently
+    // overwriting the returned byte during reply copy-out. This is host safety
+    // policy, not an asserted CTR hardware error convention. Input/output
+    // aliasing is safe because the input was already copied above.
+    const auto response = std::uint64_t(thread.tls_address) + kIpcCommandBufferOffset;
+    if ((destination >= response && destination < response + sizeof(command)) ||
+        (destination >= table && destination < table + 8U))
+        return kResultInvalidPointer;
+
+    // All validation precedes writes; one-byte guest write also invalidates
+    // exclusive reservations. No guest-sized allocation and no state changes.
+    if (!memory.Write8(destination, 0)) return kResultInvalidPointer;
+    command.fill(0);
+    command[0] = IpcMakeHeader(0x4B, 2, 2);
+    command[1] = kResultSuccess;
+    command[2] = kResultSuccess; // Utility result, distinct from transport result.
+    command[3] = (1U << 14U) | 2U;
+    command[4] = destination;
     return kResultSuccess;
 }
 

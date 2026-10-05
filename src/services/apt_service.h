@@ -22,6 +22,8 @@ public:
         return pending_parameter_;
     }
 private:
+    Result UnlockTransition(GuestMemory& memory, ThreadObject& thread,
+                            IpcCommandBuffer& command);
     Result ReadLaunchParameter(GuestMemory& memory, ThreadObject& thread,
                                IpcCommandBuffer& command);
     std::shared_ptr<MutexObject> lock_{std::make_shared<MutexObject>()};
