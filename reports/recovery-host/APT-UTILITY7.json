@@ -1,0 +1,108 @@
+{
+  "format": "lego_apt_utility7_checkpoint_v1",
+  "base_commit": "c2292df90bff00bfbff789cfa74a0d6610b89cf1",
+  "base_tree_verified": "6c6087a13d7bb010f213c77e5d9a2457ba56ba9e",
+  "source_commit": "0f0fbf2d00b72f4b65adb4e6baaae712534afd90",
+  "source_tree_verified": "891f7d3954faa5b473ff05c15f5f2df75da15d5a",
+  "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "private_aot": {
+    "page_cpp_files": 599,
+    "regular_files": 603,
+    "all_archive_members_unchanged": true,
+    "verified_instruction_words": 545111,
+    "registry_blocks": 111043
+  },
+  "before": {
+    "service": "APT:U",
+    "utility": 7,
+    "name": "UnlockTransition",
+    "header": "0x004B00C2",
+    "input_size": 4,
+    "output_size": 1,
+    "input_word_previously_observed": "0x10",
+    "pc": "0x0025947C",
+    "thread": 1,
+    "dispatch_rounds": 54,
+    "baseline_reproduced_byte_identically": true
+  },
+  "after": {
+    "stop": "UnsupportedIpc",
+    "service": "APT:U",
+    "utility": 4,
+    "header": "0x004B00C2",
+    "input_size": 1,
+    "input_bytes_hex": "00",
+    "output_size": 1,
+    "input_static_descriptor": "0x00004402",
+    "input_address": "0x0FFFF5D8",
+    "output_static_descriptor": "0x00004002",
+    "output_address": "0x0FFFF5DC",
+    "pc": "0x0025947C",
+    "thread": 1,
+    "dispatch_rounds": 59,
+    "host_exit_code": 3
+  },
+  "scope": {
+    "authority": "libctru identifies utility 7 as UnlockTransition. Pinned Azahar AppletUtility is explicitly STUBBED and returns two success words plus zero output for this utility.",
+    "supported": "Initialized/registered application, exact header, utility 7, input size 4, output size 1, static input slot 1 descriptor 0x10402. All uint32 transition values follow the pinned HLE input-ignored policy.",
+    "response": "0x004B0082, ResultSuccess, utility ResultSuccess, static slot 0 descriptor 0x4002, destination. Exactly one zero byte written.",
+    "safety": "Read complete input first. Validate static receive descriptor and writable output before writes. Reject overlap with command reply or receive descriptor as host safety policy, not verified hardware error semantics.",
+    "no_side_effects": "No transition-lock model or lock acquisition success is claimed. No events, launch parameters, handles, threads, scheduling or guest time changed.",
+    "unsupported": "Other utilities (including utility 6 TryLock and the newly observed utility 4), malformed/premature shapes stay explicit host stops. Invalid pointers/descriptors return existing host safety error without command/output mutation."
+  },
+  "validation": {
+    "gcc": "Full 599-page baseline build plus final relink; 9/9 CTest",
+    "clang": "Fresh full 599-page build; 9/9 CTest",
+    "sanitizers": "Clang ASan/UBSan 9/9 ROM-free CTest; detect_leaks=1, halt_on_error=1",
+    "startup_logs_identical": true,
+    "hosted_ci": "GitHub Actions 37248287001: GCC and Clang jobs succeeded on source commit 0f0fbf2d00b72f4b65adb4e6baaae712534afd90"
+  },
+  "artifacts": {
+    "UTILITY7-BASELINE.txt": {
+      "bytes": 691,
+      "sha256": "7890bf5946056c36c9f016805b8054f87f255b7484767b1c51f9a328e72e81f9"
+    },
+    "UTILITY7-CTEST-ASAN.txt": {
+      "bytes": 1091,
+      "sha256": "175d08bfa2579b8df7078c588f59169d9d6fc45532fc7c6ecf9a1718d61c19ff"
+    },
+    "UTILITY7-CTEST-CLANG.txt": {
+      "bytes": 1093,
+      "sha256": "90c3721dbb4848646c1ee5dd0e06178ba7bab9d4442e46437c9cae2c5502d77d"
+    },
+    "UTILITY7-CTEST-GCC.txt": {
+      "bytes": 1089,
+      "sha256": "f735735fd5496baca3824f0782668b0386460efdbfa8d267892566de835bbdff"
+    },
+    "UTILITY7-FIRST-RUN.txt": {
+      "bytes": 691,
+      "sha256": "a7fa292c6d969a8f2b8820cc7d79aa5ff03672f22cc998b3e6dbb15e0e75a4ff"
+    },
+    "UTILITY7-NEXT-REQUEST.txt": {
+      "bytes": 49,
+      "sha256": "5233ff6d9520bf12a140c7647761313869ccb530c1adacb43c86dff54a109852"
+    },
+    "UTILITY7-STARTUP-CLANG.txt": {
+      "bytes": 691,
+      "sha256": "a7fa292c6d969a8f2b8820cc7d79aa5ff03672f22cc998b3e6dbb15e0e75a4ff"
+    },
+    "UTILITY7-STARTUP-GCC.txt": {
+      "bytes": 691,
+      "sha256": "a7fa292c6d969a8f2b8820cc7d79aa5ff03672f22cc998b3e6dbb15e0e75a4ff"
+    }
+  },
+  "binary_sha256": {
+    "build-gcc": "1bf85dfbf84dad601d1baf26abb262949e9e06805c74d1027a0a2db3406dffcf",
+    "build-clang": "05650caad6eaf155bf475244c63ff7af9a1471bb30b0c41299ed6e5bb7c62900"
+  },
+  "limitations": [
+    "Full hardware transition-lock semantics are not restored.",
+    "Utility 4 remains unimplemented; the observed next request is preserved.",
+    "No title screen, rendering, audio, controls, completed initializer count or gameplay claim.",
+    "Dispatch-driven guest time, prior APT wire-policy caveats and inherited kernel/IPC limitations remain open."
+  ],
+  "behavior_sources": [
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/apt/apt.cpp",
+    "https://github.com/devkitPro/libctru/blob/9b55eda44cf80b971503991e0c78f9bc8fe50425/libctru/source/services/apt.c"
+  ]
+}
