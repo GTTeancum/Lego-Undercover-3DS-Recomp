@@ -189,7 +189,7 @@ void MisclassifiedBarrierContinuesItsBlock() {
     state = {};
     auto result = ExecuteBlock({0x100000, conditional.data(), 2}, state, memory, nullptr, nullptr);
     CHECK(result.kind == ExitKind::Svc && result.pc == 0x100004);
-    for (const auto raw : {0xee074f9aU, 0xee07ffbaU, 0xfe074fbaU, 0xee074fbbU}) {
+    for (const auto raw : {0xee074f9bU, 0xee07ffbaU, 0xfe074fbaU, 0xee074fbbU}) {
         const auto op = Op(raw, Opcode::CoreAlu);
         state = {};
         result = ExecuteBlock({0x100000, &op, 1}, state, memory, nullptr, nullptr);

@@ -67,6 +67,12 @@ public:
     bool IsReadable(std::uint32_t address, std::uint32_t size = 1) const noexcept;
     bool IsWritable(std::uint32_t address, std::uint32_t size = 1) const noexcept;
 
+    // True when mapped spans overlap physically, including distinct aliases of
+    // a service-owned shared page. Invalid/unmapped spans return false; callers
+    // must preflight permissions and bounds before relying on this predicate.
+    bool SpansAlias(std::uint32_t a,std::uint32_t a_size,
+                    std::uint32_t b,std::uint32_t b_size) const noexcept;
+
     bool LoadBytes(std::uint32_t address, std::span<const std::uint8_t> data);
     bool ZeroBytes(std::uint32_t address, std::uint32_t size);
 

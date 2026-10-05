@@ -114,6 +114,19 @@ bool GuestMemory::IsWritable(std::uint32_t address,
     return CanAccess(address, size, MemoryPermission::Write);
 }
 
+bool GuestMemory::SpansAlias(std::uint32_t a,std::uint32_t a_size,
+                             std::uint32_t b,std::uint32_t b_size) const noexcept {
+    if (!a_size || !b_size) return false;
+    const auto* ar=FindRegion(a,a_size);
+    const auto* br=FindRegion(b,b_size);
+    if (!ar || !br) return false;
+    if (ar==br) return std::uint64_t(a)<std::uint64_t(b)+b_size &&
+                       std::uint64_t(b)<std::uint64_t(a)+a_size;
+    if (!ar->shared || ar->shared!=br->shared) return false;
+    const auto ao=std::uint64_t(a-ar->base), bo=std::uint64_t(b-br->base);
+    return ao<bo+b_size && bo<ao+a_size;
+}
+
 bool GuestMemory::LoadBytes(std::uint32_t address,
                             std::span<const std::uint8_t> data) {
     if (data.empty()) {
