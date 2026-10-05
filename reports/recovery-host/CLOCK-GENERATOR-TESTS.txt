@@ -1,0 +1,20 @@
+test_absolute_switch_table_words (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_absolute_switch_table_words) ... ok
+test_aligned_ascii_literals (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_aligned_ascii_literals) ... ok
+test_base_relative_switch_targets (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_base_relative_switch_targets) ... ok
+test_block_split_at_guest_page_boundary (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_block_split_at_guest_page_boundary) ... ok
+test_conditional_indirect_preserves_fallthrough (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_conditional_indirect_preserves_fallthrough) ... ok
+test_direct_branch_classification (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_direct_branch_classification) ... ok
+test_explicit_lr_linked_indirect_recovers_return_site (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_explicit_lr_linked_indirect_recovers_return_site) ... ok
+test_inline_word_thunk_detection (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_inline_word_thunk_detection) ... ok
+test_legacy_dmb_is_system_not_alu (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_legacy_dmb_is_system_not_alu) ... ok
+test_link_branch_sets_link_flag (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_link_branch_sets_link_flag) ... ok
+test_simd_remains_explicitly_unsupported (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_simd_remains_explicitly_unsupported) ... ok
+test_simple_mov_immediate (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_simple_mov_immediate) ... ok
+test_simple_word_load (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_simple_word_load) ... ok
+test_vldmia_is_supported_transport (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_vldmia_is_supported_transport) ... ok
+test_vmls_is_scalar_not_ls_condition (test_generate_aot_pages_llvm.LlvmRecoveryTests.test_vmls_is_scalar_not_ls_condition) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.096s
+
+OK

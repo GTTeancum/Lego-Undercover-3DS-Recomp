@@ -1,0 +1,154 @@
+{
+  "format": "lego_shared_clock_checkpoint_v1",
+  "run_utc_date": "2026-10-05",
+  "base_commit": "58d3cf9cd8c07c9bd61ccba0387873c32a584081",
+  "base_tree_verified": "5c299920dea0d6df9f7a144d3b61a8a612994970",
+  "source_commit": "3f364c925e35a504b7e671cd5a89af90a8eb8fb9",
+  "source_tree_verified": "edb0e257fa69f255da19edfd26bceaced8f299fd",
+  "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "private_aot": {
+    "page_cpp_files": 599,
+    "regular_files": 603,
+    "all_archive_members_unchanged": true,
+    "verified_instruction_words": 545111,
+    "registry_blocks": 111043
+  },
+  "observed_sequence": [
+    {
+      "stage": "baseline reproduced byte-identically",
+      "stop": "MemoryFault",
+      "pc": "0x00117B9C",
+      "fault_address": "0x1FF81000",
+      "thread": 1,
+      "dispatch_rounds": 63
+    },
+    {
+      "stage": "shared page mapped",
+      "stop": "Fallback",
+      "pc": "0x00117BC0",
+      "raw_instruction": "0xEE074FBA",
+      "reason": "Legacy DMB misclassified as CoreAlu by archived AOT",
+      "thread": 1,
+      "dispatch_rounds": 63
+    },
+    {
+      "stage": "DMB routed to existing system backend, final",
+      "stop": "WaitingNoRunnableThread",
+      "pc": "0x0024B324",
+      "thread": 1,
+      "dispatch_rounds": 65,
+      "host_exit_code": 3,
+      "last_ipc_session": "srv:",
+      "requested_service": "fs:USER",
+      "request_header": "0x00050100",
+      "service_result": "0xD0406401"
+    }
+  ],
+  "clock_policy": {
+    "mapping": "Dedicated read-only page at 0x1FF81000; conflicting full/partial mappings are rejected without overwriting them.",
+    "layout": "Counter at +0; alternating 32-byte records at +0x20/+0x40; four little-endian u64 date_ms/update_tick/coefficient/offset fields. Populate inactive record before publishing counter.",
+    "ticks_per_second": 268111856,
+    "rtc_default_ms_since_1900": 3155673600000,
+    "rtc_default_meaning": "Explicit deterministic host policy: 2000-01-01; not the original console clock or current wall clock.",
+    "configuration": "--rtc-ms-since-1900 N; bounded integer epoch, no clock rebase or rollback after initialization.",
+    "refresh": "Hourly guest-time buckets observed at dispatch boundaries; missed callbacks coalesce. No host-thread periodic task or implicit kernel-time advancement.",
+    "final_snapshot": {
+      "counter": 1,
+      "date_ms_since_1900": 3155673600000,
+      "update_tick": 0,
+      "guest_now_ns": 0
+    },
+    "non_clock_fields": "Remain zero and unmodeled; no hardware, battery, lid, wireless or full shared-page parity claim."
+  },
+  "barrier_fix": {
+    "runtime": "One local vendor file patch: CoreAlu metadata for the recognized CP15 DMB form routes to existing ExecuteCoreSystem native fence and continues the current block.",
+    "mask": "(raw & 0x0FFF0FFF) == 0x0E070FBA, condition != 0xF, Rt != PC",
+    "generator": "Future LLVM output assigns this form to CoreSystem. This checkpoint did not regenerate or edit any private AOT page.",
+    "rejected_experiment": "An intermediate fallback callback returned mid-block and caused MissingBlock at pc+4; it was removed. No general instruction fallback or guest-PC bypass is delivered.",
+    "provenance": "vendor/triaevum-a9b4477/LOCAL-PATCHES.md explicitly records the original and modified runtime fingerprints."
+  },
+  "validation": {
+    "gcc": "Full 599-page baseline build plus final changed-source rebuild/relink; 10/10 CTest",
+    "clang": "Fresh full 599-page build plus final changed-source rebuild/relink; 10/10 CTest",
+    "sanitizers": "Clang ASan/UBSan 10/10 ROM-free CTest; detect_leaks=1, halt_on_error=1",
+    "llvm_generator_unittests": "15/15 passed locally",
+    "real_startup_logs_identical": true,
+    "cli": "Alternate valid RTC is reflected in page diagnostics with same fs:USER boundary; epoch zero rejected with exit 2.",
+    "hosted_ci": "GitHub Actions 37258415292: GCC and Clang jobs succeeded on source commit 3f364c925e35a504b7e671cd5a89af90a8eb8fb9."
+  },
+  "artifacts": {
+    "CLOCK-BASELINE.txt": {
+      "bytes": 688,
+      "sha256": "06f13f482f8247697f7d17aa2f2b37ae524dfd67dff859604060158d4e6d5429"
+    },
+    "CLOCK-FIRST-RUN.txt": {
+      "bytes": 751,
+      "sha256": "06d117e9be83d2209ddbe9c365c94a6ac4a5ec2d1800ab839de356f5df2cbb70"
+    },
+    "CLOCK-STARTUP-GCC.txt": {
+      "bytes": 863,
+      "sha256": "e617bd467a3f63950b3876e3d3ce2dcf240d85d0ed98ee7e8bb9f6b0c0ea7968"
+    },
+    "CLOCK-STARTUP-CLANG.txt": {
+      "bytes": 863,
+      "sha256": "e617bd467a3f63950b3876e3d3ce2dcf240d85d0ed98ee7e8bb9f6b0c0ea7968"
+    },
+    "CLOCK-CTEST-GCC.txt": {
+      "bytes": 1247,
+      "sha256": "bcc93699fefde0b1c21fc7568d1bab2e0553345a79e3cd46e4b710d763a417c1"
+    },
+    "CLOCK-CTEST-CLANG.txt": {
+      "bytes": 1251,
+      "sha256": "11d74425a20b9fca185ed5494409b721ab6626214fbd8dde7ea71fa6e10beed8"
+    },
+    "CLOCK-CTEST-ASAN.txt": {
+      "bytes": 1249,
+      "sha256": "0edee0b3f236d39b45cd67e9bfd1cb51eb88a3f9e0363675f8d0fd5b617bd0eb"
+    },
+    "CLOCK-GENERATOR-TESTS.txt": {
+      "bytes": 2001,
+      "sha256": "ba17d95995b1e6b1e20d02904dd48eae20c21f7aff95735897f3cb8bf9aac145"
+    },
+    "CLOCK-ALTERNATE-RTC.txt": {
+      "bytes": 863,
+      "sha256": "f777cf22e4e35d10092fbd01b2eea562ff98f062a7540f52ed00933ce32d9e80"
+    },
+    "CLOCK-INVALID-RTC.txt": {
+      "bytes": 79,
+      "sha256": "a639cf8af14b2b1a05756242b7a4e42968cb6a6e27b65dd72df428f9509e1469"
+    }
+  },
+  "source_sha256": {
+    ".gitignore": "f9681c06852850834bca15d3ea028f668ea759cc4a2ea4a2e85788a3ff376839",
+    "CMakeLists.txt": "222eea8ca72203ea63e51774098f620d3b0e31a15e0bf3f91e042b73bddc3a48",
+    "cmake/LEGOHostRuntime.cmake": "0b95e00e364fdcd6ddf5c6ffad0d98ba7b61fd1482411860bac17c5e2d447c97",
+    "src/host/main.cpp": "3759870eec8bd742048c4c562287f89a012b28865e80e1fd2afe856743693ccd",
+    "src/runtime/ctr_clock.h": "13420ad38e6072d6be04adc42d00aefe2ce7d40b514d5e49256cc767a8c296cd",
+    "src/runtime/ctr_memory.h": "10b28456c673cc50d65bfd8400cb553c13a99568f32eeba5f220a73b7ab918ef",
+    "src/runtime/ctr_runner.cpp": "c181522719b5b289bc53dfd7b3b6d32eb34dfaa9fdd3cfa4ce04cbba5a0dec53",
+    "src/runtime/ctr_runner.h": "334a1bd77f49d8af127d5372da066580d80d8c9d097718f4e3111c7504085313",
+    "src/runtime/ctr_shared_page.cpp": "4b2db16ea7b97bbac85cd37d82099f6dd09ac8c70b77f0cfc4fec19a60916421",
+    "src/runtime/ctr_svc_bridge.cpp": "ba4cd1c11e121502279da742d046570c2288768299326dec07ca37ad4adb5921",
+    "tests/ctr_clock_test.cpp": "45db7937e88f4e80aad0fa32a19fc0978fb42e896ec8271942368b69d1277c21",
+    "tests/test_generate_aot_pages_llvm.py": "5bd495b74fb26c8c5501717ca9cba70087d7c8ba8dd1b3653d2947311003ac2e",
+    "tools/generate_aot_pages_llvm.py": "83fc4e8e7619defc376f0f7d84b43a35a1800a7ce73325ab0b836f0cff4df650",
+    "vendor/triaevum-a9b4477/LOCAL-PATCHES.md": "403bb45ef88ea80003e51a8be80d5785d0df37c2b900a300b2a4f947025031c0",
+    "vendor/triaevum-a9b4477/recomp/a32_runtime.cpp": "bbd35e12f431ada54b96134310602c2a23ab80e7ffb11acdae69d844891e1eeb"
+  },
+  "binary_sha256": {
+    "build-gcc": "5ef1c37919d2eaa91777a9d2c099885eaff22dd3095c54cfd72521ec0915e8eb",
+    "build-clang": "4b8954b9be1ed0f6b394d9b4fb21ef9797017bcc652f85a4e7bb9dbb6713924a"
+  },
+  "limits": [
+    "Dispatch-driven guest-time progression and idle-deadline scheduling remain unreconstructed; no artificial time advance to unblock startup.",
+    "No fs:USER handler added, filesystem access or save operation claimed.",
+    "No title screen, completed initializer count, renderer, audio, controls or gameplay proof.",
+    "Inventory counts/raw-word validation do not prove complete ARM semantics or executed instruction counts.",
+    "Other inherited APT/NDM/kernel limitations remain; vendor baseline now has a documented local compatibility patch."
+  ],
+  "sources": [
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/kernel/shared_page.h",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/kernel/shared_page.cpp",
+    "https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/blob/58d3cf9cd8c07c9bd61ccba0387873c32a584081/vendor/triaevum-a9b4477/recomp/a32_core.cpp"
+  ]
+}

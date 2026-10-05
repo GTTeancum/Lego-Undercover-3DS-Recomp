@@ -1,0 +1,12 @@
+code_sha256=5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f
+registry_pages=599 blocks=111043 instruction_words_verified=545111
+rtc_epoch_ms_since_1900=3155673600000 guest_time_source=kernel_ns
+stop=Fallback pc=0x00117bc0 detail=0xee074fba thread=1 dispatch_rounds=63
+r0=0x00000000 r1=0x00000000 r2=0x0ffb0ff0 r3=0x00000001
+r4=0x00000000 r5=0x00000000 r6=0x00000000 r7=0xbccdd000
+r8=0x000002de r9=0x1ff81000 r10=0x00000000 r11=0x00000000
+r12=0x00000000 r13=0x0ffff5b0 r14=0x00117b9c r15=0x00117bc0
+cpsr=0x80000010 fpscr=0x23000010 tls=0x1ff82000
+last_ipc_session=APT:U requested_service= request_header=0x004b00c2
+ipc_words= 004b0082 00000000 00000000 00004002 0ffff5dc 00000000 00000000 00000000
+ipc_static_buffer0= 00000000 00000000
