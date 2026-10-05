@@ -4,6 +4,7 @@
 #include "runtime/ctr_shared_memory.h"
 #include "services/pica_startup.h"
 #include "services/gsp_display_transfer.h"
+#include "services/gsp_memory_fill.h"
 
 namespace lego::ctr {
 // ErrCodes::FirstInitialization(519), GX(10), Success summary/level.
@@ -14,6 +15,7 @@ inline constexpr std::uint32_t kGspRelaySlots = 4;
 // generate GPU work by themselves. The queue supports CacheFlush and staged
 // non-drawing PICA startup lists, including their genuine P3D IRQ requests.
 // A bounded RGBA4 DisplayTransfer uses explicitly configured device VRAM.
+// Bounded VRAM MemoryFill updates actual bytes before its PSC notification.
 // Drawing, other transfers, active MMIO triggers and vblank remain unsupported.
 class GspGpuService final : public IpcService {
 public:

@@ -69,6 +69,7 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
     std::array<std::unique_ptr<PicaListPlan>,kPacketCount> plans{};
     std::array<std::unique_ptr<DisplayTransferPlan>,kPacketCount> transfers{};
     std::array<PicaGpuRegisters,kPacketCount> transfer_registers{};
+    std::array<std::unique_ptr<MemoryFillPlan>,kPacketCount> fills{};
     auto staged_registers=shared_->register_words;
     const auto* staged_uploads=&shared_->pica_uploads;
     std::uint32_t total_irqs=0;
@@ -128,6 +129,21 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                 } catch(const std::exception& error) {
                     router.RequestHostStop(error.what());return kResultSuccess;
                 }
+            } else if(kind==2) {
+                try {
+                    const auto controls=ReadWord(bytes,packet+28);
+                    MemoryFillRequest request;
+                    request.channels[0]={ReadWord(bytes,packet+4),ReadWord(bytes,packet+8),ReadWord(bytes,packet+12),static_cast<std::uint16_t>(controls)};
+                    request.channels[1]={ReadWord(bytes,packet+16),ReadWord(bytes,packet+20),ReadWord(bytes,packet+24),static_cast<std::uint16_t>(controls>>16)};
+                    auto plan=std::make_unique<MemoryFillPlan>();
+                    const char* error=nullptr;
+                    if (!StageMemoryFill(request,shared_->vram.get(),staged_registers,*plan,error)) return stop(error);
+                    staged_registers=plan->registers;
+                    total_irqs+=plan->irqs;
+                    fills[n]=std::move(plan);
+                } catch (const std::exception& error) {
+                    router.RequestHostStop(error.what());return kResultSuccess;
+                }
             } else if(kind==3) {
                 try {
                     const DisplayTransferRequest request{ReadWord(bytes,packet+4),ReadWord(bytes,packet+8),
@@ -135,6 +151,15 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                     auto plan=std::make_unique<DisplayTransferPlan>();
                     const char* error=nullptr;
                     if (!StageDisplayTransfer(request,shared_->vram.get(),*plan,error)) return stop(error);
+                    for (std::uint32_t prior=0;prior<n;++prior) {
+                        if (!fills[prior]) continue;
+                        for (const auto& channel:fills[prior]->channels) {
+                            const auto start=std::uint64_t(kGpuVramVirtualBase)+channel.offset;
+                            if (channel.triggered && std::uint64_t(request.input)<start+channel.output.size() &&
+                                start<std::uint64_t(request.input)+plan->bytes)
+                                return stop("DisplayTransfer depends on an earlier staged VRAM fill");
+                        }
+                    }
                     if (!memory.IsWritable(request.output,plan->bytes))
                         return stop("DisplayTransfer destination lacks complete writable backing");
                     if (memory.UsesSharedBacking(request.output,plan->bytes,*shared_->memory) ||
@@ -199,7 +224,7 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
         const std::array<std::uint8_t,1> count_byte{static_cast<std::uint8_t>(irq_count+1)},id{interrupt_id};
         (void)shared_->memory->Write(relay+1,count_byte);
         (void)shared_->memory->Write(relay+12+next,id);
-        // An executed PICA irq_request justifies P3D; a completed byte transfer justifies PPF.
+        // Executed PICA irq_request, byte transfer, or fill justifies P3D, PPF, or PSC.
         // Explicit synchronous host policy: no simulated GPU delay or vblank.
         kernel.SignalEventObject(*owner->event);
     };
@@ -226,6 +251,21 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                 shared_->pica_uploads=plans[n]->uploads;
                 shared_->last_pica_result=plans[n]->result;
                 for(std::uint32_t i=0;i<plans[n]->result.irqs;++i)publish_irq(5);
+            }
+            if (fills[n]) {
+                for (unsigned channel_id=0;channel_id<2;++channel_id) {
+                    const auto& channel=fills[n]->channels[channel_id];
+                    if (!channel.enabled) continue;
+                    const unsigned reg=4+4*channel_id;
+                    for (unsigned word=0;word<4;++word) shared_->register_words[reg+word]=channel.setup[word];
+                    if (!channel.triggered) continue;
+                    if (!shared_->vram || !shared_->vram->Write(channel.offset,channel.output))
+                        return stop("MemoryFill internal commit invariant failed after dequeue; no PSC delivered for failed channel");
+                    // Pinned ordering: actual bytes, selected PSC, then trigger/finish.
+                    // Woken guest threads cannot run until this synchronous handler returns.
+                    if (channel.interrupt>=0) publish_irq(static_cast<std::uint8_t>(channel.interrupt));
+                    shared_->register_words[reg+3]=(shared_->register_words[reg+3]&~1U)|2U;
+                }
             }
             if (transfers[n]) {
                 shared_->register_words=transfer_registers[n];
