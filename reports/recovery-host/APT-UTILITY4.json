@@ -1,0 +1,98 @@
+{
+  "format": "lego_apt_utility4_checkpoint_v1",
+  "base_commit": "e6065d0f1dc7e0f5b6b46c20e507560f7fa3f432",
+  "base_tree_verified": "4db5d6874eb1679b8a55bf4c68f7c9eb1bc288e7",
+  "source_commit": "b69093b728e006625b1a992a641b9db1a5598b8c",
+  "source_tree_verified": "0020bfb7b49642c990ebb8449529e8307653064b",
+  "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "private_aot": {
+    "page_cpp_files": 599,
+    "regular_files": 603,
+    "all_archive_members_unchanged": true,
+    "verified_instruction_words": 545111,
+    "registry_blocks": 111043
+  },
+  "before": {
+    "stop": "UnsupportedIpc",
+    "service": "APT:U",
+    "utility": 4,
+    "header": "0x004B00C2",
+    "input_size": 1,
+    "previously_observed_input": "00",
+    "output_size": 1,
+    "pc": "0x0025947C",
+    "thread": 1,
+    "dispatch_rounds": 59,
+    "baseline_reproduced_byte_identically": true
+  },
+  "after": {
+    "stop": "MemoryFault",
+    "pc": "0x00117B9C",
+    "fault_address": "0x1FF81000",
+    "thread": 1,
+    "dispatch_rounds": 63,
+    "host_exit_code": 3,
+    "instruction": "ldr r3, [r9]",
+    "r9": "0x1FF81000",
+    "next_boundary": "Unmapped CTR shared page; first field is date_time_counter in pinned reference. No page or time data invented."
+  },
+  "scope": {
+    "authority": "libctru calls utility 4 SleepIfShellClosed with input byte zero. Pinned Azahar AppletUtility explicitly stubs it with ignored input, two success words, and zero output. This is bounded HLE compatibility, not actual lid or sleep emulation.",
+    "request_guard": "Initialized/registered application, exact IPC header, utility 4 one-byte input/one-byte output/static input slot 1. Utility 7 keeps its four-byte input. All other IDs stay unsupported.",
+    "buffers": "Read exact input extent before output. Validate destination descriptor, response overlap and writable one-byte destination. No guest-sized allocation.",
+    "no_side_effects": "No shell state changes, sleep completion, event signals, message consumption, handles, threads or guest-time progression.",
+    "testing_change": "Existing utility suite now runs its state/buffer cases for both 4 and 7; nine CTest executables total, not ten."
+  },
+  "validation": {
+    "gcc": "Full 599-page baseline build and final relink; 9/9 CTest",
+    "clang": "Fresh full 599-page build; 9/9 CTest",
+    "sanitizers": "Clang ASan/UBSan 9/9 ROM-free CTest; detect_leaks=1, halt_on_error=1",
+    "startup_logs_identical": true,
+    "hosted_ci": "GitHub Actions 37255939684: GCC and Clang jobs succeeded on b69093b728e006625b1a992a641b9db1a5598b8c"
+  },
+  "artifacts": {
+    "UTILITY4-BASELINE.txt": {
+      "bytes": 691,
+      "sha256": "a7fa292c6d969a8f2b8820cc7d79aa5ff03672f22cc998b3e6dbb15e0e75a4ff"
+    },
+    "UTILITY4-FIRST-RUN.txt": {
+      "bytes": 688,
+      "sha256": "06f13f482f8247697f7d17aa2f2b37ae524dfd67dff859604060158d4e6d5429"
+    },
+    "UTILITY4-STARTUP-GCC.txt": {
+      "bytes": 688,
+      "sha256": "06f13f482f8247697f7d17aa2f2b37ae524dfd67dff859604060158d4e6d5429"
+    },
+    "UTILITY4-STARTUP-CLANG.txt": {
+      "bytes": 688,
+      "sha256": "06f13f482f8247697f7d17aa2f2b37ae524dfd67dff859604060158d4e6d5429"
+    },
+    "UTILITY4-CTEST-GCC.txt": {
+      "bytes": 1089,
+      "sha256": "e4d79c753f5925b649c76c8fde56b88e404371b207d42a71369c11381f0d9a5b"
+    },
+    "UTILITY4-CTEST-CLANG.txt": {
+      "bytes": 1093,
+      "sha256": "15442573b90c00560bb6122f1d5a18763980838fd171eae458fbf03c5c9ff852"
+    },
+    "UTILITY4-CTEST-ASAN.txt": {
+      "bytes": 1091,
+      "sha256": "484bced56c5c9a094cee376bbfd3cd0000dcdfd85c2c7216e342a0b3be693793"
+    }
+  },
+  "binary_sha256": {
+    "build-gcc": "1d3ddbc7f12fe0814442dab0d9069e5a56d332b10469ec64368c2d7af53a9486",
+    "build-clang": "1dc83e1f3e230ee18215240473f8361cbad757c728cedf5a4091d10e6c968281"
+  },
+  "sources": [
+    "https://github.com/devkitPro/libctru/blob/9b55eda44cf80b971503991e0c78f9bc8fe50425/libctru/source/services/apt.c",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/apt/apt.cpp",
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/kernel/shared_page.h"
+  ],
+  "limitations": [
+    "No title screen, completed initializer count, rendering, controls, audio or gameplay proof.",
+    "Utility 4 is a pinned HLE no-op policy, not a working physical shell/sleep model.",
+    "CTR shared-page mapping and consistent time snapshots are the next task, not implemented here.",
+    "Inherited dispatch time, scheduler and AOT semantic parity limitations remain."
+  ]
+}

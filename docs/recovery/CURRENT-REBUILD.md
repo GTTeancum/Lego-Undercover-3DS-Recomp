@@ -1,122 +1,105 @@
 # LEGO Chase Begins — canonical recovery handoff
 
-Utility 7 checkpoint. Read this first. Continue in scratch, not on the user's PC
-or through Work. Historical Recovery F/J gameplay is not current proof.
+Utility 4 checkpoint. Read this first. Continue in scratch, not on the user's PC
+or through Work. Historical Recovery F/J gameplay is not current execution proof.
 
 ## Current real-game boundary
 
-The headless LEGOChaseNative builds with the 599 private AOT pages and runs the
-verified original USA executable. The observed AppletUtility ID 7 request now
-passes through a bounded UnlockTransition HLE compatibility path. The next stop is:
+The headless LEGOChaseNative links all 599 private AOT pages and runs the verified
+USA executable. APT utility 4 now passes through the bounded reference HLE path.
+The next real stop is no longer an unsupported APT request:
 
 ```text
-stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=59
+stop=MemoryFault pc=0x00117b9c detail=0x1ff81000 thread=1 dispatch_rounds=63
+r9=0x1ff81000
 last_ipc_session=APT:U requested_service= request_header=0x004b00c2
-ipc_words=004b00c2 00000004 00000001 00000001 00004402 0ffff5d8 ...
-ipc_static_buffer0=00004002 0ffff5dc
+ipc_words=004b0082 00000000 00000000 00004002 0ffff5dc ...
 host_exit_code=3
 ```
 
-This next request is AppletUtility ID 4, input size 1, output size 1. A read-only
-inspection of the stopped game found input byte 00 at 0x0FFFF5D8. Its output is
-at 0x0FFFF5DC. Utility 4 remains unimplemented; no response or event is invented.
+The instruction is `ldr r3, [r9]`. The address is the CTR shared page; pinned
+SharedPageDef puts date_time_counter at offset 0 and two DateTime snapshots at
+0x20/0x40. The surrounding guest code selects a snapshot using the counter's low
+bit. No shared-page mapping or time contents were fabricated to bypass the fault.
 There is no title screen, completed initializer count, rendering, audio, controls
-or gameplay proof. Dispatch rounds are host calls, not frames.
+or gameplay proof. Dispatch rounds are host dispatch calls, not frames.
 
-## Source and implementation boundary
+## Source reconciliation and implementation
 
-Base commit: c2292df90bff00bfbff789cfa74a0d6610b89cf1.
-Restored source/index matched base tree
-6c6087a13d7bb010f213c77e5d9a2457ba56ba9e before editing. The original utility 7
-stop was reproduced byte-for-byte against NOTIFY-STARTUP-GCC.txt.
+Base commit: e6065d0f1dc7e0f5b6b46c20e507560f7fa3f432.
+The restored source/index matched remote tree
+4db5d6874eb1679b8a55bf4c68f7c9eb1bc288e7 before edits. All tracked archive paths,
+including the ignored historical .log file, were staged explicitly to verify it.
+The old utility 4 stop was reproduced byte-for-byte before changes.
 
-Implementation commit: 0f0fbf2d00b72f4b65adb4e6baaae712534afd90.
-Tested and pushed source tree: 891f7d3954faa5b473ff05c15f5f2df75da15d5a.
-Changes: apt_service.h/.cpp, ctr_apt_utility_test.cpp and CMake test registration.
-No kernel, dispatcher, memory bus, IPC router, NDM, vendor or private game-page
-source changed. Later delivery changes only add this handoff and evidence.
+Source commit: b69093b728e006625b1a992a641b9db1a5598b8c.
+Tested source tree: 0020bfb7b49642c990ebb8449529e8307653064b.
+Only apt_service.h/.cpp and the existing ctr_apt_utility_test.cpp changed.
+No kernel, memory, dispatcher, IPC router, NDM, vendor or AOT bytes changed.
 
-The primary libctru source identifies utility 7 as APT_UnlockTransition, taking a
-four-byte transition value and one-byte output. Pinned Azahar AppletUtility is
-explicitly STUBBED: it copies but ignores that input and returns two success words
-with a zero-initialized output buffer for utility 7. This checkpoint reproduces
-that limited policy. It does NOT restore actual transition locks, pretend that a
-lock was acquired, or implement utility 6's upstream fabricated TryLock success.
+libctru calls utility 4 APT_SleepIfShellClosed with one input byte initialized to
+zero and one output byte. Pinned Azahar AppletUtility explicitly STUBS this with
+ignored input, two success words and zero output. We reproduce that bounded HLE
+compatibility policy, NOT physical lid/sleep behavior or sleep completion.
 
-Supported shape: initialized/registered application, header 0x004B00C2, utility 7,
-input size 4, output size 1, input static slot 1 descriptor 0x10402. The previously
-captured real input was 0x10; other uint32 inputs receive the same input-ignored
-reference HLE policy, not a claim of full hardware behavior for all masks.
+The shared utility handler supports only IDs 4 and 7. Utility 4 reads exactly one
+input byte; utility 7 retains its four-byte input. Both require a registered,
+initialized application, exact request shape, static input slot 1, and one-byte
+output. It validates readable input and output descriptor/capacity/writability
+before writing. Exactly one zero byte is returned; no guest-sized allocation,
+event signal, message consumption, handle creation, scheduling or time change.
+Unknown utilities, including TryLockTransition (6), remain explicit host stops.
 
-The implementation reads all four input bytes before any output write. It checks
-the TLS+0x180 static receive descriptor and writable one-byte destination, then
-writes exactly one zero byte and a reply shaped as:
+Tests now run the existing state/buffer matrix for BOTH utilities. They retain
+utility 7 coverage and add valid one-byte input/output at 0xFFFFFFFF. Utility 4
+never requires four readable bytes. Nonzero byte inputs follow the reference's
+input-ignored policy; this is not a hardware claim. Pointer failures and response
+alias protection retain the previous host safety policy.
 
-```text
-004B0082 00000000 00000000 00004002 <destination>
-```
+## Validation
 
-The two result words are service and utility results, distinct from the SVC's
-transport result. The guest write invalidates relevant exclusive reservations.
-No guest-sized allocation, message change, event signal, new handle, thread wake,
-registration change or guest-time advance is performed. Other utilities and
-unsupported shapes still stop explicitly. Bad pointers/output descriptors and
-reply/descriptor overlap are rejected before writes as host safety policy, not
-assertions about hardware error behavior. Input/output overlap is safe because
-the input is copied first.
-
-## Validation and evidence
-
-- Fresh full 599-page GCC baseline build, then final changed-source relink.
-- Fresh full 599-page Clang build of the final source.
-- Final GCC/Clang real-game startup logs are byte-identical at utility 4.
-- GCC 9/9 CTest; Clang 9/9 CTest.
-- Clang ASan/UBSan 9/9 ROM-free suites, detect_leaks=1 and halt_on_error=1.
-- GitHub Actions 37248287001 passed both compiler jobs on source commit 0f0fbf2.
-- Tests cover exact reply/register preservation, one-byte boundaries, retained
-  parameter/event state before and after consumption, reopening sessions,
-  unknown utilities, malformed/premature shapes, protected/missing buffers,
-  32-bit address wrap, alias safety, and exclusive-reservation invalidation.
-- Every one of the private archive's 603 regular members remains byte-identical;
-  599 are page C++ files. Do not manufacture a historical 604th artifact.
-- 545,111 checked raw words / 111,043 registry blocks are static inventory, not
-  execution counts or proof of complete instruction lowering.
-- reports/recovery-host/APT-UTILITY7.json and UTILITY7-*.txt preserve the baseline,
-  final startup logs, tests, next-input inspection and fingerprints.
-
-Behavior sources:
-- azahar-emu/azahar at 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac,
-  src/core/hle/service/apt/apt.cpp, AppletUtility (around lines 725–748).
-- devkitPro/libctru at 9b55eda44cf80b971503991e0c78f9bc8fe50425,
-  libctru/source/services/apt.c, APT_UnlockTransition wrapper.
-The 3dbrew AppletUtility page could not be retrieved this turn; do not pretend
-its full utility semantics were checked. Reference implementation limitations
-are explicit above.
+- Fresh GCC full baseline build, final changed-source relink, 9/9 CTest.
+- Fresh Clang full 599-page build, 9/9 CTest.
+- Clang ASan/UBSan 9/9 ROM-free CTest with leak checking and halt-on-error.
+- Final real-game GCC and Clang startup logs are byte-identical.
+- GitHub Actions 37255939684: GCC and Clang jobs succeeded on b69093b.
+- All 603 regular private AOT archive members were compared byte-for-byte and
+  remain unchanged; 599 are page C++ files. Do not invent a 604th artifact.
+- 545,111 verified raw instruction words and 111,043 registry blocks remain
+  static inventory counts, not execution counts or proof of full ARM semantics.
+- Reports: reports/recovery-host/APT-UTILITY4.json and UTILITY4-*.txt.
+- Source, report, executable and log fingerprints are recorded in that JSON.
 
 ## Next exact step
 
-Inspect the observed utility 4 command's reference semantics and its actual
-one-byte input 00. Implement only the justified request, then rerun unchanged
-game code to discover the next stop. Do not blanket-acknowledge all utilities or
-manufacture shell/notification completion or transition-lock state. Preserve
-strict unsupported IPC and Break stops.
+Restore the observed CTR shared-page mapping at 0x1FF81000, using pinned
+shared_page.h/.cpp and the actual guest clock-reading code as evidence. It is a
+read-only process page, not an ordinary writable heap allocation. Determine the
+DateTime snapshot fields and their relationship to GetSystemTick before populating
+them. Do not just add a zero-filled writable page or advance time/wake threads to
+make the fault disappear. Keep unknown services and other faults explicit.
 
-Earlier limits remain: application-only APT state, empty launch Wakeup and
-component-tested ReceiveParameter consumption; unresolved Glance copy/Receive move
-versus upstream wire-policy details; NDM is HLE bookkeeping, not networking;
-dispatch-driven guest time and full scheduler correctness remain incomplete.
+Reference paths:
+- devkitPro/libctru commit 9b55eda44cf80b971503991e0c78f9bc8fe50425,
+  libctru/source/services/apt.c, APT_SleepIfShellClosed.
+- azahar-emu/azahar commit 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac,
+  src/core/hle/service/apt/apt.cpp, AppletUtility;
+  src/core/hle/kernel/shared_page.h, SharedPageDef/DateTime.
+The 3dbrew AppletUtility page returned 403; no new hardware semantics are claimed.
 
-## Working files and commands
+Earlier limits remain: application-only APT, empty launch Wakeup, unresolved
+Glance/Receive descriptor/padding policy differences, NDM HLE bookkeeping rather
+than networking, incomplete dispatch-time progression and scheduler correctness.
+The physical shell/sleep lifecycle and transition locks are not implemented.
+
+## Working files and rebuild
 
 Root: /mnt/data/lego_recovery/.
-Source: repo/. Private pages: generated2/. Verified executable: restored/code.bin.
-Builds: build-gcc/, build-clang/, build-asan/. New logs/scripts and read-only
-next-request harness: utility-checkpoint/.
-
-The source was restored from LEGO-Chase-source-checkpoint-c2292df.tgz; private
-pages were restored from restored/LEGO-Chase-current-AOT-599pages-2026-10-03.tgz.
-No user upload or full CCI extraction was needed. Local Git is a verified
-snapshot/index, not a full remote-history clone.
+Source: repo/. Pages: generated2/. Verified code: restored/code.bin.
+Builds: build-gcc/, build-clang/, build-asan/. New logs/scripts: utility4-checkpoint/.
+Source restored from LEGO-Chase-source-checkpoint-e6065d0.tgz; pages restored
+from restored/LEGO-Chase-current-AOT-599pages-2026-10-03.tgz. No new user upload.
+Local Git is a verified snapshot/index, not the full remote history.
 
 ```sh
 cd /mnt/data/lego_recovery
@@ -126,21 +109,21 @@ ctest --test-dir build-gcc --output-on-failure
 ./build-gcc/LEGOChaseNative restored/code.bin
 ```
 
-Use clang++ for Clang and omit LEGO_AOT_DIR for ROM-free tests. Launcher limits:
+Use clang++ for Clang; omit LEGO_AOT_DIR for ROM-free tests. Launcher limits are
 --block-limit and --host-event-limit. No Windows build is claimed.
 
 ## Persistence and per-turn mandate
 
-Private Library /LEGO-Chase-Recovery/ holds code.bin, the 599-page archive, source
-checkpoints, and six original archive parts under Game-archive/. The parts also
-remain in /mnt/data/ and backup-verify/. See GAME-FILES-PERSISTENCE.md for recovery.
-Scratch may reset; private Library backups plus GitHub source are the recovery
-paths, not a promise of permanent scratch.
+Private Library /LEGO-Chase-Recovery/ contains original six archive parts under
+Game-archive/, code.bin, the unchanged 599-page archive and source checkpoints.
+All six parts also remain in /mnt/data/ and backup-verify/. Scratch can reset;
+Library backups and GitHub source are the recovery paths, not permanent scratch.
+See GAME-FILES-PERSISTENCE.md. No full CCI re-extraction was needed this turn.
 
 Code SHA-256: 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
 CCI SHA-256: 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
 
-Use moderate tested checkpoints. Push source/reports before ending, keep game
-images and derived AOT pages private, update this canonical handoff and attach a
-downloadable copy every turn. Inspect backups before asking for uploads. The
-attached handoff adds the final delivery commit and private source/log archive.
+Use moderate tested checkpoints. Push source/reports, keep original/game-derived
+bytes private, update this handoff and attach a downloadable copy each turn.
+Inspect backups before requesting another upload. The delivered handoff adds the
+final commit and private source/log archive after remote confirmation.
