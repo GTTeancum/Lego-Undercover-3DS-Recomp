@@ -1,0 +1,42 @@
+{
+  "list_bytes": 29824,
+  "list_sha256": "824caecf736fbd9febe688ee15b2f1da3913f9c19cf9f5a89e4539e540877c73",
+  "packets": 559,
+  "writes": 6590,
+  "program_words": 4096,
+  "uniform_vectors": 96,
+  "lut_words": 1792,
+  "irqs": 1,
+  "autostopped": true,
+  "all_registers_and_uploads_exactly_match_independent_replay": true,
+  "gs_program_known_words": 4096,
+  "vs_program_known_words": 512,
+  "gs_uniform_known_vectors": 96,
+  "vs_uniform_known_vectors": 0,
+  "lighting_known_words": 1792,
+  "p3d_relay_page_matches": true,
+  "real_waiter_thread_3_readied": true,
+  "event_after_submit": "one-shot signal already consumed by waiting thread 3",
+  "kernel_time_ns": 0,
+  "next_packet": {
+    "id": 3,
+    "name": "DisplayTransfer",
+    "words": [
+      "01000103",
+      "1f5f8000",
+      "14013950",
+      "00800080",
+      "00800080",
+      "00004400",
+      "00000000",
+      "00000000"
+    ],
+    "queued_unchanged": true
+  },
+  "next_page_sha256": "83cf491b296dc411027337df9876776c907b67eabf222853b423dbeedbb3ee03",
+  "romfs_reads": 7,
+  "romfs_read_bytes": 4892,
+  "romfs_reads_match": true,
+  "rendering": false,
+  "hardware_timing_parity": false
+}

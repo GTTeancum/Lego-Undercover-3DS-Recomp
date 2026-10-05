@@ -3,178 +3,188 @@
 Updated October 5, 2026. Read this first. Continue in scratch, NOT the user's PC or
 Work. Project: LEGO City Undercover: The Chase Begins (Nintendo 3DS USA), not LEGO
 Batman. Historical Recovery F/J gameplay is not current proof. The native build
-remains headless startup reconstruction, not playable. Post this handoff every turn.
+is headless startup reconstruction, not a playable port. Post this file every turn.
 
-## Published implementation and reconciled source
+## Published implementation and verified baseline
 
-Implementation: `811083b6d68d6cd10eaf7f22a07574973d0442e0`.
-Exact tested/uploaded implementation tree: `ef981f540f716197161e2c1f46d0d41446c195ba`.
-Remote base: `05b01f75d05b1ef6762ca44f1ff183860326762e`.
-Base tree: `1f8a0e16351c40ffdc3b7cc5212832374df51aea`.
-The final downloadable receipt records the subsequent report/delivery commit.
+Implementation: `a136cdeb05c500f9426007a05f3acbf9563b2a9c`.
+Exact tested/uploaded implementation tree: `e40bd3048979a6f78c5f9e11fb5562da5b2054ec`.
+Baseline main: `19139e9fcbdc53c1eda6076f47f34af615183ca2`.
+Baseline tree: `e00c04ac723be2a662a56f8bb3a15781f3e9f4a1`.
+All 370 prior manifest entries and 272 indexed source files verified. The full GCC
+baseline reproduced the SubmitCmdList stop at round 167 before edits. Private code,
+AOT and prepared RomFS were restored and hash-verified without user reuploads or
+original CCI extraction. Local Git is a snapshot/index, NOT remote commit history.
+The attached handoff's final receipt records the delivery commit and backup name.
 
-The previous chat attachment was GSP-REGISTERS-PENDING (older, 60 direct writes,
-masked-write stop). It was NOT discarded: all 782 manifest entries were verified,
-source compared with the newer remote, and the exact archive and handoff saved in
-/LEGO-Chase-Recovery/Preserved-Pending-Registers/. Historical contents are preserved
-under pending-preserved/ in scratch and as a nested archive in the new backup.
-Never overlay that historical pending source over this newer working repository.
+GitHub Actions run `37355280419` passed both GCC and Clang jobs on implementation
+a136cde. Hosted tests are ROM-free, not game-data execution. Publish through the
+connector with the current remote parent and force=false; never force-push snapshots.
 
-A fresh main read revealed 05b01f7, already containing 64 direct plus four masked
-writes, a pinned-HLE reset register image and the archived legacy DSB routing fix.
-These are INHERITED, not this turn's new work. Source was recovered from Actions
-run 37335606464, artifact 11355887677, into snapshot-05b01f7/ and repo/. Its full
-local tree matched the recorded base exactly. The baseline queue stop at round 166
-was reproduced before edits. No game re-extraction or user upload was needed.
-Local Git is a snapshot/index, NOT remote history. Publish with the current remote
-parent and force=false. GitHub and Library writes work again in this checkpoint.
+## Actual progress: original non-drawing PICA list executes
 
-## Actual progress and next untouched packet
-
-Original game code processes one CacheFlush in its GPU-rights owner's slot 0:
-
-```text
-TriggerCmdReqQueue request: 000c0000
-packet: 00000105 14003790 00007480 00000000 00000000 00000000 00000000 00000000
-queue header before: 00000100
-queue header after:  00000001
-reply: 000c0040 00000000
-```
-
-This advances index 0 to 1 and pending count 1 to 0. The 29824 bytes at 0x14003790
-compare byte-for-byte equal before/after the call. SHA-256:
+The original queued SubmitCmdList at guest 0x14003790 is 29824 bytes, SHA-256
 824caecf736fbd9febe688ee15b2f1da3913f9c19cf9f5a89e4539e540877c73.
-The event remains UNSIGNALED, shared mapping remains real, and kernel time stays 0.
-Only the queue header changes; no GPU completion, interrupt or data copy is invented.
+It now executes 559 command packets / 6590 register writes, including 4096 shader
+program-word uploads, 96 uniform vectors and 1792 lighting-table writes. Every
+implemented register and upload buffer matches an independent Python replay.
 
-The original game next enqueues SubmitCmdList (ID 1) at index 1, VA 0x10000840:
+The 4096 program uploads comprise 512 VS words and 3584 GS words; VS mirroring
+fills the remaining GS prefix. Final known program coverage is GS 4096, VS 512.
+The original initialization values happen to be zero; these are guest writes, NOT
+pre-seeded code or executed shader instructions. GS has 96 known float vectors;
+VS has none. Unwritten uniforms retain explicit unknown flags. Lighting tables
+0 through 6 receive 256 words each. This list has no draw-register writes.
+
+The list's final irq_request value 0x12345678 matches the inherited reference-HLE
+comparator and requests autostop. After supported effects succeed, the queue
+advances index 1/count 1 to index 2/count 0, and P3D interrupt ID 5 is placed in
+the owner's real relay ring. The retained one-shot EventObject is signaled.
+
+The original waiting thread 3 is genuinely woken: WaitSynchAny -> Ready,
+pending_wake=true, Result=0. It consumes the one-shot signal immediately, so the
+event is already UNSIGNALED in the post-IPC snapshot. Do not misdiagnose that as
+missing notification. The original thread subsequently executes and waits in
+address arbitration. No fabricated wake, handle or unconditional completion signal.
+
+IRQ delivery is explicitly synchronous host policy, NOT accurate GPU duration or
+hardware scheduling. Kernel time remains zero. No vblank or frame completion exists.
+
+## Next untouched packet: DisplayTransfer
+
+Fresh startup now reaches:
 
 ```text
-01000101 14003790 00007480 00000000 00000000 00000000 00000000 00000000
-```
-
-The list is the same 29824-byte readable region. Flags and do_flush are zero;
-stop byte is zero; unknown header bytes 1 and 3 are both 1. Current queue header
-00000101 means index 1, count 1, status 0, should_stop 0. This packet is NOT consumed
-or executed. Its shared page before/after SHA-256 is unchanged:
-a8df46c356cf1acbaa3545d5ab705664ba4155dc6b3b5892da97bdae96d513b9.
-
-```text
-stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=167
-r0=0006801b r1=000c0000 r3=10000800 r12=10000840 r14=00131898
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=170
 last_ipc_session=gsp::Gpu requested_service= request_header=0x000c0000
 host_ipc_error=GSP queue packet requires unimplemented GPU execution
+queue_header=00000102
+packet=01000103 1f5f8000 14013950 00800080 00800080 00004400 00000000 00000000
 ```
 
-No PICA command-list execution, drawing, rendering, main menu, audio, controls,
-completed initializer count or gameplay is established. Packets/rounds are not frames.
-Fresh startup requires a NEW empty archive, explicit --ptm-step-mode empty, and
-verified --romfs. Existing gamecoin reaches the same packet at round 159, skipping
-initialization; that is not gamecoin readback or gameplay save/load. No RomFS retains
-OpenFileDirectly at round 79; no empty PTM retains step count at round 71.
+The packet is ID 3, DisplayTransfer, at index 2 / guest 0x10000860. Input address
+0x1F5F8000, output 0x14013950, size words 0x00800080 each, flags 0x00004400.
+It remains pending and UNEXECUTED. Full shared-page and GPU-state snapshots are
+unchanged across the rejected call. Shared-page SHA-256:
+83cf491b296dc411027337df9876776c907b67eabf222853b423dbeedbb3ee03.
+Do not infer valid source pixels, VRAM initialization or conversion success yet.
+No rendered frame, main menu, shader execution, audio, controls or gameplay proof.
+Packet/write/dispatch counts are not frames or a completion percentage.
 
-The game still creates/writes/closes its own 20-byte gamecoin.dat. Default-clock SHA:
+Fresh uses a NEW empty archive, explicit --ptm-step-mode empty and verified --romfs.
+Existing gamecoin reaches DisplayTransfer at round 162, skipping initialization.
+No RomFS retains OpenFileDirectly round 79; no empty PTM retains step count round 71.
+Existing-file startup is not gamecoin readback or gameplay save/load. The game still
+writes/closes its own 20-byte gamecoin.dat, default RTC SHA:
 970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6.
-Seven RomFS metadata reads match the original input: 0/40 three times, then 40/12,
-52/68, 120/212 and 332/4480, total 4892 bytes. These are filesystem tables, not assets
-being rendered. No console history, fake coin balance or game data was pre-seeded.
+Seven original RomFS metadata reads match all 4892 bytes: 0/40 three times, then
+40/12, 52/68, 120/212 and 332/4480. These are filesystem tables, not rendered assets.
 
-## New implementation scope and explicit policies
+## Implemented scope and explicit limits
 
-TriggerCmdReqQueue selects the GPU-rights OWNER's slot, not the requesting session's
-slot. A connected nonowner can trigger the owner's queue, following the reference.
-The real 4096-byte GSP backing contains four 0x200 queues starting at offset 0x800;
-each has 15 packets of 0x20 bytes at queue offset 0x20. No new thread is a queue slot.
+New StagePicaStartupList interprets PICA command headers separately from direct
+MMIO. It handles LE value/header pairs, byte-mask expansion, repeated/sequential
+parameters, 8-byte padding, passive registers and observed upload side effects.
+Raw upload-port values are retained where the reference uses the raw argument,
+even with mask zero. Program capacities, VS/GS mirroring, integer/bool uniforms,
+packed float24/float32 transfers and lighting type/index wrap follow inspected code.
+Float values are IEEE32 bit patterns matching the reference f24 container, not a
+claim of implemented shader arithmetic or hardware precision. Partial upload
+vectors persist between successful lists; unwritten uniforms must remain unknown.
 
-Only CacheFlush executes. Its three nonzero regions require readable single-region
-spans and wide address bounds; zero sizes dereference no pointer. The synchronous
-host has no split CPU/GPU cache or asynchronous GPU. Existing writes already target
-authoritative bytes. A conservative native seq_cst fence provides ordering, not a
-device-cache simulation, transfer, interrupt or clock advance. Pinned CacheFlush's
-GPU::Execute case performs no extra action.
+Topology/restart reconfigure/reset only an EMPTY assembler: all draw and immediate
+paths stop. Draw 0x22E/0x22F and chaining 0x23C/0x23D are rejected even for zero data
+or zero mask. Immediate/default attributes, swizzle, fog/procedural uploads,
+out-of-range registers and ambiguous repeated non-upload special batches also stop.
+The reference sometimes ignores invalid input; these stricter stops are host policy.
 
-Index/count advance before the packet operation. should_stop sets STOPPED without
-dequeue; an already STOPPED queue is untouched; packet stop sets STOPPED after that
-packet. Empty queues do not rewrite the header. Ring fields must be valid; unknown
-or failed status is unsupported. The exact reference only tests status==STOPPED;
-more general comments are not interpreted as discovered failure-recovery semantics.
+Submit accepts only the observed readable, 8-byte-aligned linear-heap slice, flags=0,
+do_flush=0, length <=1 MiB. The cap is host work policy, not console capacity.
+Channel-0 size/address/trigger setup uses the inspected VA-to-physical conversion;
+trigger clears only after success. General GPU physical addressing is not modeled.
+Snapshots reject aliases with the GSP page or IPC response, including shared backing
+aliases. Response capacity and all eligible packets are checked before mutation.
 
-Diagnostic safety policy preflights the WHOLE eligible batch before any progress.
-An unsupported later packet or invalid region leaves a valid prefix pending too.
-A packet stop ends eligibility, so packets behind it are not examined. This batch
-atomicity and error precedence are NOT proven console behavior. Non-CacheFlush,
-no-owner and unsupported mapping/physical-address cases remain explicit host stops.
+A disposable plan stages all register/upload changes. Invalid/unsupported later
+packets or IRQ-ring state leave even a valid prefix pending, with no partial GPU
+state, queue advance or event. This whole-batch atomicity is diagnostic host policy,
+not established console error precedence. Unknown/full/failed interrupt rings stop;
+overflow recovery is not implemented. A list without a matching IRQ request never
+creates P3D merely because it reaches the end.
 
-Existing IPC response preflight runs first. New UsesSharedBacking detects a response
-alias anywhere in the GSP page, including an alternate VA; such requests stop before
-shared mutation. Header writes invalidate their actual backing reservation granule.
-Independent source/packet reservations are retained. No handle allocation, event
-signal/clear, wakeup, thread creation or time advancement occurs. Full handle tables
-work. General mapped-buffer translation, async timing, GPU addressing/cache models,
-active triggers and rendering remain incomplete.
+The real retained-object event helper mirrors existing one-shot/sticky/pulse wake
+semantics, including handles closed after registration. It allocates no handle and
+advances no time. Scheduler algorithms and old handle-based SignalEvent source are
+unchanged. CacheFlush behavior, real shared mappings, ownership/slots and earlier
+FS/RomFS/PTM/APT/NDM/CFG behavior remain inherited. No new draw/transfer, cache model,
+async GPU timing, Windows or macOS build is claimed.
 
-Exactly six implementation files changed from 05b01f7: CMakeLists.txt,
-cmake/LEGOHostRuntime.cmake, src/runtime/ctr_memory.h, src/services/gsp_gpu_service.h,
-new src/services/gsp_command_queue.cpp and tests/ctr_gsp_queue_test.cpp.
-Vendor, original code/private AOT, production IPC router, scheduler, extdata/RomFS,
-PTM, APT, NDM and CFG behavior were not changed in this turn. No Windows/macOS build.
+Ten implementation files changed: CMakeLists.txt, cmake/LEGOHostRuntime.cmake,
+ctr_kernel.h (declaration only), new ctr_service_event.cpp, gsp_gpu_service.h,
+gsp_command_queue.cpp, new pica_startup.h/.cpp and two new tests. Original game bytes,
+private AOT, vendor, production IPC, ctr_kernel.cpp and filesystem backends unchanged.
 
-## Validation and evidence
+## Validation and reproducible evidence
 
-Full GCC and Clang native builds include all 599 unchanged AOT page units. Final
-GCC 26/26 CTest, Clang 26/26 and Clang ASan/UBSan 26/26 ROM-free suites passed with
-leak checking and halt-on-error. Eleven production startup scenarios have byte-
-identical compiler logs: fresh, existing, PTM-off, alternate RTC, no RomFS, no root,
-missing archive, invalid root, invalid PTM mode, missing RomFS, wrong RomFS size.
-All 603 regular AOT members, original code and raw RomFS hashes remain unchanged.
-Full IVFC-block verification was NOT repeated here; the whole raw SHA matches the
-previously verified image. Registry 111043 blocks / 545111 words is STATIC inventory.
+Full GCC and Clang native builds link all 599 unchanged private page units.
+Final GCC 28/28 CTest, Clang 28/28 and Clang ASan/UBSan 28/28 ROM-free suites pass,
+with leak checking/halt-on-error enabled. Eleven production scenarios match byte-for-
+byte between compilers: fresh, existing, PTM-off, alternate RTC, no RomFS, no root,
+missing archive, invalid root, invalid mode, missing RomFS and wrong RomFS size.
+All 603 AOT members, original code and raw RomFS match their verified backups. Full
+IVFC-block verification was not repeated; raw SHA matches the prior verified image.
+Registry 111043 blocks / 545111 words remains STATIC inventory, not executed CPU count.
 
-New tests cover original CacheFlush, three ranges, readonly/zero-size regions, full
-15-packet wrap, stop flags, malformed ring/status/headers, invalid spans, atomic
-unsupported tails, nonzero owner slots, owner-vs-caller selection, duplicate lifetime,
-full handles, response permissions/aliases and exclusive-reservation coherence.
-No native test failure was suppressed. A one-space upload transcription discrepancy
-was corrected to the exact tested tree before publishing. An optional expected_sha
-connector argument was rejected at binding; the normal force=false update succeeded.
+New tests cover all byte masks, grouping/padding, raw upload ports, upload capacities,
+mirroring, packed float golden values, partial vectors, LUT wrap/type guards, IRQ
+match/autostop, unsupported effects, atomic batches, source/reply aliases, real
+waiters, relay wrap/fullness, nonowner calls and retained-event/full-handle behavior.
+One test compile needed an explicit method return type; failure log retained and
+fixed before final passing builds. An unsupported streaming-container invocation
+ran no build; normal finite drivers performed the successful builds. No suppressed
+failure. Final trace was rebuilt from the final source after the event-helper split.
 
-Current private evidence/scripts: queue-checkpoint/. Final files:
-ctest-gcc.txt, ctest-clang.txt, ctest-asan.txt, final-finished.json,
-final-evidence-finished.json, validation-summary.json, trace-game.txt, queue-proof.json.
-trace_queue.py builds a LOGGING-ONLY alternate IPC object; ordinary production IPC
-is unchanged and independently reaches the same stop. make_proof.py independently
-replays all shared-page bytes around both requests and verifies source/read hashes.
-Trace binaries/objects are excluded from the source/log archive.
-Public evidence: reports/recovery-host/GSP-CACHEFLUSH-QUEUE.md, QUEUE-FRESH-GCC.txt,
-QUEUE-EXISTING-GCC.txt, QUEUE-PROOF.json and QUEUE-VALIDATION.json.
+Current private evidence: submit-checkpoint/. Baseline: baseline-game.txt and
+baseline-run.json; final tests: ctest-gcc/clang/asan.txt and final-finished.json.
+Production matrix: validate.py, validation-summary.json and scenario logs.
+trace_submit.py builds a logging-only alternate IPC object; production IPC is unchanged.
+verify_submit.py independently replays original-command-list.bin against BEFORE/AFTER
+snapshots and checks every implemented state array/known bitmap, the full relay page,
+real thread-3 wake and next packet remaining untouched. It also verifies RomFS reads.
+Public summaries: reports/recovery-host/PICA-STARTUP-SUBMIT.md, SUBMIT-PROOF.json,
+SUBMIT-VALIDATION.json, SUBMIT-FRESH-GCC.txt and SUBMIT-EXISTING-GCC.txt.
+Captured list/state bytes remain PRIVATE, excluded from GitHub. Trace binaries and
+objects are excluded from source/evidence backups; their build scripts are retained.
 
 ## Next exact work
 
-Implement the actual SubmitCmdList packet, not a dummy dequeue. First inspect the
-pinned GPU::Execute SubmitCmdList, VirtualToPhysicalAddress, PicaCore::ProcessCmdList
-and internal register decoder/mask/special-register effects. The actual list lives
-at guest 0x14003790, size 0x7480. It is not a sequence of passive WriteHWRegs calls.
-Capture/inspect original list bytes privately as necessary; preserve their hash and
-queue state. Do not claim command completion, draw execution, render output or
-signal an interrupt until its real supported effects justify it. Keep unknown
-commands/active triggers explicit stops and retain fresh/existing negative tests.
+Inspect the pending DisplayTransfer packet and its actual source/destination backing
+before implementing it. Read pinned GPU::Execute DisplayTransfer, MemoryTransfer,
+software blitter addressing/format/tiling/conversion, and current guest memory/VRAM
+mapping. Do not create empty VRAM just to make a transfer succeed or assume the
+0x1F5F8000 source has valid pixels. Derive flags/size behavior from inspected code and
+original memory. A transfer must move/convert actual bytes before any PPF notification.
+Preserve PICA upload state and the demonstrated real P3D wake. Run a NEW empty
+shared archive with explicit empty PTM and original RomFS; observe the next request.
 
-Primary source pin: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
-This turn inspected src/core/hle/service/gsp/gsp_command.h, gsp_gpu.cpp queue loop,
-and src/video_core/gpu.cpp CacheFlush. The complete PICA SubmitCmdList path is next
-work, not already implemented. Earlier register/reset/barrier references are in
-reports/recovery-host/GSP-REGISTERS-DSB.md and vendor LOCAL-PATCHES.md.
+Primary reference: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
+This turn read pica_core.cpp parser/batch/special handlers, shader_setup.cpp/.h,
+packed_attribute.h, pica_types.h, regs_shader.h, regs_lighting.h, pica_core.h and
+gsp_interrupt.h; earlier GPU SubmitCmdList/physical routing and GSP relay code are
+also available. Prefix src/video_core/ for PICA files, src/core/hle/service/gsp/ for
+interrupts. Exact blob identities: submit-checkpoint/references.json. Full transfer
+semantics are NEXT work, not already implemented.
 
-## Scratch and reproduction
+## Scratch paths and build commands
 
-Root /mnt/data/lego_recovery/. Source repo/; private AOT generated2/;
-code restored/code.bin; raw RomFS game/prepared-romfs/romfs.bin. Prepared parts:
-romfs-library-roundtrip/. Builds: build-gcc/, build-clang/, build-asan/.
-Current logs: queue-checkpoint/. Older pending source/evidence: pending-preserved/,
-which must NEVER replace repo/. New final matrix: private-state/queue-validation.s3v8pcme/;
-final trace: private-state/queue-trace.cj6he6v0/. Other queue-* roots are also NEW test
-state. Old historical roots remain in the preserved archive. These are not console
-NAND saves. The validator only resets its own just-created, byte-verified files.
+Root /mnt/data/lego_recovery/. Source repo/, private pages generated2/,
+code restored/code.bin, raw RomFS game/prepared-romfs/romfs.bin. Prepared raw parts
+romfs-library-roundtrip/. Builds build-gcc/, build-clang/, build-asan/.
+Current evidence submit-checkpoint/; previous queue-checkpoint/ preserved.
+NEW final matrix: private-state/submit-validation.58ohmzz7/. Other submit-* roots
+are this turn's diagnostics; their exact trace path is in trace-console.txt.
+These files are guest-created TEST state, not recovered NAND. Older roots remain
+untouched. The paired validator resets only its own byte-verified fresh test file.
 
 ```sh
 cd /mnt/data/lego_recovery
@@ -182,27 +192,28 @@ cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPI
 cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure
 mkdir -p private-state
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/gsp-submit-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/gsp-transfer-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
 ./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin
 ```
 
-Expected diagnostic exit 3: TriggerCmdReqQueue/SubmitCmdList pending, round 167.
-Use clang++ for Clang; omit LEGO_AOT_DIR for ROM-free tests. Exact sanitizer flags
-and drivers: queue-checkpoint/build_remaining.py and final_validate.py.
+Expected diagnostic exit 3: DisplayTransfer pending, round 170. Use clang++ for
+Clang; omit LEGO_AOT_DIR for ROM-free tests. Sanitizer flags and commands are in
+submit-checkpoint/build_remaining.py and final_validate.py. No user-PC development.
 
-## Durable recovery and every-turn mandate
+## Reset recovery and every-turn mandate
 
-GitHub: GTTeancum/Lego-Undercover-3DS-Recomp main. Library: /LEGO-Chase-Recovery/.
-Use the latest source/log checkpoint, NOT historical GSP-REGISTERS-PENDING. Verify
-CHECKPOINT-MANIFEST.json before editing; unpack current repo/logs beneath the scratch
-root. SOURCE-INDEX.json records all exact Git paths/blob hashes/modes, including
-ignored-but-tracked logs. Restore the local index faithfully; it is not remote history.
+GitHub GTTeancum/Lego-Undercover-3DS-Recomp, main. Library /LEGO-Chase-Recovery/.
+Restore latest source/evidence archive and handoff, NOT the historical pending
+register checkpoint. Verify CHECKPOINT-MANIFEST.json with verify_checkpoint.py;
+unpack repo/logs beneath the root above. SOURCE-INDEX.json preserves exact Git
+paths/blob hashes/modes, including ignored-but-tracked logs. Reconstruct the index
+faithfully but never treat its local history as the remote history.
 
-Private inputs have separate backups: code.bin; LEGO-Chase-current-AOT-599pages-2026-10-03.tgz;
-and Prepared-RomFS/ two raw parts plus romfs-parts.json. Put code.bin in restored/;
-unpack AOT in the root (creates generated2/). Restore raw RomFS without repeating CCI
-extraction. Part sizes 402653184 and 366526464; restore refuses existing output.
+Private inputs have separate backups: code.bin, unchanged
+LEGO-Chase-current-AOT-599pages-2026-10-03.tgz, and Prepared-RomFS/ two raw parts plus
+romfs-parts.json. Put code in restored/; unpack AOT at the root (creates generated2/).
+Raw parts are 402653184 and 366526464 bytes. Restore without repeating CCI extraction:
 
 ```sh
 mkdir -p game/prepared-romfs
@@ -210,22 +221,20 @@ python repo/tools/restore_romfs_parts.py game/romfs-persistence/romfs-parts.json
 python repo/tools/verify_romfs.py game/prepared-romfs/romfs.bin
 ```
 
-Raw RomFS: 769179648 bytes, SHA 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
-View offset 4096, bytes 769175552; do not expose IVFC prefix or remove trailing tables.
-Code SHA 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
-AOT SHA 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
-Historical CCI SHA 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
-Original six parts in Game-archive/ remain an alternate route; no CCI was needed here.
+Restore refuses existing output; verify rather than overwrite it.
+Raw RomFS 769179648 bytes; view offset 4096, size 769175552. Do not expose IVFC prefix
+as filesystem header or discard trailing tables. Raw SHA:
+6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
+Code SHA: 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
+AOT SHA: 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
+Historical CCI SHA: 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
+Original six archive parts under Game-archive/ remain an alternate recovery route.
+Older GSP-REGISTERS-PENDING is preserved separately/nested under historical/; never
+overlay it on newer repo/. Scratch may reset. Library/GitHub are recovery routes;
+Actions source snapshots expire after 30 days. Connector writes work in this turn.
 
-Scratch may reset. Library prepared inputs/source checkpoints and GitHub are the
-recovery paths; Actions source snapshots expire after 30 days. No Work or user-PC
-access was used. MANDATE: tested checkpoints, push source/reports and persist backups
-when available; never fabricate a push, CI or persistence result. Keep game bytes,
-private AOT/binaries/test state OUT of public Git. Update this canonical handoff and
-POST A DOWNLOADABLE COPY EVERY WORK TURN plus the source/log checkpoint. It must let
-a new chat restore, build, reproduce the real stop and continue without reuploads.
-
-## Hosted CI confirmation
-
-GitHub Actions run `37343431474` on implementation `811083b` completed successfully
-for both GCC and Clang jobs. Hosted tests are ROM-free, not original-game execution.
+MANDATE: tested checkpoints; publish source/reports and durable backups when available;
+never invent push/CI/persistence success. Keep original game data, private AOT/native
+binaries/test state OUT of public Git. Update this canonical handoff and POST A
+DOWNLOADABLE COPY EVERY WORK TURN plus the source/evidence checkpoint. A new chat
+must be able to restore, rebuild, reproduce the actual stop and continue from it.
