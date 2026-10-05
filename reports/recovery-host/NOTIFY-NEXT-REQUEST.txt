@@ -1,0 +1,2 @@
+utility=7 input_bytes=4 output_bytes=1
+input= 10 00 00 00

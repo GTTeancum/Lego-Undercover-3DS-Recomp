@@ -1,0 +1,105 @@
+{
+  "format": "lego_apt_notify_checkpoint_v1",
+  "run_utc_date": "2026-10-05",
+  "base_commit": "175e78c7801b01285d9413918edf1a3e1ca8478d",
+  "base_tree_verified": "2b75b10396aed1f973bb9136b46237a04cbd2d64",
+  "source_commit": "275d963c2f72a915bf1279f7d9368c0db7a9b9d9",
+  "source_tree_verified": "b6f3133ce93ac15d65816e675482ea5ea58df488",
+  "code_sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+  "private_aot": {
+    "page_cpp_files": 599,
+    "regular_files": 603,
+    "all_archive_members_unchanged": true,
+    "verified_instruction_words": 545111,
+    "registry_blocks": 111043
+  },
+  "before": {
+    "stop": "UnsupportedIpc",
+    "service": "APT:U",
+    "command": "NotifyToWait",
+    "header": "0x00430040",
+    "applet_id": "0x300",
+    "pc": "0x0025947C",
+    "thread": 1,
+    "dispatch_rounds": 44,
+    "baseline_reproduced_byte_identically": true
+  },
+  "after": {
+    "stop": "UnsupportedIpc",
+    "service": "APT:U",
+    "command": "AppletUtility",
+    "header": "0x004B00C2",
+    "utility_id": 7,
+    "input_size": 4,
+    "input_bytes_hex": "10000000",
+    "output_size": 1,
+    "input_static_descriptor": "0x00010402",
+    "input_address": "0x0FFFF610",
+    "output_static_descriptor": "0x00004002",
+    "output_address": "0x0FFFF5DC",
+    "pc": "0x0025947C",
+    "thread": 1,
+    "dispatch_rounds": 54,
+    "host_exit_code": 3
+  },
+  "scope": {
+    "NotifyToWait": "Exact 0x00430040 header; initialized/registered application 0x300. One-result acknowledgment with no service state side effects.",
+    "authority": "Pinned Azahar NotifyToWait is explicitly STUBBED. This reproduces that HLE acknowledgment, not verified hardware side effects.",
+    "unsupported": "Premature/malformed/other-applet requests remain host stops; AppletUtility is not implemented."
+  },
+  "validation": {
+    "gcc": "Full 599-page baseline build, final relink, 8/8 CTest",
+    "clang": "Full 599-page build, 8/8 CTest",
+    "sanitizers": "Clang ASan/UBSan 8/8 ROM-free CTest; detect_leaks=1, halt_on_error=1",
+    "startup_logs_identical": true,
+    "hosted_ci": "GitHub Actions 37246469038: both compiler jobs succeeded on source commit 275d963"
+  },
+  "artifacts": {
+    "NOTIFY-BASELINE.txt": {
+      "bytes": 691,
+      "sha256": "89082887ab66875736fd436b4fa55299087730e1f3d51c88835f0a3f0073693f"
+    },
+    "NOTIFY-CTEST-ASAN.txt": {
+      "bytes": 988,
+      "sha256": "8453923df2ec12f6e7ad36f437e09bc10407995199ff1f800e34c91fa28770b8"
+    },
+    "NOTIFY-CTEST-CLANG.txt": {
+      "bytes": 990,
+      "sha256": "fd91f5d2ea22508048ca1e76f70cfc9ea9ab8aa87ed37061f1f0450215a9378e"
+    },
+    "NOTIFY-CTEST-GCC.txt": {
+      "bytes": 986,
+      "sha256": "514901770dddb5a681932755cfc314e6014142d58dbfa78878c35e86ba8c2266"
+    },
+    "NOTIFY-FIRST-RUN.txt": {
+      "bytes": 691,
+      "sha256": "7890bf5946056c36c9f016805b8054f87f255b7484767b1c51f9a328e72e81f9"
+    },
+    "NOTIFY-NEXT-REQUEST.txt": {
+      "bytes": 58,
+      "sha256": "eba4c3bfddc4d979e45ce5e1857b9ae82cd6fa87b1ad808e14dcbb1e5d617b7b"
+    },
+    "NOTIFY-STARTUP-CLANG.txt": {
+      "bytes": 691,
+      "sha256": "7890bf5946056c36c9f016805b8054f87f255b7484767b1c51f9a328e72e81f9"
+    },
+    "NOTIFY-STARTUP-GCC.txt": {
+      "bytes": 691,
+      "sha256": "7890bf5946056c36c9f016805b8054f87f255b7484767b1c51f9a328e72e81f9"
+    }
+  },
+  "binaries": {
+    "build-gcc": "0c212f5bb2be54c9d6e3294713f80032b0232f031400c96bb8b6d0fb1571e928",
+    "build-clang": "718e1748ec2ae4a617eab4c5a2b710338bcb975ed8186e8a1b3e3a9c7bf6bc45"
+  },
+  "limitations": [
+    "No title screen, graphics, audio, controls, completed initialization or gameplay claim.",
+    "NotifyToWait hardware behavior remains unverified; no artificial event, message, or thread transitions added.",
+    "The unchanged private AOT still has inherited coverage/metadata limitations.",
+    "Dispatch-driven guest time and broader scheduler/services remain open."
+  ],
+  "sources": [
+    "https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/apt/apt.cpp",
+    "https://3dbrew.org/wiki/NS_and_APT_Services"
+  ]
+}
