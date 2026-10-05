@@ -1,0 +1,38 @@
+{
+  "total_original_output_bytes": 1612800,
+  "final_queue_header": "00000001",
+  "final_irq_count": 0,
+  "final_page_sha256": "5c24c1e495901c8c3f85e6b3cef2aecc05e6db2df3aed49ae64a49efbee09c48",
+  "final_stop": "WaitingNoRunnableThread",
+  "fresh_round": 228,
+  "independent_replay_passed": true,
+  "original_transfers": 6,
+  "original_changed_vram_bytes": 0,
+  "all_original_bank_register_relay_bytes_match": true,
+  "synthetic": {
+    "original-shape": {
+      "changed_vram_bytes": 286189,
+      "source_sha256": "353ecf11f7718307268b72092e39abb94c93571241329031498c0ca31cbf7b9c",
+      "output_sha256": "21982792da98befb2e41bd2763da838916a4254528a3703542acdc1c734f3044",
+      "all_device_bytes_match": true,
+      "all_registers_match": true,
+      "all_shared_bytes_match": true
+    },
+    "all-pairs": {
+      "changed_vram_bytes": 195422,
+      "source_sha256": "d69d894dfee00f44d0d311aaa3862a82fee960cf419cf7b643d127e15f9030fe",
+      "output_sha256": "9fac717c3f0bdb062d81a4a674bfe755e11e1210cf7ef46468eac5767c22861c",
+      "all_device_bytes_match": true,
+      "all_registers_match": true,
+      "all_shared_bytes_match": true
+    },
+    "crop": {
+      "changed_vram_bytes": 295,
+      "source_sha256": "2906cb37e264505cf92ffebad7d607bfbf29f2f4016b64f136f55123639dcc41",
+      "output_sha256": "a9065d6e335c6a5001d3359c2b722be1e7cc5d5a22b30f1596e8fbb521d55bb1",
+      "all_device_bytes_match": true,
+      "all_registers_match": true,
+      "all_shared_bytes_match": true
+    }
+  }
+}
