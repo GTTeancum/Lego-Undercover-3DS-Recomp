@@ -1,0 +1,17 @@
+code_sha256=5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f
+registry_pages=599 blocks=111043 instruction_words_verified=545111
+romfs_sha256=6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf raw_bytes=769179648 view_offset=4096 view_bytes=769175552
+shared_extdata_root=/mnt/data/lego_recovery/private-state/relay-validation.7hovbu58/fresh
+ptm_step_source=explicit_empty_history total_steps=0 sensor_input=none
+rtc_epoch_ms_since_1900=3155673600000 guest_time_source=kernel_ns
+shared_clock_counter=1 snapshot_ms_since_1900=3155673600000 snapshot_tick=0 guest_now_ns=0
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=98
+r0=0x0006801b r1=0x00010002 r2=0x0ffff608 r3=0x00000004
+r4=0x1ff82080 r5=0x00010082 r6=0x1ff8208c r7=0x00000001
+r8=0x00000002 r9=0x00010000 r10=0x00000010 r11=0x00000001
+r12=0x00000000 r13=0x0ffff5f8 r14=0x0012c42c r15=0x0025947c
+cpsr=0x20000010 fpscr=0x23000010 tls=0x1ff82000
+last_ipc_session=gsp::Gpu requested_service= request_header=0x00010082
+ipc_words= 00010082 00401000 00000004 00010002 0ffff608 00000000 00000000 00000000
+ipc_static_buffer0= 00000000 00000000
+host_exit_code=3

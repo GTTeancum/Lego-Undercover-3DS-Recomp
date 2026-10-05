@@ -1,174 +1,183 @@
 # LEGO Chase Begins — canonical recovery handoff
 
 Updated October 5, 2026. Read this first. Continue in scratch, NOT on the user's
-PC or Work. This is LEGO City Undercover: The Chase Begins (Nintendo 3DS USA),
-not LEGO Batman. Historical Recovery F/J gameplay is not current execution proof.
-The current native executable is headless startup reconstruction, not playable.
+PC or Work. Project: LEGO City Undercover: The Chase Begins (Nintendo 3DS USA),
+not LEGO Batman. Historical Recovery F/J gameplay is not current proof. The
+current native executable is a headless startup reconstruction, not playable.
 
-## Published source and restore verification
+## Published implementation and restored baseline
 
-Implementation: `ad22af5b7e2added0475de84b2963f473a6f2070`.
-Tested/uploaded source tree: `270f61e7a946906356c82fa3626f741d0883d001`.
-Base main: `36d8534dea59857261268e71d88a7604c197cebf`.
-The restored baseline matched tree `e1309d631c377b47207a6a7a7c41eff9e5efe076`.
-All 540 prior checkpoint-manifest files and 241 indexed source files verified.
-The former real GetPriority stop was reproduced before edits; its log matched
-apart from the newly owned test-root pathname. The final receipt in the attached
-handoff records delivery SHA, hosted CI and the source/log archive.
+Implementation: `a9d63b67bafbbc2687aded4af13cb0a302366dfc`.
+Tested/uploaded implementation tree: `6605a090a5d701d54bd1554f46eb4bef67fe9221`.
+Base main: `d6317efabe8e142bf99243285fc5c86e072c53a9`.
+The restored baseline exactly matched tree
+`200fa465a7008be39faeac5bbc6bb357d11d116b`. All 627 prior manifest files and 249
+indexed source files verified. The former registration stop was reproduced before
+editing; the only normalized log difference was the newly owned test-root path.
 
-The source was recovered from the attached 36d8534 archive, AOT/code from their
-already mounted backups, and raw RomFS from the already mounted prepared parts.
-No user reupload, game re-extraction or user-PC access was needed. Local Git is a
-verified snapshot/index, NOT the full remote history. Publish with current remote
-parents via connector and force=false; never force-push snapshot history.
+Source came from the attached d6317ef checkpoint. Private code/AOT and prepared
+RomFS parts were already available; no user upload, original-game re-extraction,
+Work or PC access was needed. Local Git is a snapshot/index, not remote history.
+The final receipt appended to the downloadable handoff records delivery SHA,
+hosted CI and the source/log archive. Never force-push local snapshot history.
 
-## Actual current boundary: GPU interrupt relay registration
+## Actual progress and current stopping point
 
-The original FS_USER GetPriority now returns its stored module priority zero:
-`08630080 00000000 00000000`. The reference's UINT32_MAX branch merely logs;
-no substitute default is used. The original wrapper at 0x00131254 takes IPC word 2.
+The original game now registers its GSP event and maps the real shared page:
 
-The next failed lookup was gsp::Gpu. Before discovery was implemented, the guest
-sent AcquireRight and RegisterInterruptRelayQueue through handle zero, eventually
-stopping at SVC 0x1F / PC 0x00130910 / round 95. This is preserved in the private
-before-GSP trace. Do NOT treat that failed-handle path as a valid memory-map request.
-
-Discovery alone exposed AcquireRight at round 92. First uncontended acquisition
-is now implemented and exercised by original code:
-
-```
-AcquireRight request: 00160042 00000000 00000000 ffff8001
-reply:               00160040 00000000
+```text
+RegisterInterruptRelayQueue request: 00130042 00000001 00000000 0007001c
+reply:                              00130082 00002a07 00000000 00000000 0007801d
+MapMemoryBlock: handle=0007801d address=10000000 permissions=3 other=10000000
+MapMemoryBlock result: 00000000
 ```
 
-The current fresh run's untouched next request is:
+Slot 0 is allocated to the actual GSP connection. The copied event is retained,
+not closed, reset or signaled. The returned handle owns the same 4096-byte shared
+object used by the service. Mapping makes that backing readable/writable at
+0x10000000, not a separate copy. The page is still zero and the event UNSIGNALED
+at the next stop. Kernel time remains zero. No interrupt is manufactured.
 
+```text
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=98
+last_ipc_session=gsp::Gpu requested_service= request_header=0x00010082
+ipc_words=00010082 00401000 00000004 00010002 0ffff608 00000000 00000000 00000000
 ```
-stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=94
-last_ipc_session=gsp::Gpu requested_service= request_header=0x00130042
-ipc_words= 00130042 00000001 00000000 0007001c 00000000 00000000 00000000 00000000
-```
 
-Command: RegisterInterruptRelayQueue. Raw flags 1, copy descriptor 0, input event
-handle 0x0007001C. The private trace resolves it to a genuine one-shot EventObject,
-currently UNSIGNALED. Ownership is held by the session for process 1/client thread 1.
-No registration result, relay-slot ID, shared-memory handle or event signal has
-been returned. Rendering, GPU commands and shared-memory mapping are NOT running.
+This is WriteHWRegs: relative register offset 0x00401000, length 4, static input
+descriptor 0x00010002, source address 0x0FFFF608. The actual source word is zero.
+The request remains untouched and unsupported. Its register's precise meaning
+has NOT been implemented or inferred from the zero value. No hardware register
+write, GPU command execution, framebuffer, vblank, rendered frame or main menu
+is established. Audio, controls, initializer completion and gameplay remain open.
+Dispatch rounds are not frames or a completion percentage.
 
-Fresh mode uses a NEW empty archive, explicit `--ptm-step-mode empty`, and the
-verified `--romfs` image. Existing-file startup reaches the same request at round
-86, skipping initialization. No RomFS option retains the old OpenFileDirectly
-stop at round 79. Without explicit empty PTM, startup still stops at step count
-round 71. Those paths remain separate; existing-file startup is not save readback.
+Keep branches separate: fresh + empty PTM + verified RomFS reaches this request
+at round 98; existing gamecoin reaches it at round 90, skipping initialization.
+No RomFS retains OpenFileDirectly round 79. Fresh without explicit empty PTM
+retains GetTotalStepCount round 71. Existing-file startup is not save readback.
 
-The game still writes/closes its own 20-byte gamecoin.dat, default-clock SHA-256:
-970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6.
-Seven original RomFS metadata reads still total 4892 bytes and match the original
-image byte-for-byte: 0/40 three times, then 40/12, 52/68, 120/212 and 332/4480.
-These are filesystem tables, not rendered asset payloads. No main menu, graphics,
-audio, controls, completed initializer count or gameplay is established.
+The original game still writes/closes its own 20-byte gamecoin.dat. Default-clock
+SHA-256: 970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6.
+Seven RomFS metadata reads still total 4892 bytes and match the original image:
+0/40 three times, then 40/12, 52/68, 120/212, 332/4480. These are filesystem tables,
+not rendered assets. No console history, coin balance or save data was pre-seeded.
 
-## Implementation scope and limits
+## Registration and connection ownership
 
-GetPriority accepts only exact 0x08630000 on an initialized FS session and returns
-the existing shared u32 unchanged, including 0xFFFFFFFF. It does not change thread
-priority or FS worker scheduling. Tests cover repeat queries, all-bit values,
-separate/duplicated sessions, reopen/reinitialize, protected responses and a full
-kernel handle table without allocations.
+GSP allocates one of four numeric relay slots per connection, first-free, following
+pinned SessionData policy. These are service slot IDs, NOT newly created guest
+threads. Duplicate kernel handles retain the same identity. Final session-reference
+destruction frees its slot, copied event and held GPU ownership. A full slot table
+returns MaxConnectionsReached 0xD0401834. Failed kernel handle insertion releases
+the tentative slot, and cannot fall back to the service-registration endpoint.
 
-New GspGpuService uses a distinct internal identity for each connection and one
-weak owning identity per module. Duplicate kernel handles share the same session.
-Final session-reference destruction releases ownership; a remaining duplicate
-keeps it. The service-registration endpoint itself cannot acquire ownership.
-These identities are NOT numeric GSP relay-thread slots. The reference's four-slot
-allocation and service-connection limit are NOT reconstructed yet.
+Registration accepts the exact header, copy descriptor and supported flags 0/1,
+and resolves an actual EventObject. Response writability and output-handle
+allocation precede registration mutation. First successful registration returns
+0x00002A07 (description 519, GX module 10, success summary/level), even if it is on
+a nonzero slot. Subsequent registrations return zero. Re-registration preserves
+shared bytes and event signal state; it may replace the retained event/flags.
+Flag 1 is retained, not an implementation of VRAM backup behavior.
 
-Only first uncontended AcquireRight, flag 0, exact header and one copy descriptor
-is supported. The copied handle must resolve to the actual current ProcessObject,
-not a numeric PID or a same-numbered foreign object. Invalid/wrong-type handles
-return transport InvalidHandle; other process objects host-stop. Repeat/contended
-acquisition, nonzero flags, TryAcquireRight, ReleaseRight, queues and all remaining
-GSP commands stop without modifying the request. This limited support must not be
-reported as full GSP ownership/error/wait parity.
+The IPC session factory now returns an explicit Result and optional output handler.
+A successful null handler retains existing module-shared services; failure is
+propagated. FS_USER received only the mechanical signature adaptation. Its file
+and priority behavior is unchanged. The production IPC router DID change this turn.
 
-The reference's renderer/program-specific setup and shader policies are not ported
-by this ownership-only slice. No GPU execution, framebuffer, vblank, interrupt or
-shared-memory object is fabricated. Acquiring ownership adds no kernel handles,
-threads, wakeups or guest time. Existing response preflight precedes all mutation.
-Kernel time remains zero; scheduling and file timing remain incomplete.
+## Shared mapping scope and explicit limits
 
-Changed implementation files: CMakeLists.txt, ctr_runner.cpp (GSP registration only),
-fs_user_service.cpp (getter), new gsp_gpu_service.h, new ctr_fs_priority_test.cpp and
-ctr_gsp_acquire_test.cpp, plus one obsolete unsupported-getter test expectation.
-Original game code, private AOT, vendor, kernel, production IPC, writable file
-backend, RomFS reads, PTM, APT, NDM and CFG behavior remain unchanged.
+ServiceSharedMemoryObject owns a fixed zero-initialized 4 KiB byte array plus
+backing-relative reservation epochs. GuestMemory retains this object in mappings.
+Aliases and service writes access the same bytes and invalidate the same 8-byte
+exclusive granule; unrelated granules remain independent. Mapping ownership keeps
+bytes alive after handles close. Private, nonshared memory retains its prior path.
+
+The supported SVC MapMemoryBlock slice checks actual shared-object type, permission
+subsets, DontCare peer permissions, address arithmetic and existing regions.
+Explicit addresses must be page-aligned and >= 0x08000000, with end strictly below
+0x14000000, preserving the pinned reference's exclusive end check. Range/overlap
+errors use the inspected InvalidAddress/InvalidAddressState results. Address-zero
+placement and unaligned requests remain host stops rather than guessed results.
+
+This is NOT a physical BASE-region allocator, memory-budget accounting, general
+shared-object implementation, guest CreateMemoryBlock or UnmapMemoryBlock. Mapping
+lifetime currently ends with the memory model; explicit unmapping is not implemented.
+Cross-region accesses, full mapped-buffer translation, cache effects and asynchronous
+service/scheduler timing remain incomplete. No thread wakes or time advances were
+added. Register/queue layout consumers, interrupts and command processing still need
+implementation. Unregister, contended/repeated acquisition, TryAcquireRight and
+ReleaseRight remain unsupported as before. No Windows/macOS build was performed.
+
+Changed source: CMakeLists.txt; ctr_ipc.*, ctr_memory.*, new ctr_shared_memory.h,
+ctr_svc_bridge.*, gsp_gpu_service.h, FS_USER factory signatures; new relay/map tests
+and updated obsolete acquire-test expectations. Original code, private AOT, vendor,
+kernel scheduler, extdata backend, RomFS backend, PTM, APT, NDM and CFG are unchanged.
 
 ## Validation and evidence
 
-Full GCC baseline and Clang builds linked all 599 private AOT pages. Final GCC
-21/21 and Clang 21/21 CTest passed; Clang ASan/UBSan 21/21 ROM-free suites passed
-with leak checking and halt-on-error enabled. Eleven startup scenarios are byte-
-identical between compilers: fresh, existing, PTM-off, alternate RTC, no RomFS,
-no root, missing archive, invalid root, invalid PTM mode, missing RomFS and wrong
-RomFS size. The guest-written coin bytes and old negative paths are preserved.
+- Full GCC baseline and Clang native builds link all 599 unchanged AOT page units.
+- Final GCC 23/23 CTest, Clang 23/23 and Clang ASan/UBSan 23/23 ROM-free suites pass.
+  Leak checking and halt-on-error enabled; final driver reports zero for every step.
+- Eleven startup scenarios have byte-identical compiler logs: fresh, existing,
+  PTM-off, alternate RTC, no RomFS, no root, missing archive, invalid root, invalid
+  PTM mode, missing RomFS and wrong RomFS size.
+- Tests cover first/nonzero-slot registration, repeats, copied event/page lifetime,
+  duplicate sessions, four-slot exhaustion, failed allocation rollback, malformed
+  input/protected responses, actual shared mappings, alias coherence, permissions,
+  overlap/range guards, final mapping ownership and shared exclusive reservations.
+- Logging-only alternate IPC/SVC objects verify the actual registration reply,
+  backing identity, successful mapping, zero page, unsignaled event and pending
+  WriteHWRegs input. Ordinary production builds independently reach the same stop.
+- All 603 regular AOT backup members remain byte-identical; 599 are C++ pages.
+  Registry counts 111043 blocks / 545111 words are STATIC verification inventory.
+  Raw RomFS SHA and all three IVFC levels (187787 blocks) verify again.
 
-All 603 regular AOT backup members remain unchanged (599 page C++ files). The
-111043 registry blocks and 545111 raw words are STATIC verification counts,
-not frames, executed instructions or gameplay completion. Raw RomFS SHA matches,
-and the restored image again passed all three IVFC levels (187787 hash blocks).
-
-Public report: reports/recovery-host/FS-PRIORITY-GSP.md.
-Public evidence: GSP-FRESH-GCC.txt, GSP-EXISTING-GCC.txt,
-GSP-ROMFS-READ-PROOF.json, GSP-VALIDATION.json in the same directory.
-Complete private evidence/scripts: priority-checkpoint/. The logging-only trace
-uses an alternate IPC object; ordinary production runs use unchanged IPC code.
-A test compilation initially needed an enum-to-u32 cast and was corrected before
-final passing suites. No failure was suppressed. Streaming exec was unsupported;
-the normal finite build drivers produced the recorded successful builds.
+Current full evidence/scripts: relay-checkpoint/. Public report and logs:
+reports/recovery-host/GSP-RELAY-MAP.md, RELAY-FRESH-GCC.txt, RELAY-EXISTING-GCC.txt,
+RELAY-PROOF.json and RELAY-VALIDATION.json. Final proof is read-and-relay-proof.json;
+final tests are ctest-gcc/clang/asan.txt and final-finished.json. Trace binaries and
+objects are excluded from the source/log backup. The initial restore helper assumed
+an incorrect manifest shape; it was corrected before extraction/verification. No
+native test failure was suppressed, and all final build/test steps passed.
 
 ## Next exact work
 
-Implement observed RegisterInterruptRelayQueue with actual state and a real shared-
-memory object. Read pinned GSP constructor, SessionData allocation/destruction,
-relay layout and handler, then existing kernel shared-memory object/mapping code.
-Extend internal session identity to correct numeric relay-slot allocation; do not
-invent a thread ID just to pass the request. Validate the copied EVENT object,
-response capacity and output-handle allocation before committing registration.
+Implement the observed GSP WriteHWRegs request at relative offset 0x00401000,
+length 4, source word zero. Read the pinned GSP WriteHWRegs parser/helper and GPU
+register routing/definitions first, then inspect the original caller and actual
+subsequent requests. Model the correct register state/side effects, not arbitrary
+success or an invented GPU completion. Validate static input descriptor, full span,
+range/alignment and response writability before mutation. Do not modify the original
+executable or private AOT to bypass setup. Preserve shared page/event ownership.
 
-Pinned handler stores the actual event and flags, marks the session registered,
-returns a specific NONZERO ResultFirstInitialization on the first registration,
-then returns the session's thread ID and a COPY of the shared-memory object.
-Its constructor creates a 0x1000-byte shared object with read/write permissions.
-This is inspected reference HLE, NOT current implemented behavior. Derive exact
-result values and layouts from source; do not guess normal success or fake an event.
+Rerun the original code on a NEW empty test root with explicit empty PTM and verified
+RomFS. Observe the next real operation; do not assume rendering, interrupts or
+vblank follow immediately. Keep the fresh/existing branches and all earlier negative
+input scenarios separate. Never seed state to skip the original startup path.
 
-Then run original code against another NEW empty test root with empty PTM and
-verified RomFS. Observe the next real request. SVC 0x1F may recur with an actual
-shared-memory handle, but do not bypass or claim that mapping before it is seen.
-No guessed frame completion, interrupts, time advances or gameplay success.
+Primary reference pin: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
+Inspected kernel/shared_memory.cpp (67f93be612954a8e89240c44c82839ff841282e1),
+kernel/errors.h (56ee1ab9a46c7244b6b184ca29bf081cae02e88d), kernel/svc.cpp MapMemoryBlock
+(14d0998548c99ca4e2484f465263deb99066cdab, lines 590-785), core/memory.h virtual
+ranges (f7045c1716c26a32c9764eebdc6a7fe6f7e3fe2f, lines 190-285), and GSP session
+layout in gsp_gpu.h. Source paths use src/core/hle/ for kernel/service files.
+Prior pinned gsp_gpu.cpp (6f915e4d6a5d27853321d0a233103afb9d877bc0) contains the
+registration, constructor, first-free slot and disconnect policies used here.
 
-Primary source pin: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
-Inspected: src/core/hle/service/fs/fs_user.cpp GetPriority/SetPriority (blob
-4f538400de9608ac92c212dc0eb8fc19c241e573, body in lines 1000-1290),
-src/core/hle/service/gsp/gsp_gpu.cpp (blob 6f915e4d6a5d27853321d0a233103afb9d877bc0):
-AcquireGpuRight/AcquireRight and constructor/session setup (910-1190),
-ClientDisconnected/GetUnusedThreadId (1-150), RegisterInterruptRelayQueue (290-530);
-gsp_gpu.h declarations (blob fe08556003db960ba22a69cb5846a2c360d4aaca).
-
-## Working paths and reproducible continuation
+## Scratch paths and reproduction
 
 Root: /mnt/data/lego_recovery/. Source: repo/. Private AOT: generated2/.
 Code: restored/code.bin. Raw RomFS: game/prepared-romfs/romfs.bin.
-Prepared parts currently mounted at romfs-library-roundtrip/ with romfs-parts.json.
-Builds: build-gcc/, build-clang/, build-asan/. Current evidence: priority-checkpoint/.
-Prior evidence: romfs-checkpoint/, writefile-checkpoint/, openfile-checkpoint/,
-ptm-checkpoint/, createfile-checkpoint/. Original CCI was not re-extracted this turn.
+Prepared parts: romfs-library-roundtrip/. Builds: build-gcc/, build-clang/, build-asan/.
+Current evidence: relay-checkpoint/. Prior: priority-checkpoint/, romfs-checkpoint/,
+writefile-checkpoint/, openfile-checkpoint/, ptm-checkpoint/, createfile-checkpoint/.
 
-NEW matrix state: private-state/priority-validation.0ysw5i19/.
-Other new roots: priority-baseline.*, priority-first.*, priority-trace.*,
-gsp-discovery.* and gsp-acquire.*. These are guest-created test state, NOT recovered
-NAND saves. Historical restored state was preserved. The paired matrix resets only
-its own newly created and byte-verified files; never reuse/delete an unknown save.
+NEW final state: private-state/relay-validation.7hovbu58/ and relay-trace.iap08751/.
+Earlier relay-baseline/register/map/trace/validation roots are this turn's NEW test
+state too. Historical restored roots were preserved. These are not recovered NAND
+saves. The paired validator resets only its own exact byte-verified newly created
+files; never delete or reuse unknown console state for fresh tests.
 
 ```sh
 cd /mnt/data/lego_recovery
@@ -176,28 +185,28 @@ cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPI
 cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure
 mkdir -p private-state
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/gsp-queue-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/gsp-reg-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
 ./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin
 ```
 
-Expected: RegisterInterruptRelayQueue 0x00130042, round 94, diagnostic exit 3.
-Use clang++ for Clang; omit LEGO_AOT_DIR for ROM-free tests. Full sanitizer flags
-and commands: priority-checkpoint/build_remaining.py. No Windows/macOS build claimed.
+Expected: WriteHWRegs 0x00010082, round 98, diagnostic exit 3. Use clang++ for Clang;
+omit LEGO_AOT_DIR for ROM-free builds. Sanitizer flags/commands are in
+relay-checkpoint/build_remaining.py; final_validate.py records all final rebuilds.
 
-## Durable input recovery and every-turn mandate
+## Durable recovery and every-turn mandate
 
-GitHub: GTTeancum/Lego-Undercover-3DS-Recomp, branch main.
-Private Library: /LEGO-Chase-Recovery/.
-Restore latest source/log archive and handoff, code.bin, and
-LEGO-Chase-current-AOT-599pages-2026-10-03.tgz. Verify CHECKPOINT-MANIFEST.json,
-unpack source/logs below /mnt/data/lego_recovery, code.bin into restored/, and
-unpack AOT there (creates generated2/). SOURCE-INDEX.json retains tracked paths,
-blob hashes and modes, including ignored-but-tracked evidence logs.
+GitHub: GTTeancum/Lego-Undercover-3DS-Recomp, main.
+Private Library: /LEGO-Chase-Recovery/. Restore latest source/log checkpoint and
+handoff, code.bin and LEGO-Chase-current-AOT-599pages-2026-10-03.tgz. Verify
+CHECKPOINT-MANIFEST.json before editing. Unpack source/logs beneath the root above,
+put code.bin in restored/, and unpack AOT there (creates generated2/).
+SOURCE-INDEX.json retains exact tracked Git paths/blob hashes/modes, including
+ignored-but-tracked logs. Local Git is not full remote history.
 
-Raw RomFS is durably EXTRACTED in Prepared-RomFS/; restore the two raw parts plus
-romfs-parts.json instead of repeating CCI extraction. Part001 has 402653184 bytes,
-part002 has 366526464. Restore refuses to overwrite an existing output:
+RomFS is already durably EXTRACTED under Prepared-RomFS/. Restore its two raw
+parts (402653184 and 366526464 bytes) plus romfs-parts.json, rather than re-extracting
+CCI. Restore refuses an existing output; verify rather than clobbering one.
 
 ```sh
 mkdir -p game/prepared-romfs
@@ -205,26 +214,27 @@ python repo/tools/restore_romfs_parts.py game/romfs-persistence/romfs-parts.json
 python repo/tools/verify_romfs.py game/prepared-romfs/romfs.bin
 ```
 
-Raw RomFS: 769179648 bytes; native view offset 4096, size 769175552. Do NOT expose
-the IVFC prefix or truncate the native view to level-3 data alone.
-SHA-256: 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
+Raw RomFS: 769179648 bytes, SHA-256
+6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
+Native view offset 4096, size 769175552: do NOT include the IVFC prefix as the
+filesystem header or truncate away trailing integrity tables.
 code.bin SHA: 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
 AOT archive SHA: 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
 Historical CCI SHA: 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
-Six original archive parts remain in Library Game-archive/ as an alternate route.
-The previous RomFS handoff and persistence receipt retain per-part hashes.
+Six original parts remain in Game-archive/ as an independent recovery route.
 
-Scratch can reset. Prepared Library inputs, source/log backups and GitHub are
-recovery routes; Actions source snapshots expire after 30 days. Connector reads
-and writes work; direct container GitHub DNS failed. No Work or user-PC development.
+Scratch may reset. Library prepared inputs/source checkpoints and GitHub are the
+recovery paths; Actions source snapshots expire after 30 days. Connector access
+works; direct container GitHub DNS failed. No user-PC or Work development occurred.
 
-MANDATE: work in tested checkpoints; push source/reports before ending; keep game
-bytes, private AOT/binaries/test state OUT of public Git; update this canonical
+MANDATE: work in tested checkpoints, push source/reports before ending, keep game
+bytes/private AOT/binaries/test state OUT of public Git, update this canonical
 handoff and POST A DOWNLOADABLE COPY EVERY WORK TURN plus a durable source/log
-backup. This file must suffice for a new chat to restore, rebuild, reproduce the
-actual stop and continue without guessing. Check backups before requesting uploads.
+backup. This file must enable a new chat to restore, build, reproduce the actual
+stop and continue without guessing or unnecessary reuploads. Publish with verified
+current remote parents and force=false, never force-push local snapshot history.
 
 ## Hosted CI confirmation
 
-GitHub Actions `37315649774` on implementation `ad22af5` completed successfully
-for both GCC and Clang jobs. Hosted tests are ROM-free, not original-game runs.
+GitHub Actions `37323609481` on implementation `a9d63b6` completed successfully
+for both GCC and Clang jobs. Hosted tests are ROM-free, not original-game execution.

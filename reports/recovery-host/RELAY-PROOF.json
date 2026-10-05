@@ -1,0 +1,56 @@
+{
+  "state": "/mnt/data/lego_recovery/private-state/relay-trace.iap08751",
+  "reads": [
+    {
+      "view_offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "matches_original": true
+    },
+    {
+      "view_offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "matches_original": true
+    },
+    {
+      "view_offset": 0,
+      "bytes": 40,
+      "sha256": "c42d5e25c74edd555775844bdd6d1f8188281803e6e3f6b25ca12202ad8bac85",
+      "matches_original": true
+    },
+    {
+      "view_offset": 40,
+      "bytes": 12,
+      "sha256": "40dbd4bf447910236f9715182ba0984fd2399a6dfc85cca65d425b019ef727ea",
+      "matches_original": true
+    },
+    {
+      "view_offset": 52,
+      "bytes": 68,
+      "sha256": "5f5b3b08521b139dee77f2dfaca83c267ac5a58e9e7621b6db9661aa7996d151",
+      "matches_original": true
+    },
+    {
+      "view_offset": 120,
+      "bytes": 212,
+      "sha256": "06dd806e72993f72eabf6e9ccd24e52b263c353260fffd9abdba8796fd288c09",
+      "matches_original": true
+    },
+    {
+      "view_offset": 332,
+      "bytes": 4480,
+      "sha256": "ba74fac4b1752e852393f05c980f56ed988188bef08c15fe5d18286d032733f1",
+      "matches_original": true
+    }
+  ],
+  "read_bytes": 4892,
+  "relay_and_map_proof": [
+    "RELAY_REGISTER slot=0 reply_result=00002a07 handle=0007801d same_backing=1 size=4096 flags=1 registered=1 event_signaled=0 page_sha256=ad7facb2586fc6e966c004d7d1d16b024f5805ff7cb47c7a85dabd8b48892ca7",
+    "MAP_MEMORY_IN handle=0007801d address=10000000 permissions=00000003 other=10000000",
+    "MAP_MEMORY_OUT result=00000000 address=10000000 mapped=1",
+    "RELAY_MAP readable=1 writable=1 same_bytes=1 slot=0 registered=1 event_signaled=0 guest_now_ns=0 page_sha256=ad7facb2586fc6e966c004d7d1d16b024f5805ff7cb47c7a85dabd8b48892ca7",
+    "PENDING_WRITE_HW_REGS offset=00401000 bytes=4 descriptor=00010002 pointer=0ffff608 source_readable=1 source_u32=00000000"
+  ],
+  "trace": "logging-only alternate IPC and SVC objects; unchanged original code; no simulated GPU output"
+}
