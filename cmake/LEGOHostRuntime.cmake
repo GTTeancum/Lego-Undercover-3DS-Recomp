@@ -13,6 +13,7 @@ function(lego_add_ctr_runtime target_name)
         "${LEGO_RECOMP_ROOT}/src/services/apt_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/ndm_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/gsp_gpu_service.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/gsp_command_queue.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/ptm_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/fs_user_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/fs_shared_archive.cpp"

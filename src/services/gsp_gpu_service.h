@@ -9,7 +9,8 @@ inline constexpr Result kResultGspFirstInitialization = 0x00002A07U;
 inline constexpr std::uint32_t kGspRelaySlots = 4;
 
 // Bounded startup GSP state. Registration and passive MMIO writes do not
-// generate GPU commands, interrupts, vblank or rendered frames.
+// generate GPU commands, interrupts, vblank or rendered frames. The bounded
+// command queue currently consumes only CacheFlush in the synchronous host.
 class GspGpuService final : public IpcService {
 public:
     GspGpuService() : shared_(std::make_shared<SharedState>()) {}
@@ -26,6 +27,7 @@ public:
     }
     bool CanHandle(const IpcCommandBuffer& command) const noexcept override {
         if (!identity_) return false; // Registration endpoint is never a client.
+        if (command[0]==IpcMakeHeader(0x000C,0,0)) return true;
         if (command[0]==IpcMakeHeader(0x0001,2,2))
             return command[2]<=0x3FFFF && command[3]==((command[2]<<14)|2U);
         if (command[0]==IpcMakeHeader(0x0002,2,4))
@@ -40,6 +42,8 @@ public:
     Result Handle(IpcRouter& router,Kernel& kernel,GuestMemory& memory,ThreadObject& thread,
                   IpcCommandBuffer& command) override {
         if(!CanHandle(command))return kResultNotFound;
+        if (IpcCommandId(command[0])==0x000C)
+            return TriggerCommandQueue(router,kernel,memory,thread,command);
         if (IpcCommandId(command[0])==0x0001 || IpcCommandId(command[0])==0x0002)
             return WriteHwRegisters(router,memory,thread,command);
         if (IpcCommandId(command[0])==0x0013) {
@@ -116,6 +120,7 @@ private:
         }
     }
     Result WriteHwRegisters(IpcRouter&,GuestMemory&,ThreadObject&,IpcCommandBuffer&);
+    Result TriggerCommandQueue(IpcRouter&,Kernel&,GuestMemory&,ThreadObject&,IpcCommandBuffer&);
     struct SessionIdentity {
         std::uint32_t slot{},process_id{},client_thread_id{},flags{};
         bool registered{};

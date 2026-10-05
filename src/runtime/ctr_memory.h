@@ -73,6 +73,12 @@ public:
     bool SpansAlias(std::uint32_t a,std::uint32_t a_size,
                     std::uint32_t b,std::uint32_t b_size) const noexcept;
 
+    // Used when a service accesses a shared object directly rather than through
+    // a known guest VA. Callers preflight the complete span first. No mapping,
+    // memory or reservation state is modified by this identity query.
+    bool UsesSharedBacking(std::uint32_t address, std::uint32_t size,
+                           const ServiceSharedMemoryObject& object) const noexcept;
+
     bool LoadBytes(std::uint32_t address, std::span<const std::uint8_t> data);
     bool ZeroBytes(std::uint32_t address, std::uint32_t size);
 
@@ -141,5 +147,12 @@ private:
     std::uint64_t shared_clock_last_update_ns_{};
     std::uint32_t shared_clock_counter_{};
 };
+
+inline bool GuestMemory::UsesSharedBacking(std::uint32_t address, std::uint32_t size,
+                                     const ServiceSharedMemoryObject& object) const noexcept {
+    if (size == 0) return false;
+    const auto* region = FindRegion(address, size);
+    return region && region->shared.get() == &object;
+}
 
 }  // namespace lego::ctr
