@@ -8,6 +8,7 @@
 #include "runtime/ctr_kernel.h"
 #include "runtime/ctr_memory.h"
 #include "runtime/ctr_svc_bridge.h"
+#include "services/ptm_service.h"
 
 namespace lego::ctr {
 namespace a32 = oot3d::recomp::a32;
@@ -38,7 +39,8 @@ public:
     NativeRunner(const a32::Registry& registry, GuestMemory& memory,
                  Kernel& kernel,
                  std::uint64_t rtc_epoch_ms = kDefaultRtcMsSince1900,
-                 const std::filesystem::path& shared_extdata_root = {});
+                 const std::filesystem::path& shared_extdata_root = {},
+                 PtmStepMode ptm_step_mode = PtmStepMode::Unconfigured);
 
     bool InitializeMainThread(std::uint32_t entry_point = kTextBase,
                               std::uint32_t stack_top = kMainStackTop) noexcept;

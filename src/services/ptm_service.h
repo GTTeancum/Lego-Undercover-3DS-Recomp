@@ -2,13 +2,19 @@
 #include "runtime/ctr_ipc.h"
 
 namespace lego::ctr {
-// The game requests this endpoint before opening shared extdata. Discovery is
-// supported, but step history/counts, battery and hardware values are unmodeled.
-// Stop at each request without manufacturing a successful reply or output data.
+// An explicit new, empty desktop pedometer profile, not recovered console data.
+// No sensor inputs or step events are supplied by this reconstruction.
+enum class PtmStepMode { Unconfigured, EmptyHistory };
+// Host work/output bound, not a discovered firmware history limit.
+inline constexpr std::uint32_t kMaxPtmHistoryHours = 2048;
+
 class PtmService final : public IpcService {
 public:
-    bool CanHandle(const IpcCommandBuffer&) const noexcept override { return false; }
+    explicit PtmService(PtmStepMode mode = PtmStepMode::Unconfigured) : mode_(mode) {}
+    bool CanHandle(const IpcCommandBuffer& command) const noexcept override;
     Result Handle(IpcRouter&, Kernel&, GuestMemory&, ThreadObject&,
-                  IpcCommandBuffer&) override { return kResultNotFound; }
+                  IpcCommandBuffer& command) override;
+private:
+    const PtmStepMode mode_;
 };
 } // namespace lego::ctr
