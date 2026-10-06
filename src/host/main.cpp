@@ -1,5 +1,6 @@
 #include "runtime/ctr_runner.h"
 #include "host/sha256.h"
+#include "host/launch_header.h"
 #include "lego_aot_generated.h"
 #include <charconv>
 #include <fstream>
@@ -79,11 +80,11 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual] [--exheader FILE]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
-        std::filesystem::path shared_extdata_root, romfs_path;
+        std::filesystem::path shared_extdata_root, romfs_path, exheader_path;
         auto vram_mode=ctr::GpuVramMode::Unconfigured;
         auto display_mode=ctr::DisplayClockMode::Disabled;
         auto cfg_profile=ctr::CfgProfile::Unconfigured;
@@ -98,6 +99,10 @@ int main(int argc,char** argv) {
                 if(std::string_view(argv[i+1])!="diagnostic-dual")
                     throw std::runtime_error("CPU mode must be diagnostic-dual (or omit the option)");
                 cpu_mode=ctr::CpuExecutionMode::DiagnosticDual;
+            }
+            else if(option=="--exheader") {
+                if(!argv[i+1][0])throw std::runtime_error("empty ExHeader path");
+                exheader_path=argv[i+1];
             }
             else if (option=="--cfg-profile") {
                 if (std::string_view(argv[i+1])!="reference-stereo")
@@ -138,6 +143,21 @@ int main(int argc,char** argv) {
             }
             else throw std::runtime_error("unknown option");
         }
+        std::optional<lego::host::LaunchPolicy> launch;
+        if(!exheader_path.empty()) {
+            if(cpu_mode!=ctr::CpuExecutionMode::DiagnosticDual)
+                throw std::runtime_error("--exheader requires --cpu-mode diagnostic-dual");
+            std::ifstream header(exheader_path,std::ios::binary|std::ios::ate);
+            if(!header || header.tellg()!=2048)throw std::runtime_error("ExHeader missing or wrong size");
+            std::array<std::uint8_t,2048> bytes{};header.seekg(0);
+            if(!header.read(reinterpret_cast<char*>(bytes.data()),bytes.size()))
+                throw std::runtime_error("cannot read complete ExHeader");
+            launch=lego::host::VerifiedLegoLaunchPolicy(bytes);
+            if(!launch)throw std::runtime_error("ExHeader identity or launch policy mismatch");
+            std::cout<<"exheader_sha256="<<lego::host::kLegoExHeaderSha256
+                     <<" launch_mode=multi launch_maximum="<<launch->maximum_cpu
+                     <<" recovered_title_header=true hardware_cycles=false\n";
+        }
         std::ifstream input(argv[1],std::ios::binary|std::ios::ate);
         if (!input || input.tellg()!=std::streamoff(ctr::kPreparedCodeBytes))
             throw std::runtime_error("code.bin missing or wrong size");
@@ -153,6 +173,8 @@ int main(int argc,char** argv) {
         ctr::GuestMemory memory;
         if (!memory.LoadLegoCodeImage(code)) throw std::runtime_error("image mapping failed");
         ctr::Kernel kernel;
+        if(launch && !kernel.ConfigureCpuExecution(cpu_mode,launch->maximum_cpu))
+            throw std::runtime_error("launch CPU resource configuration failed");
         std::shared_ptr<const ctr::RomfsImage> romfs;
         if (!romfs_path.empty()) {
             romfs=ctr::RomfsImage::OpenVerified(romfs_path,ctr::kLegoRawRomfsBytes,
@@ -164,7 +186,7 @@ int main(int argc,char** argv) {
         if (!shared_extdata_root.empty())
             std::cout << "shared_extdata_root=" << shared_extdata_root.generic_string() << '\n';
         if (ptm_step_mode == ctr::PtmStepMode::EmptyHistory)
-            std::cout << "ptm_step_source=explicit_empty_history total_steps=0 sensor_input=none\n";
+            std::cout << "ptm_step_source=explicit_empty_history total_steps="<<0<<" sensor_input=none\n";
         if (vram_mode==ctr::GpuVramMode::ReferenceZero)
             std::cout << "gpu_vram_source=pinned_hle_zero_initialization bytes=6291456 cpu_mapping=none\n";
         if (cfg_profile==ctr::CfgProfile::ReferenceStereo)

@@ -1,13 +1,22 @@
 #include "runtime/ctr_kernel.h"
 
 namespace lego::ctr {
-bool Kernel::ConfigureCpuExecution(CpuExecutionMode mode) noexcept {
+bool Kernel::ConfigureCpuExecution(CpuExecutionMode mode,
+                                   std::optional<std::uint32_t> launch_cpu_maximum) noexcept {
     if(mode!=CpuExecutionMode::Strict && mode!=CpuExecutionMode::DiagnosticDual)return false;
+    if(launch_cpu_maximum && (mode!=CpuExecutionMode::DiagnosticDual || *launch_cpu_maximum>100))return false;
     // A different runner may not switch the execution policy of a live process.
-    if(cpu_mode_!=CpuExecutionMode::Strict)return cpu_mode_==mode;
+    if(cpu_mode_!=CpuExecutionMode::Strict)return !launch_cpu_maximum && cpu_mode_==mode;
     if(mode==CpuExecutionMode::Strict)return true;
     if(threads_.size()!=1 || app_cpu_core0_only_ || now_ns_!=0 ||
-       current_thread_->processor_id!=0)return false;
+       current_thread_->processor_id!=0 || current_thread_->status!=ThreadStatus::Running)return false;
+    if(launch_cpu_maximum) {
+        // Only before launch. Native callers authenticate the title ExHeader;
+        // this setter neither guesses a ceiling nor changes a running process.
+        application_resource_limit_->limits_[static_cast<std::size_t>(ResourceLimitType::CpuTime)]=
+            static_cast<std::int32_t>(*launch_cpu_maximum);
+        application_resource_limit_->SetCpuTime(0); // Pinned nonzero ExHeader launch path.
+    }
     cpu_mode_=mode;return true;
 }
 bool Kernel::DiagnosticCoreReady(std::uint32_t core) const noexcept {

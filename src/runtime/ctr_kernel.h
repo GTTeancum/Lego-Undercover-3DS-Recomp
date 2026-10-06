@@ -320,7 +320,8 @@ public:
     bool Reschedule(a32::GuestState& live_state) noexcept;
     // One host executor selects a logical core; independent core priority order
     // and context/TLS are retained. Host core switching is not a guest preemption.
-    bool ConfigureCpuExecution(CpuExecutionMode mode) noexcept;
+    bool ConfigureCpuExecution(CpuExecutionMode mode,
+                               std::optional<std::uint32_t> launch_cpu_maximum = std::nullopt) noexcept;
     bool SelectDiagnosticCore(std::uint32_t core,a32::GuestState& live) noexcept;
     [[nodiscard]] bool DiagnosticCoreReady(std::uint32_t core) const noexcept;
     [[nodiscard]] CpuExecutionMode cpu_execution_mode() const noexcept{return cpu_mode_;}
