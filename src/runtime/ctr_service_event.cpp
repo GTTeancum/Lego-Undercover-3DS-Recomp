@@ -8,4 +8,15 @@ void Kernel::SignalEventObject(EventObject& event) noexcept {
     TryWakeWaitingThreads();
     if (event.reset_type() == ResetType::Pulse) event.Clear();
 }
+std::optional<std::uint64_t> Kernel::NextWakeDeadline() const noexcept {
+    std::optional<std::uint64_t> next;
+    for (const auto& thread:threads_) {
+        const auto status=thread->status;
+        if (status!=ThreadStatus::WaitSleep && status!=ThreadStatus::WaitArb &&
+            status!=ThreadStatus::WaitSynchAny && status!=ThreadStatus::WaitSynchAll) continue;
+        if (thread->wake_deadline_ns_ && (!next || *thread->wake_deadline_ns_<*next))
+            next=thread->wake_deadline_ns_;
+    }
+    return next;
+}
 } // namespace lego::ctr

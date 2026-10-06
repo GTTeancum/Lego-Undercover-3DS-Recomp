@@ -363,6 +363,7 @@ public:
     bool SleepCurrentThread(std::int64_t nanoseconds) noexcept;
 
     void AdvanceTime(std::uint64_t nanoseconds) noexcept;
+    [[nodiscard]] std::optional<std::uint64_t> NextWakeDeadline() const noexcept;
     [[nodiscard]] std::shared_ptr<ThreadObject> HighestPriorityReadyThread() const noexcept;
     bool ConsumeCurrentThreadWake(Result* result, std::int32_t* index,
                                   bool* index_valid) noexcept;

@@ -5,6 +5,7 @@
 #include "services/pica_startup.h"
 #include "services/gsp_display_transfer.h"
 #include "services/gsp_memory_fill.h"
+#include "services/gsp_display_events.h"
 
 namespace lego::ctr {
 // ErrCodes::FirstInitialization(519), GX(10), Success summary/level.
@@ -16,7 +17,8 @@ inline constexpr std::uint32_t kGspRelaySlots = 4;
 // non-drawing PICA startup lists, including their genuine P3D IRQ requests.
 // A bounded RGBA4 DisplayTransfer uses explicitly configured device VRAM.
 // Bounded VRAM MemoryFill updates actual bytes before its PSC notification.
-// Drawing, other transfers, active MMIO triggers and vblank remain unsupported.
+// Drawing, other transfers and active MMIO triggers remain unsupported.
+// Display-period notification is separate from rendering and explicitly scheduled.
 class GspGpuService final : public IpcService {
 public:
     GspGpuService() : shared_(std::make_shared<SharedState>()) {}
@@ -113,6 +115,8 @@ public:
     }
     [[nodiscard]] const PicaUploadState& pica_uploads() const noexcept { return shared_->pica_uploads; }
     [[nodiscard]] const PicaListResult& last_pica_result() const noexcept { return shared_->last_pica_result; }
+    bool PrepareDisplayPeriod(DisplayPeriodPlan& out, const char*& error) const noexcept;
+    bool CommitDisplayPeriod(Kernel& kernel, const DisplayPeriodPlan& plan) noexcept;
 private:
     // The pinned GPU::WriteReg routes two 4 KiB pages at 0x1EF00000 and
     // bounds word indexes by PicaCore::Regs::NUM_REGS (0x732). GSP adds 0x1EB00000.
@@ -175,6 +179,8 @@ private:
         PicaUploadState pica_uploads{};
         PicaListResult last_pica_result{};
         std::shared_ptr<GpuVramBank> vram;
+        std::array<std::array<std::uint32_t,7>,2> display_cached{};
+        std::uint64_t display_generation{};
 
     };
     GspGpuService(std::shared_ptr<SharedState> shared,std::uint32_t slot)

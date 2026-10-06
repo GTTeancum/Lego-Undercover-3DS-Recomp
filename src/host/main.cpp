@@ -29,6 +29,7 @@ const char* StopName(ctr::RunnerStopReason reason) {
     case R::Fallback: return "Fallback";
     case R::HostEventLimit: return "HostEventLimit";
     case R::OtherExit: return "OtherExit";
+    case R::UnsupportedDisplayEvent: return "UnsupportedDisplayEvent";
     }
     return "Unknown";
 }
@@ -77,19 +78,25 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
         std::filesystem::path shared_extdata_root, romfs_path;
         auto vram_mode=ctr::GpuVramMode::Unconfigured;
+        auto display_mode=ctr::DisplayClockMode::Disabled;
         auto ptm_step_mode = ctr::PtmStepMode::Unconfigured;
         std::uint32_t block_limit=1000000,event_limit=4096;
         std::uint64_t rtc_epoch_ms=ctr::kDefaultRtcMsSince1900;
         for (int i=2; i<argc; i+=2) {
             if (i+1==argc) throw std::runtime_error("missing option value");
             const std::string_view option(argv[i]);
-            if (option=="--gpu-vram-mode") {
+            if (option=="--display-clock-mode") {
+                if (std::string_view(argv[i+1])!="reference-idle")
+                    throw std::runtime_error("unsupported display clock mode (expected reference-idle)");
+                display_mode=ctr::DisplayClockMode::ReferenceIdle;
+            }
+            else if (option=="--gpu-vram-mode") {
                 if (std::string_view(argv[i+1])!="reference-zero")
                     throw std::runtime_error("GPU VRAM mode must be reference-zero (or omit the option)");
                 vram_mode=ctr::GpuVramMode::ReferenceZero;
@@ -140,7 +147,7 @@ int main(int argc,char** argv) {
             std::cout << "romfs_sha256=" << romfs->sha256() << " raw_bytes=" << ctr::kLegoRawRomfsBytes
                       << " view_offset=" << ctr::kLegoRomfsViewOffset << " view_bytes=" << romfs->size() << '\n';
         }
-        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode);
+        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode);
         if (!shared_extdata_root.empty())
             std::cout << "shared_extdata_root=" << shared_extdata_root.generic_string() << '\n';
         if (ptm_step_mode == ctr::PtmStepMode::EmptyHistory)
@@ -150,7 +157,14 @@ int main(int argc,char** argv) {
         if (!runner.InitializeMainThread()) throw std::runtime_error("main thread setup failed");
         std::cout << "rtc_epoch_ms_since_1900=" << rtc_epoch_ms
                   << " guest_time_source=kernel_ns\n";
+        if (display_mode==ctr::DisplayClockMode::ReferenceIdle)
+            std::cout<<"display_clock=reference_idle frame_ticks="<<ctr::kDisplayPeriodTicks
+                     <<" clock_hz="<<ctr::kArm11TicksPerSecond<<" presentation=none\n";
         const auto result=runner.Run(block_limit,event_limit);
+        if (display_mode==ctr::DisplayClockMode::ReferenceIdle) {
+            std::cout<<"display_periods="<<runner.display_periods()<<" guest_now_ns="<<kernel.now_ns()<<'\n';
+            if (runner.display_error())std::cout<<"display_error="<<runner.display_error()<<'\n';
+        }
         const auto& state=runner.live_state();
         std::uint32_t clock_counter=0, clock_fault=0;
         std::uint64_t clock_date=0, clock_tick=0;
