@@ -1,0 +1,101 @@
+{
+  "display_periods": 1,
+  "deadline_ns": 16713681,
+  "period_arm11_ticks": 4481136,
+  "clock_hz": 268111856,
+  "full_page_replay_match": true,
+  "all_1842_register_words_match": true,
+  "callback_counters": {
+    "before": [
+      0,
+      0
+    ],
+    "after": [
+      0,
+      0
+    ],
+    "final": [
+      1,
+      1
+    ]
+  },
+  "worker_before": {
+    "id": 3,
+    "status": 4,
+    "pending_wake": 0,
+    "result": 155196414,
+    "pc": 2462916
+  },
+  "worker_after": {
+    "id": 3,
+    "status": 1,
+    "pending_wake": 1,
+    "result": 0,
+    "pc": 2462916
+  },
+  "worker_final": {
+    "id": 3,
+    "status": 4,
+    "pending_wake": 0,
+    "result": 155196414,
+    "pc": 2462916
+  },
+  "framebuffer_register_assignments": [
+    {
+      "word": 283,
+      "value": 406086912
+    },
+    {
+      "word": 294,
+      "value": 0
+    },
+    {
+      "word": 292,
+      "value": 720
+    },
+    {
+      "word": 284,
+      "value": 833
+    },
+    {
+      "word": 286,
+      "value": 1
+    },
+    {
+      "word": 347,
+      "value": 402883584
+    },
+    {
+      "word": 358,
+      "value": 0
+    },
+    {
+      "word": 356,
+      "value": 720
+    },
+    {
+      "word": 348,
+      "value": 769
+    },
+    {
+      "word": 350,
+      "value": 1
+    }
+  ],
+  "page_changed_offsets": [
+    1,
+    24,
+    25,
+    513,
+    577
+  ],
+  "page_before_sha256": "5c24c1e495901c8c3f85e6b3cef2aecc05e6db2df3aed49ae64a49efbee09c48",
+  "page_after_sha256": "8d137a744556522123fffc974aab639e40da9b1d58f9cd2f4586b46abb8008d3",
+  "page_final_sha256": "7fbc047ae8e607b7559055259c05ab095ceb35877c7c6df20b6192f5a4cf4387",
+  "upload_state_unchanged": true,
+  "vram_unchanged": true,
+  "all_vram_zero": true,
+  "meaningful_visual_output": false,
+  "next_request": "gsp::Gpu SetLcdForceBlack 0x000B0040 argument 0, untouched",
+  "timing_scope": "explicit reference-idle model; no CPU-cycle charging, scanout or presented frame"
+}

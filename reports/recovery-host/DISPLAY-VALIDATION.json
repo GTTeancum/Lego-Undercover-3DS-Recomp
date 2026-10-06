@@ -1,0 +1,125 @@
+{
+  "owned_root": "/mnt/data/lego_recovery/private-state/display-validation.w2g5o_e1",
+  "scenarios": [
+    {
+      "case": "fresh",
+      "exit": 3,
+      "gcc_clang_identical": true,
+      "log_sha256": "bd6c0037ce9c96bb6a56d9d40352ac6d6bdc46f6c0b72495ca0b598f97369f1c",
+      "coin_sha256": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    },
+    {
+      "case": "existing",
+      "exit": 3,
+      "gcc_clang_identical": true,
+      "log_sha256": "2698f1da285f998ce6b1d3f6aaf7594ed531a4a44ba525cda7141068cb31b17e",
+      "coin_sha256": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    },
+    {
+      "case": "strict-no-vram",
+      "exit": 3,
+      "gcc_clang_identical": true,
+      "log_sha256": "cc6364a4477f131ed2abfb1635ee3b09fc4a3d550d9b2e843ede7b617cd69e5b",
+      "coin_sha256": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    },
+    {
+      "case": "ptm-off",
+      "exit": 3,
+      "gcc_clang_identical": true,
+      "log_sha256": "f8c2f3172399823dd0b92c773afebe18886c00f4c2ba4012cb9aed6db9efb1af",
+      "coin_sha256": "de47c9b27eb8d300dbb5f2c353e632c393262cf06340c4fa7f1b40c4cbd36f90"
+    },
+    {
+      "case": "rtc-next-day",
+      "exit": 3,
+      "gcc_clang_identical": true,
+      "log_sha256": "ba9db268b049aeeec7959502a6367f75ace9f083ca2e15fa8ae0ddf472e7be38",
+      "coin_sha256": "00d7c99de5b09c091e7cbb193fb2b67bcf76ff86660e44f12eda1237344a60f0"
+    },
+    {
+      "case": "no-romfs",
+      "exit": 3,
+      "gcc_clang_identical": true,
+      "log_sha256": "f2e9cfd6507aca0e436dc5f5555c755831b8d792f8f82a346ddc6431ebb72a63",
+      "coin_sha256": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    },
+    {
+      "case": "no-root",
+      "exit": 3,
+      "gcc_clang_identical": true,
+      "log_sha256": "a6564290593b65bbf0dd13e876df0357a026d10d631f9c572d72249f52883890",
+      "coin_sha256": null
+    },
+    {
+      "case": "missing-archive",
+      "exit": 3,
+      "gcc_clang_identical": true,
+      "log_sha256": "dc7a6ea712467eade5be73ec336a7013f8fe834a8fa47f44abd5621df8ae32c4",
+      "coin_sha256": null
+    },
+    {
+      "case": "invalid-root",
+      "exit": 2,
+      "gcc_clang_identical": true,
+      "log_sha256": "a3fbb806238ea2d9ff989b2ad2e02362472ad6686ee6d647cfdb9c48acc58e18",
+      "coin_sha256": null
+    },
+    {
+      "case": "invalid-ptm",
+      "exit": 2,
+      "gcc_clang_identical": true,
+      "log_sha256": "81a8cd704f61f959df524277c86d3fc599899151d501d5d248a9ed6271ac2923",
+      "coin_sha256": null
+    },
+    {
+      "case": "invalid-vram",
+      "exit": 2,
+      "gcc_clang_identical": true,
+      "log_sha256": "2fd5b1776c801b608a195a1770c1f414c0da39523cb31b44024d98ef2cc3a6f8",
+      "coin_sha256": null
+    },
+    {
+      "case": "missing-vram",
+      "exit": 2,
+      "gcc_clang_identical": true,
+      "log_sha256": "6a2ae97095c5bff0d222dec37f32150a89e5df15937ba6f28c560d41d7362446",
+      "coin_sha256": null
+    },
+    {
+      "case": "missing-romfs",
+      "exit": 2,
+      "gcc_clang_identical": true,
+      "log_sha256": "2dc0ff9881db7c795353d843f40cf7b0806622bbf274f583536714e21338cde2",
+      "coin_sha256": null
+    },
+    {
+      "case": "wrong-romfs-size",
+      "exit": 2,
+      "gcc_clang_identical": true,
+      "log_sha256": "c4c72dd0049cc46e1288c06e56bbcc19ab21eb7bf3f3b4fe4db6a1917f191ed0",
+      "coin_sha256": null
+    },
+    {
+      "case": "no-display-clock",
+      "exit": 3,
+      "gcc_clang_identical": true,
+      "log_sha256": "9bf31237cb5393844c49833704fc7b419696556cbc546d928bc777abdc140eb2",
+      "coin_sha256": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    },
+    {
+      "case": "invalid-display-clock",
+      "exit": 2,
+      "gcc_clang_identical": true,
+      "log_sha256": "a2ffaff1bfd4b8fbb87644a3f4b6c959a94be27624fa721cc87fc0cfaab29bf6",
+      "coin_sha256": null
+    },
+    {
+      "case": "missing-display-clock",
+      "exit": 2,
+      "gcc_clang_identical": true,
+      "log_sha256": "6a2ae97095c5bff0d222dec37f32150a89e5df15937ba6f28c560d41d7362446",
+      "coin_sha256": null
+    }
+  ],
+  "all_identical": true
+}

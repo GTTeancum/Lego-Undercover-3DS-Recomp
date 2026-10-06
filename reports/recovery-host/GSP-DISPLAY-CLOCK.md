@@ -1,10 +1,3 @@
-# LEGO Chase Begins — canonical continuation handoff
-
-Continue in scratch, NOT the user's PC or Work. Project: LEGO City Undercover:
-The Chase Begins (Nintendo 3DS USA), not LEGO Batman. Headless native reconstruction,
-not playable. Historical Recovery F/J claims are not current gameplay proof.
-POST A DOWNLOADABLE UPDATED HANDOFF AND SOURCE/EVIDENCE CHECKPOINT EVERY WORK TURN.
-
 # Scheduled display notification and framebuffer latching
 
 Checkpoint: October 5, 2026 (America/Indiana/Indianapolis; final UTC logs cross into October 6).
@@ -150,76 +143,6 @@ Next implement the observed SetLcdForceBlack request from inspected LCD color-fi
 semantics, without pretending that disabling a blanking flag renders a frame.
 Rerun the original code with all explicit policies and a NEW empty shared archive.
 Keep pursuing genuine visuals; post screenshots only once meaningful output exists.
-
-## Reproduction and durable private inputs
-
-Scratch root: /mnt/data/lego_recovery/. Current source: repo/. Private pages:
-generated2/. Original executable input: restored/code.bin. Raw RomFS:
-game/prepared-romfs/romfs.bin. Existing raw parts: romfs-library-roundtrip/.
-Builds: build-gcc/, build-clang/, build-asan/. Current work/evidence: display-checkpoint/.
-New private-state/display-* directories are guest-created TEST state, not recovered
-console NAND. Preserve unknown saves. The paired validator removes only its own
-byte-verified new gamecoin.dat to repeat the fresh path for the second compiler.
-
-```sh
-cd /mnt/data/lego_recovery
-cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DLEGO_AOT_DIR=/mnt/data/lego_recovery/generated2
-cmake --build build-gcc --parallel 4
-ctest --test-dir build-gcc --output-on-failure
-mkdir -p private-state
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/lcd-blank-next.XXXXXX)"
-mkdir -p "$NEW_ROOT/00048000/F000000B/user"
-./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle
-```
-
-Expected exit 3, untouched GSP SetLcdForceBlack (0x000B0040), argument 0, round 232.
-Without display-clock-mode, the previous wait remains at round 228/time 0.
-Without explicit VRAM, strict startup still stops at the earlier DisplayTransfer
-round 170. No RomFS retains OpenFileDirectly round 79; no explicit empty PTM retains
-step count round 71. Existing-gamecoin is a separate branch, not save-readback proof.
-Use clang++ for Clang. Omit LEGO_AOT_DIR for ROM-free tests. Sanitizer options are
-recorded in display-checkpoint/build_remaining.py. Do not silently drop opt-in modes.
-
-GitHub: GTTeancum/Lego-Undercover-3DS-Recomp main. Library: /LEGO-Chase-Recovery/.
-The final receipt appended to the downloadable copy identifies the delivery commit
-and this turn's archive. Restore the latest checkpoint, not a historical pending one.
-verify_checkpoint.py checks CHECKPOINT-MANIFEST.json before extraction.
-SOURCE-INDEX.json records exact paths/modes/Git blobs, including ignored tracked logs.
-Reconstruct its index faithfully, but never force-push local snapshot history.
-Publication must use the freshly verified remote parent and force=false.
-
-Private inputs have separate existing Library backups: code.bin;
-LEGO-Chase-current-AOT-599pages-2026-10-03.tgz; and Prepared-RomFS/ two raw parts plus
-romfs-parts.json. Code goes in restored/; AOT unpacks under the root as generated2/.
-Prepared parts are 402653184 and 366526464 bytes. No original CCI extraction is needed.
-
-```sh
-mkdir -p game/prepared-romfs
-python repo/tools/restore_romfs_parts.py romfs-library-roundtrip/romfs-parts.json game/prepared-romfs/romfs.bin
-python repo/tools/verify_romfs.py game/prepared-romfs/romfs.bin
-```
-
-The restore tool refuses an existing output; verify rather than overwrite it.
-Raw RomFS: 769179648 bytes, view offset 4096, view size 769175552. Preserve all
-integrity tables; do not expose the IVFC prefix as the filesystem header.
-RomFS SHA: 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
-Code SHA: 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
-AOT SHA: 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
-Historical CCI SHA: 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
-Six original archive parts remain in Game-archive/ as an alternate recovery path.
-
-Prior source/evidence is retained unchanged in historical/LEGO-Chase-source-checkpoint-0b4f9c3.tgz,
-with its handoff alongside it. Extract historical material only into a separate
-directory, NEVER over current repo/. That archive contains the earlier fill,
-transfer, PICA, filesystem, callback and pending-checkpoint evidence through its
-nested history. Current captures do not replace older independently verified proofs.
-
-Scratch may reset. Library inputs/checkpoints and GitHub are recovery routes;
-Actions source snapshots expire after 30 days. Keep game bytes/private AOT/native
-binaries/private state captures OUT of public GitHub. Preserve raw private captures
-only in the private source/evidence backup. Never invent publication, CI, persistence,
-rendering or gameplay success. Screenshots must be meaningful genuine game output,
-not synthetic patterns, reference photos, generated images or blank buffers.
 
 ## Hosted CI confirmation
 
