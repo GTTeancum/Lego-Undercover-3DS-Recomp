@@ -55,6 +55,32 @@ inline constexpr std::uint32_t kConfigMemorySize = 0x1000U;
 class GuestMemory final : public a32::MemoryBus {
 public:
     GuestMemory() = default;
+    // One logical address space owns private epoch identity. Copying it must not
+    // accidentally share private bytes while detaching reservation metadata.
+    GuestMemory(const GuestMemory&) = delete;
+    GuestMemory& operator=(const GuestMemory&) = delete;
+    GuestMemory(GuestMemory&&) = default;
+    GuestMemory& operator=(GuestMemory&&) = default;
+
+    enum class PrivateState { Private, Aliased, Alias };
+    struct UserAlias {
+        std::uint32_t source{}, target{}, size{};
+        MemoryPermission permissions{};
+        MemoryPermission source_permissions{MemoryPermission::Read|MemoryPermission::Write};
+    };
+    // Bounded unprivileged ControlMemory(Map). nullopt is an explicit host stop,
+    // never a fabricated guest Result. Mapping shares bytes AND exclusive epochs.
+    // Source-state intervals are recorded without fragmenting its backing region.
+    std::optional<Result> MapUserAlias(std::uint32_t target, std::uint32_t source,
+                                        std::uint32_t size, std::uint32_t permissions) noexcept;
+    // Bounded Protect for a complete recorded alias source or target. The
+    // opposite view's permissions and the shared bytes/reservations are retained.
+    std::optional<Result> ProtectUserAlias(std::uint32_t address, std::uint32_t size,
+                                           std::uint32_t permissions) noexcept;
+    [[nodiscard]] std::optional<PrivateState> private_state(std::uint32_t address) const noexcept;
+    [[nodiscard]] std::span<const UserAlias> user_aliases() const noexcept { return user_aliases_; }
+    static constexpr std::uint32_t kMaxUserAliasBytes = 0x00100000; // Host policy.
+    static constexpr std::size_t kMaxUserAliases = 128; // Host policy, not 3DS capacity.
 
     bool Map(std::uint32_t base, std::uint32_t size,
              MemoryPermission permissions);
@@ -122,14 +148,27 @@ public:
                     std::uint32_t* fault_address) override;
 
 private:
+    struct PrivateBacking {
+        std::uint32_t origin{}; // Stable canonical key for this bank's epochs.
+        std::vector<std::uint8_t> bytes;
+        PrivateBacking(std::uint32_t address, std::uint32_t size) : origin(address), bytes(size, 0) {}
+    };
     struct Region {
         std::uint32_t base{};
         std::uint32_t size{};
         MemoryPermission permissions{MemoryPermission::None};
-        std::vector<std::uint8_t> bytes{};
+        std::shared_ptr<PrivateBacking> backing;
         std::shared_ptr<ServiceSharedMemoryObject> shared;
+        std::uint32_t backing_offset{};
+        bool user_alias{};
         [[nodiscard]] std::span<const std::uint8_t> Data() const noexcept {
-            return shared ? shared->bytes() : std::span<const std::uint8_t>(bytes);
+            return shared ? shared->bytes() : std::span<const std::uint8_t>(backing->bytes).subspan(backing_offset, size);
+        }
+        [[nodiscard]] std::span<std::uint8_t> MutableData() noexcept {
+            return std::span<std::uint8_t>(backing->bytes).subspan(backing_offset, size);
+        }
+        [[nodiscard]] std::uint32_t EpochAddress(std::uint32_t address) const noexcept {
+            return backing->origin + backing_offset + (address - base);
         }
     };
 
@@ -146,6 +185,7 @@ private:
     std::uint64_t EpochFor(std::uint32_t address) const noexcept;
 
     std::vector<Region> regions_{};
+    std::vector<UserAlias> user_aliases_{};
     std::unordered_map<std::uint32_t, std::uint64_t> exclusive_epochs_{};
     std::uint64_t next_epoch_{1};
     bool shared_clock_initialized_{};

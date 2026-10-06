@@ -68,10 +68,30 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
         auto* guest_memory = dynamic_cast<GuestMemory*>(memory);
         if (guest_memory == nullptr) return exit;
         const std::uint32_t operation = state.r[0];
-        // Commit is the only implemented ControlMemory operation. Previously a
-        // valid Map (4) was given a fabricated InvalidCombination result and
-        // the original program entered its fatal-report wait. Stop at the real
-        // request instead, without touching CPU registers, maps or accounting.
+        if (operation == 4U) {
+            const auto result = guest_memory->MapUserAlias(state.r[1], state.r[2], state.r[3], state.r[4]);
+            if (!result) return exit; // Unsupported shape or host allocation failure: untouched.
+            state.r[0] = *result;
+            // Pinned Map never assigns out_addr and its wrapper leaves it
+            // uninitialized. Choose deterministic zero as HOST POLICY instead
+            // of reproducing host UB. The observed caller ignores this output.
+            state.r[1] = 0;
+            return ResumeAfterSvc(exit.pc, state);
+        }
+        if (operation == 6U) {
+            if (state.r[2]&0xFFFU) {
+                state.r[0]=kResultMisalignedAddress;
+                state.r[1]=0;
+                return ResumeAfterSvc(exit.pc,state);
+            }
+            const auto result=guest_memory->ProtectUserAlias(state.r[1],state.r[3],state.r[4]);
+            if (!result) return exit;
+            state.r[0]=*result;
+            state.r[1]=0; // Same explicit unused-output policy as Map.
+            return ResumeAfterSvc(exit.pc,state);
+        }
+        // Free/Unmap, general Protect and flagged Map forms remain unsupported, not a
+        // successful allocation/copy or a guessed guest failure.
         if ((operation & 0xFFU) != 3U) return exit;
         const std::uint32_t addr0 = state.r[1];
         const std::uint32_t addr1 = state.r[2];

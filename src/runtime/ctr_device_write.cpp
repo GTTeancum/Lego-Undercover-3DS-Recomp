@@ -8,10 +8,11 @@ bool GuestMemory::PrepareDeviceWrite(std::uint32_t address, std::uint32_t size) 
     const auto* region=FindRegion(address,size);
     // GPU physical linear-heap writes cannot target service-shared pages. General
     // GPU physical aliasing is not reconstructed by granting arbitrary VA access.
-    if (!region || region->shared || !HasPermission(region->permissions,MemoryPermission::Write))
+    if (!region || region->shared || !IsWritable(address,size))
         return false;
-    const auto last=(address+size-1U)&~7U;
-    for (auto granule=address&~7U;;granule+=8U) {
+    const auto canonical=region->EpochAddress(address);
+    const auto last=(canonical+size-1U)&~7U;
+    for (auto granule=canonical&~7U;;granule+=8U) {
         exclusive_epochs_.try_emplace(granule,0U); // Preserve every existing token.
         if (granule==last) break;
     }
@@ -24,14 +25,15 @@ bool GuestMemory::CommitDeviceWrite(std::uint32_t address,
     if (data.size()>std::numeric_limits<std::uint32_t>::max()) return false;
     const auto size=static_cast<std::uint32_t>(data.size());
     auto* region=FindRegion(address,size);
-    if (!region || region->shared || !HasPermission(region->permissions,MemoryPermission::Write))
+    if (!region || region->shared || !IsWritable(address,size))
         return false;
-    const auto first=address&~7U, last=(address+size-1U)&~7U;
+    const auto canonical=region->EpochAddress(address);
+    const auto first=canonical&~7U, last=(canonical+size-1U)&~7U;
     for (auto granule=first;;granule+=8U) {
         if (!exclusive_epochs_.contains(granule)) return false;
         if (granule==last) break;
     }
-    std::memmove(region->bytes.data()+(address-region->base),data.data(),size);
+    std::memmove(region->MutableData().data()+(address-region->base),data.data(),size);
     for (auto granule=first;;granule+=8U) {
         exclusive_epochs_.find(granule)->second=next_epoch_++;
         if (granule==last) break;

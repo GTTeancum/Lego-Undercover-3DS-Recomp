@@ -35,7 +35,7 @@ bool GuestMemory::Map(std::uint32_t base, std::uint32_t size,
         }
     }
     regions_.push_back({base, size, permissions,
-                        std::vector<std::uint8_t>(size, 0)});
+                        std::make_shared<PrivateBacking>(base, size)});
     std::sort(regions_.begin(), regions_.end(),
               [](const Region& left, const Region& right) {
                   return left.base < right.base;
@@ -96,7 +96,16 @@ const GuestMemory::Region* GuestMemory::FindRegion(
 bool GuestMemory::CanAccess(std::uint32_t address, std::uint32_t size,
                             MemoryPermission permission) const noexcept {
     const Region* region = FindRegion(address, size);
-    return region != nullptr && HasPermission(region->permissions, permission);
+    if (!region || !HasPermission(region->permissions, permission)) return false;
+    if (region->backing && !region->user_alias) {
+        // Source aliases are interval overlays, so a protected subrange does not
+        // fragment the underlying allocation or accidentally protect neighbours.
+        for (const auto& alias:user_aliases_)
+            if (std::uint64_t(address)<std::uint64_t(alias.source)+alias.size &&
+                std::uint64_t(alias.source)<std::uint64_t(address)+size &&
+                !HasPermission(alias.source_permissions, permission)) return false;
+    }
+    return true;
 }
 
 bool GuestMemory::IsMapped(std::uint32_t address,
@@ -122,8 +131,13 @@ bool GuestMemory::SpansAlias(std::uint32_t a,std::uint32_t a_size,
     if (!ar || !br) return false;
     if (ar==br) return std::uint64_t(a)<std::uint64_t(b)+b_size &&
                        std::uint64_t(b)<std::uint64_t(a)+a_size;
-    if (!ar->shared || ar->shared!=br->shared) return false;
-    const auto ao=std::uint64_t(a-ar->base), bo=std::uint64_t(b-br->base);
+    if (ar->shared && ar->shared == br->shared) {
+        const auto ao=std::uint64_t(a-ar->base), bo=std::uint64_t(b-br->base);
+        return ao<bo+b_size && bo<ao+a_size;
+    }
+    if (!ar->backing || ar->backing != br->backing) return false;
+    const auto ao=std::uint64_t(ar->backing_offset)+(a-ar->base);
+    const auto bo=std::uint64_t(br->backing_offset)+(b-br->base);
     return ao<bo+b_size && bo<ao+a_size;
 }
 
@@ -138,7 +152,7 @@ bool GuestMemory::LoadBytes(std::uint32_t address,
     }
     const std::size_t offset = address - region->base;
     if (region->shared) return region->shared->Write(static_cast<std::uint32_t>(offset),data);
-    std::copy(data.begin(), data.end(), region->bytes.begin() + offset);
+    std::copy(data.begin(), data.end(), region->MutableData().begin() + offset);
     return true;
 }
 
@@ -155,8 +169,8 @@ bool GuestMemory::ZeroBytes(std::uint32_t address, std::uint32_t size) {
         const std::array<std::uint8_t,ServiceSharedMemoryObject::kSize> zero{};
         return region->shared->Write(static_cast<std::uint32_t>(offset),std::span(zero).first(size));
     }
-    std::fill(region->bytes.begin() + offset,
-              region->bytes.begin() + offset + size, 0);
+    std::fill(region->MutableData().begin() + offset,
+              region->MutableData().begin() + offset + size, 0);
     return true;
 }
 
@@ -257,7 +271,7 @@ bool GuestMemory::EnsureTlsMappings(const Kernel& kernel) {
 bool GuestMemory::Read8(std::uint32_t address, std::uint8_t* value) {
     const Region* region = FindRegion(address, 1);
     if (value == nullptr || region == nullptr ||
-        !HasPermission(region->permissions, MemoryPermission::Read)) {
+        !CanAccess(address, 1, MemoryPermission::Read)) {
         return false;
     }
     *value = region->Data()[address - region->base];
@@ -337,7 +351,7 @@ bool GuestMemory::WriteSized(std::uint32_t address, std::uint8_t size,
         return region->shared->Write(static_cast<std::uint32_t>(offset),std::span(data).first(size));
     }
     for (std::uint8_t index = 0; index < size; ++index) {
-        region->bytes[offset + index] =
+        region->MutableData()[offset + index] =
             static_cast<std::uint8_t>(value >> (index * 8U));
     }
     TouchExclusiveEpochs(address, size);
@@ -369,6 +383,7 @@ bool GuestMemory::Write64(std::uint32_t address, std::uint64_t value,
 std::uint64_t GuestMemory::EpochFor(std::uint32_t address) const noexcept {
     const auto* region=FindRegion(address,1);
     if (region && region->shared) return region->shared->Epoch(address-region->base);
+    if (region && region->backing) address = region->EpochAddress(address);
     const std::uint32_t granule = address & ~7U;
     const auto it = exclusive_epochs_.find(granule);
     return it == exclusive_epochs_.end() ? 0U : it->second;
@@ -379,6 +394,8 @@ void GuestMemory::TouchExclusiveEpochs(std::uint32_t address,
     if (size == 0U) {
         return;
     }
+    const auto* region = FindRegion(address, size);
+    if (region && region->backing) address = region->EpochAddress(address);
     const std::uint32_t first = address & ~7U;
     const std::uint32_t last =
         (address + size - 1U) & ~7U;

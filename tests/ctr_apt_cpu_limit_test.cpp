@@ -167,7 +167,7 @@ void UnimplementedMemoryOperationsStop() {
     CHECK(f.memory.Map(source,size,MemoryPermission::Read|MemoryPermission::Write));
     CHECK(f.memory.Write32(source,0x12345678));
     const auto commit=f.resource->Current(ResourceLimitType::Commit);
-    for(const auto op:{4U,5U,6U,1U,0xFFFFFFFFU}) {
+    for(const auto op:{0x104U,5U,6U,1U,0xFFFFFFFFU}) {
         auto cpu=f.cpu;cpu.r[0]=op;cpu.r[1]=destination;cpu.r[2]=source;cpu.r[3]=size;cpu.r[4]=3;cpu.r[15]=0x25C9F4;
         const auto before=cpu;
         const auto stop=f.bridge.Handle({a32::ExitKind::Svc,cpu.r[15],a32::FallbackReason::None,kSvcControlMemory},cpu,&f.memory);

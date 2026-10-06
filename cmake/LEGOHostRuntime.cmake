@@ -9,6 +9,7 @@ function(lego_add_ctr_runtime target_name)
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_service_event.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_svc_bridge.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_memory.cpp"
+        "${LEGO_RECOMP_ROOT}/src/runtime/ctr_memory_alias.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_device_write.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_shared_page.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_runner.cpp"
