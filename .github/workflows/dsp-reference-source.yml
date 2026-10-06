@@ -1,0 +1,30 @@
+name: Pinned DSP reference source
+on:
+  push:
+    branches: [work/dsp-reference-source]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: wwylele/teakra
+          ref: 3d697a18df504f4677b65129d9ab14c7c597e3eb
+          persist-credentials: false
+      - name: Archive exact public source without executing it
+        run: |
+          test "$(git rev-parse HEAD)" = 3d697a18df504f4677b65129d9ab14c7c597e3eb
+          mkdir delivery
+          git archive --format=tar.gz HEAD > delivery/teakra-source.tgz
+          git rev-parse HEAD HEAD^{tree} > delivery/identity.txt
+          git ls-tree -r HEAD > delivery/source-index.txt
+          sha256sum delivery/teakra-source.tgz > delivery/source.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pinned-teakra-source
+          path: delivery/
+          retention-days: 30
+          if-no-files-found: error
