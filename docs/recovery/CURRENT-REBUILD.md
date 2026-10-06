@@ -1,175 +1,191 @@
 # LEGO Chase Begins — canonical continuation handoff
 
-Continue development in assistant scratch or ROM-free GitHub Actions, NOT on the
-user's PC or Work. Project: LEGO City Undercover: The Chase Begins, Nintendo 3DS USA.
-POST AN UPDATED DOWNLOADABLE HANDOFF AND SOURCE/EVIDENCE CHECKPOINT EVERY WORK TURN.
-No useful game visuals exist in the last verified run. Do not substitute test
-patterns, generated art, reference screenshots, or blank buffers for genuine output.
+Continue in assistant scratch, NOT the user's PC or Work. Nintendo 3DS USA:
+LEGO City Undercover: The Chase Begins. This is headless native reconstruction,
+not playable. POST AN UPDATED DOWNLOADABLE HANDOFF AND SOURCE/EVIDENCE EVERY TURN.
+Only post genuine meaningful game visuals, never generated art, test patterns or blank buffers.
 
-## Current change: LCD blanking — hosted tests passed; game run pending
+## Current checkpoint and restored baseline
 
-Implementation commit: 82cf8dfe9abeeb4f628bab94d1c0abc282079c66.
-Implementation/source tree: 15faf07b962cd5c682adcf93fd11f63852a06221.
-Baseline main: da5c9a9e8aa74567deae519380caa86e06e35247, source tree
-ea8fb58dae3570e62dbb512d63524d0faa9cebc3. Preserve its private source/evidence archive.
-The final hosted package receipt identifies the subsequent documentation commit.
+Implementation: `1cf1c1d1ec6af90854c4dac44d997a511d9ed70d`.
+Exact tested/uploaded implementation tree: `871749f15b6f11e42326da896feb31703405ed1b`.
+Base main: `dfa588edbf998155981aa838533b73f12cd82f15`, tree
+`64d781d22bb05d7e584f7cfd8e73445a30e4d3c0`. The final downloadable receipt records
+this checkpoint's subsequent report commit and backup name. Local Git is a snapshot,
+NOT remote history. Re-read remote main and publish with its parent and force=false.
 
-GitHub Actions run 37404725362 built and passed all 37 ROM-free CTest suites in
-GCC Release, Clang Release and Clang Debug with ASan/UBSan. The source was tested
-on work/lcd-blanking before promotion. No prior test was removed or changed.
-The implementation has NOT been validated in an original-game run. Do not claim
-startup has advanced or name a new game blocker without running it.
+The previous LCD change had only hosted ROM-free verification. Local execution now
+works. Its ZIP and inner archive checksum, all 355 manifest entries and all 333
+source blobs were verified; the reconstructed index matched the base tree exactly.
+Private code/AOT and the two prepared RomFS parts were present and reverified.
+No user upload, original CCI extraction, Work or user-PC access was needed.
 
-Local container execution and Python initialization failed before any local command
-could run. GitHub connector reads/writes still worked. No original code.bin, private
-AOT pages, ROM, RomFS or private game captures were uploaded to public GitHub/Actions.
-The final package workflow independently rebuilds all three variants, verifies
-JUnit results and exact committed source blobs, and validates the generated archive.
-Those are HOSTED checks, not a local archive round-trip or a 599-page game build.
+The FULL baseline now confirms LCD succeeds. It then took the original Break at
+0x0011FB80, round 234, because srv: returned ServiceNotRegistered for y2r:u. A
+separate discovery-only run exposed the original DriverInitialize request 0x002B0000.
+No Break or failed lookup was bypassed. Those baseline/intermediate logs are retained.
 
-## LCD implementation scope
+## Actual progress and next untouched request
 
-Only a connected client can issue the exact one-normal-word, zero-descriptor IPC,
-header 0x000B0040. Pinned IPC Pop<bool> consumes the low byte: (word & 0xFF) != 0.
-Upper 24 bits do not enable blanking. SetLcdForceBlack constructs zero RGB plus
-enable bit 24, storing the complete value in BOTH global LCD color-fill controls.
-The words are separate from PICA registers, VRAM and framebuffer descriptors.
+The original LCD zero request gets `000B0040 00000000`; both LCD words remain zero.
+Y2R DriverInitialize now gets `002B0040 00000000`, with genuine configuration reset
+and the same retained one-shot completion event cleared, not signaled. Initial
+input-line width becomes 1024; input-lines remains zero according to the pin.
+No YUV conversion, DMA, converted pixels, completion signal or extra time occurs.
 
-Read-only lcd_color_fill_word(screen) exposes top=0/bottom=1; invalid screen indexes
-return nullopt. The initial zero words follow pinned PicaCore::RegsLcd regs_lcd{},
-not a measured hardware reset image. No CPU LCD MMIO map, backlight, LCD scanout,
-frame presentation, draw engine or arbitrary color-fill interface is added.
-
-Successful reply: header 0x000B0040, Result 0, remaining command buffer words zero.
-GPU ownership or relay registration is not required by the inspected handler.
-The controls are shared between sessions. An independent service has independent
-state. The handler changes no event, queue, framebuffer pixels, PICA upload, handle
-count or time. Existing complete response-capacity/readability preflight runs before
-handler dispatch. Unsupported request shapes remain untouched diagnostic stops.
-
-ctr_lcd_blank_test covers all 256 low-byte values with and without nonzero upper
-bytes, the exact original zero request, enable/disable/repeat, shared and independent
-services, nonowner/unregistered clients, duplicated handles, retained event lifetime,
-a full handle table, protected/partial/write-only response areas and malformed headers.
-It compares every GPU word, complete GSP shared bytes/epochs, upload storage, and a
-nonzero 6 MiB SYNTHETIC VRAM bank. The test bank is not game artwork or game-run input.
-
-## Last verified original-game state (inherited, NOT this change's test result)
-
-The da5c9a9 original-game trace stopped with:
+Fresh original startup now stops at:
 
 ```text
-display_periods=1 guest_now_ns=16713681
-stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=232
-last_ipc_session=gsp::Gpu request_header=0x000b0040
-ipc_words= 000b0040 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=235
+last_ipc_session=cfg:u requested_service= request_header=0x00010082
+ipc_words= 00010082 00000020 00050005 0000020c 00594218 00000000 00000000 00000000
 ```
 
-Argument zero requests disabling force-black, not rendering a new image. The entire
-6 MiB device VRAM bank was zero under explicit reference-HLE cold-bank policy.
-No meaningful screenshot, rendered frame, main menu, executed shader or gameplay
-was established. Existing-gamecoin reached the same call at round 224. It is not
-save-readback proof. The baseline's private display-checkpoint/ captures are in the
-private da5c9a9 archive; retain them rather than replacing them with hosted test logs.
+Pinned CFG names command 1 GetConfig and block 0x00050005 StereoCameraSettings.
+This requests 32 bytes at guest 0x00594218. The complete IPC and destination remain
+untouched. No camera settings or calibration were guessed or supplied. This is
+NOT a successfully read configuration block. Existing-gamecoin reaches the same
+request at round 227; it skips file initialization and is not a save-readback test.
 
-Earlier verified behavior remains in the baseline: real RomFS metadata reads,
-game-created gamecoin.dat, non-drawing PICA uploads, actual byte fill/transfer paths,
-recorded A32 callback-return suffixes, P3D/PPF/PSC events and one modeled PDC period.
-The original callbacks (not the host) changed the display counters from zero to one.
-GPU timing is synchronous; opt-in display timing advances only idle guest time.
-These features were not newly implemented or privately reverified in this change.
+Logging-only GCC and Clang captures match byte-for-byte for LCD, Y2R and CFG calls.
+At each call, all 1842 GPU words, serialized upload state, 4096-byte shared page,
+all shared epochs and full 6 MiB VRAM are unchanged. Both LCD words remain zero;
+GSP event stays unsignaled. Time stays 16713681 ns and there are three threads.
+Handle count is 17 at LCD, 18 at Y2R/CFG after the actual service connection.
+The two display callbacks and all older GPU paths remain inherited, not new work.
+
+VRAM is still entirely zero under the explicit reference-HLE cold-bank policy.
+No useful screenshot, rendered frame, main menu, shader execution or gameplay.
+
+## Implemented scope and safeguards
+
+Y2rUserService permits one connected session, following the pinned service limit.
+A duplicate handle retains the same session; a failed handle allocation releases
+the temporary lease. State and the one-shot EventObject survive disconnect/reconnect.
+An independent endpoint has independent state. The registration endpoint itself
+cannot execute IPC. Only the exact zero-parameter 0x002B0000 request is supported.
+
+DriverInitialize resets input/output formats, rotation, alignment, coefficients,
+width, alpha, planar Y/U/V and destination buffers. Pinned SetInputLines(1024)
+does not assign the lines field; input_lines, src_yuyv and padding are deliberately
+retained. Nondefault pure-state tests verify that distinction. Initial values follow
+the reference's value initialization, not recovered hardware registers.
+
+Initialization clears the existing event without allocating a guest handle, waking
+threads, signaling completion or changing guest memory outside the IPC response.
+The inherited full response readability/writability preflight runs before mutation.
+Malformed requests and every other Y2R operation remain explicit stops, including
+StartConversion, IsBusyConversion, GetTransferEndEvent and DriverFinalize. No
+conversion scheduler, dithering behavior or buffer I/O is implemented.
+
+Six runtime/test/build paths changed: CMakeLists.txt, cmake/LEGOHostRuntime.cmake,
+src/runtime/ctr_runner.cpp, new services/y2r_user_service.h/.cpp and the new
+ctr_y2r_initialize_test.cpp. The runner change only registers this service.
+Production IPC, GPU/LCD code, scheduler, memory, vendor, AOT and file backends are unchanged.
+
+The seventh implementation path, tools/package_romfree_checkpoint.py, now checks
+exact configured CTest names instead of a stale hardcoded 37-suite count. It fails
+closed if this repository's literal foreach list is malformed or duplicated.
+Hosted package receipts refer to separate private evidence rather than an obsolete
+fixed predecessor. This is packaging support, not runtime progress.
+
+## Validation and evidence
+
+Full GCC and Clang native executables link all 599 unchanged private AOT pages.
+All 38 CTest suites pass with GCC and Clang; all 38 ROM-free Clang ASan/UBSan suites
+pass with leak checks and halt-on-error. Seventeen production scenarios have
+byte-identical compiler logs, exit codes and resulting test-file bytes. Strict modes
+remain distinct: no display clock waits at round 228; no explicit VRAM stops at the
+earlier transfer round 170; absent RomFS and unconfigured PTM preserve earlier stops.
+
+New tests cover exact reset fields, preserved fields, one-session limits, duplicate
+lifetime, reconnect, independent endpoints, real-event clearing, full handle tables,
+failed-connection rollback, protected/partial/write-only replies, malformed IPC and
+untouched unsupported conversions. No previous test was removed or changed.
+
+Original code, whole RomFS and all 603 regular AOT backup members match their inputs.
+Full IVFC checking was not repeated; the raw SHA matches the previously verified image.
+111043 registry blocks / 545111 words are STATIC inventory, not execution or frames.
+No Windows/macOS build. Clang build and initial monolithic matrix each hit a container
+call timeout; bounded continuation/new-root matrix completed. Streaming sessions are
+unavailable. Setup notes retain these limitations; no native test failure was hidden.
+
+Current private evidence: lcd-native-checkpoint/. Important files: baseline-game.txt,
+discovery-game.txt, initialize-game.txt, ctest-gcc/clang/asan.txt, trace-proof.json,
+identity-proof.json, validation-summary.json, references.json and setup-notes.txt.
+make_trace.py builds alternate logging-only IPC objects; production IPC is unchanged.
+trace_support.inc and verify_trace.py serialize and check all compared state; the
+52 files per compiler under captures-gcc/clang are PRIVATE, not public GitHub.
+validate_matrix.py runs bounded ranges 0 6, 6 11, 11 17 on one owned new test root;
+start 0 always creates a new root. Earlier partial roots are not reused or deleted.
 
 ## Next exact work
 
-Restore the new hosted source checkpoint and the separate private inputs below.
-Keep current source distinct from older evidence. Build the full 599-page executable
-with GCC and Clang, run all tests, and rerun unchanged game code from a NEW empty
-shared archive with every explicit policy enabled. Observe the real SetLcdForceBlack
-response, both LCD words, unchanged VRAM and the next actual stop. Do not infer it.
-Post a screenshot only once meaningful genuine native output exists.
+Inspect pinned CFG GetConfig, block permissions/size, StereoCameraSettings structure
+and the original caller. Establish a justified source or explicit reference policy
+for block 0x00050005 before returning data. Do not fill the 32-byte destination with
+guessed zeros or silently impersonate recovered console calibration. Then rerun
+unchanged code from NEW test state with the explicit modes below. The next real
+request, not assumptions about cameras or video playback, determines further work.
 
-Implementation paths changed: CMakeLists.txt, src/services/gsp_gpu_service.h,
-and new tests/ctr_lcd_blank_test.cpp. ROM-free packaging/CI support is in
-.github/workflows/rom-free-checkpoint.yml and tools/package_romfree_checkpoint.py.
-No vendor backend, scheduling, filesystem, game bytes or private AOT was modified.
-The old ctr-runtime-ci.yml and source-snapshot.yml are unchanged. The new workflow
-retains hosted configure/build/test logs and JUnit evidence; no private data is used.
-An inherited legacy-barrier test narrowing warning remains visible, not suppressed.
-Local execution failures and blocked raw-download attempts are recovery limitations,
-not hidden native test failures. No native compilation/test failure occurred in the
-observed successful branch run. The package receipt records final run verification.
+Reference: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
+This turn inspected service/cam/y2r_u.cpp/.h (DriverInitialize, SetInputLines,
+construction/state), service/cfg/cfg.h (block names), cfg_u.cpp (GetConfig command).
+These paths have prefix src/core/hle/. Exact blob hashes: references.json.
+Y2R files are under cam/, not service/y2r/. Configuration data semantics are next work.
 
-## Pinned primary references
+## Scratch and reproduction
 
-azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac:
-
-- src/core/hle/service/gsp/gsp_gpu.cpp: SetLcdForceBlack zero-color object and bool;
-  blob 6f915e4d6a5d27853321d0a233103afb9d877bc0.
-- src/core/hle/ipc_helpers.h: Pop<bool> uses Pop<u8>() != 0;
-  blob 9381ae22c8c1f1a557e16363d5eb7727f9ea1a50.
-- src/video_core/gpu.cpp: SetColorFill stores top and bottom LCD color-fill words;
-  blob 40f29fea0867b0e8cf4d89a8753ddabf02c3b54b.
-- src/video_core/pica/regs_lcd.h: RGB bits 0..23, enable bit 24, separate LCD words;
-  blob 0f8a622af300c3576284d704bef8e3bfba72d652.
-
-Pinned semantics are not blanket hardware parity. Pop<bool> reads a byte even
-though the IPC occupies a word. Do not replace it with a full-word nonzero test.
-
-## Recovery paths and commands
-
-GitHub: GTTeancum/Lego-Undercover-3DS-Recomp. Library: /LEGO-Chase-Recovery/.
-The new hosted package contains repo/ plus hosted-test-evidence/, SOURCE-INDEX.json,
-CHECKPOINT-MANIFEST.json, verify_checkpoint.py and this handoff. The package receipt
-records its exact commit, source tree, run and filenames. It intentionally excludes
-all private original-game captures and binary assets. Retrieve the private predecessor
-LEGO-Chase-source-checkpoint-da5c9a9.tgz for display-checkpoint/ and nested earlier
-source/evidence. Extract historical material separately, never over new repo/.
-
-Target scratch root: /mnt/data/lego_recovery/ (not confirmed accessible in this turn).
-Current source should be repo/, private AOT generated2/, original code restored/code.bin,
-raw RomFS game/prepared-romfs/romfs.bin. Builds build-gcc/, build-clang/, build-asan/.
-Private inputs have existing Library backups: code.bin;
-LEGO-Chase-current-AOT-599pages-2026-10-03.tgz; Prepared-RomFS/ two uncompressed parts
-and romfs-parts.json. Part sizes: 402653184 and 366526464. No CCI re-extraction needed.
+Root /mnt/data/lego_recovery/. Current source repo/; private AOT generated2/;
+code restored/code.bin; raw RomFS game/prepared-romfs/romfs.bin; raw parts and manifest
+romfs-library-roundtrip/. Builds build-gcc/, build-clang/, build-asan/.
+New private-state/y2r-* and lcd-baseline.* directories contain guest-created TEST
+state, not recovered NAND. Do not overwrite unknown saves. Trace drivers refuse
+existing capture directories. Older source/evidence remains separate in historical/.
 
 ```sh
 cd /mnt/data/lego_recovery
-# Verify the new archive before extraction; retain its exact source index.
-python verify_checkpoint.py LEGO-Chase-source-checkpoint-<commit>-HOSTED.tgz
-# Restore private AOT under this root to generated2/; code goes in restored/.
-mkdir -p game/prepared-romfs
-python repo/tools/restore_romfs_parts.py romfs-library-roundtrip/romfs-parts.json game/prepared-romfs/romfs.bin
-python repo/tools/verify_romfs.py game/prepared-romfs/romfs.bin
 cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DLEGO_AOT_DIR=/mnt/data/lego_recovery/generated2
 cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure
 mkdir -p private-state
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/lcd-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/cfg-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
 ./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle
 ```
 
-After this change the actual game stop is UNKNOWN until the run is performed.
-Omitting display-clock-mode reproduces the inherited wait at round 228/time zero.
-Omitting explicit VRAM keeps the earlier strict transfer stop. No RomFS retains
-OpenFileDirectly; no explicit empty PTM retains step-count. Preserve those branches.
-Restore tools refuse existing output; verify rather than overwrite unknown assets.
+Expected exit 3, CFG GetConfig pending, round 235. Use clang++ for Clang. Omit
+LEGO_AOT_DIR for ROM-free sanitizer builds. Never silently enable or drop the modes.
 
-Verified PRIVATE INPUT IDENTITIES FROM THE BASELINE (not rehashed in this turn):
-RomFS: 769179648 bytes, view offset 4096, view bytes 769175552; keep integrity tables.
-SHA 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
+## Durable recovery and mandate
+
+GitHub GTTeancum/Lego-Undercover-3DS-Recomp main; Library /LEGO-Chase-Recovery/.
+Restore the latest private source/evidence checkpoint, not the older hosted-only ZIP.
+Verify CHECKPOINT-MANIFEST.json before extraction. SOURCE-INDEX.json records exact
+Git paths, modes and blob identities including ignored tracked reports. Reconstruct
+the index faithfully, but never replace remote history with a local snapshot.
+
+Private inputs remain separately backed up: code.bin; unchanged
+LEGO-Chase-current-AOT-599pages-2026-10-03.tgz; Prepared-RomFS/ two uncompressed parts
+and romfs-parts.json. AOT unpacks as generated2/. Part sizes: 402653184 and 366526464.
+Restore with repo/tools/restore_romfs_parts.py using the manifest beside the parts;
+restore refuses existing output. No CCI re-extraction or user upload is necessary.
+Raw RomFS size 769179648, native view offset 4096, view bytes 769175552. Retain tables.
+RomFS SHA 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
 Code SHA 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
 AOT SHA 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
 Historical CCI SHA 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
-Six original archive parts in Game-archive/ remain an alternate recovery route.
 
-## Continuing mandate
+Preserve both previous archives: LEGO-Chase-LCD-checkpoint-dfa588e.zip for hosted
+source/evidence and LEGO-Chase-source-checkpoint-da5c9a9.tgz for private display
+captures and nested prior history. The new checkpoint retains both unchanged.
+Scratch may reset; Library and GitHub are recovery paths, not permanent scratch.
+Actions artifacts expire after 30 days. Keep private code/AOT/RomFS/captures/binaries
+OUT of public GitHub. Publish tested source/reports and save private checkpoints
+when tools permit. Never invent push, CI, persistence, screenshots or gameplay.
+POST THE UPDATED HANDOFF AND RECOVERABLE SOURCE/EVIDENCE FILE EVERY WORK TURN.
 
-Do not describe hosted ROM-free tests as a full 599-page executable build. Do not
-claim original inputs were rehashed, game startup advanced, local archive recovery
-succeeded, or a Library upload happened unless those actions actually complete.
-Keep all private original game bytes, AOT and captures out of public GitHub/Actions.
-Publish only verified checkpoints; use a freshly checked remote parent and force=false.
-Never replace remote history with a reconstructed local Git snapshot. Actions
-artifacts expire after 30 days; preserve the new package in Library when possible.
-Keep posting this handoff and a recoverable source/evidence attachment every turn.
+## Hosted confirmation
+
+Actions run 37407926702 on implementation 1cf1c1d passed both GCC and Clang jobs.
+These are ROM-free hosted suites, separate from the full local original-game runs.

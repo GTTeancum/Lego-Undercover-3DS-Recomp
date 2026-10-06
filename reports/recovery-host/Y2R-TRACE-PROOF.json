@@ -1,0 +1,40 @@
+{
+  "compiler_captures_identical": true,
+  "capture_files": 52,
+  "requests": [
+    {
+      "session": "gsp::Gpu",
+      "request": "000b0040",
+      "reply": "000b0040",
+      "handles": 17,
+      "guest_now_ns": 16713681,
+      "vram_nonzero_bytes": 0,
+      "gpu_upload_page_epoch_vram_unchanged": true,
+      "configuration_output_unchanged": true
+    },
+    {
+      "session": "y2r:u",
+      "request": "002b0000",
+      "reply": "002b0040",
+      "handles": 18,
+      "guest_now_ns": 16713681,
+      "vram_nonzero_bytes": 0,
+      "gpu_upload_page_epoch_vram_unchanged": true,
+      "configuration_output_unchanged": true
+    },
+    {
+      "session": "cfg:u",
+      "request": "00010082",
+      "reply": "untouched",
+      "handles": 18,
+      "guest_now_ns": 16713681,
+      "vram_nonzero_bytes": 0,
+      "gpu_upload_page_epoch_vram_unchanged": true,
+      "configuration_output_unchanged": true
+    }
+  ],
+  "next_stop": "cfg:u GetConfig, block 0x00050005, size 32, output 0x00594218",
+  "meaningful_visuals": false,
+  "y2r_conversion_executed": false,
+  "original_code_unchanged": true
+}
