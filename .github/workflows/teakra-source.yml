@@ -1,0 +1,33 @@
+name: Pinned Teakra source recovery
+on:
+  push:
+    branches: [work/dsp-teakra-source]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: wwylele/teakra
+          ref: 3d697a18df504f4677b65129d9ab14c7c597e3eb
+          persist-credentials: false
+      - name: Verify pin and archive public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3d697a18df504f4677b65129d9ab14c7c597e3eb
+          mkdir delivery
+          git archive --format=tar.gz --output=delivery/teakra-3d697a1.tgz HEAD
+          git rev-parse HEAD > delivery/commit.txt
+          git rev-parse 'HEAD^{tree}' > delivery/tree.txt
+          git ls-tree -r HEAD > delivery/source-index.txt
+          sha256sum delivery/teakra-3d697a1.tgz > delivery/sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: teakra-pinned-source
+          path: delivery/
+          if-no-files-found: error
+          retention-days: 30
