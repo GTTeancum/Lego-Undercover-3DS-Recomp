@@ -1,0 +1,91 @@
+name: Guarded DSP candidate verification
+on:
+  push:
+    branches: [work/dsp-execution-import]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.prepare.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: bootstrap
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          ref: 3aca88f93a0305d37463525bca2bbd25893c188b
+          path: source
+      - uses: actions/checkout@v6
+        with:
+          repository: wwylele/teakra
+          ref: 3d697a18df504f4677b65129d9ab14c7c597e3eb
+          path: upstream
+          persist-credentials: false
+      - name: Reconstruct exact tested public tree and create candidate only
+        id: prepare
+        run: python3 bootstrap/.pipeline/dsp-publication/import_source.py bootstrap/.pipeline/dsp-publication source upstream
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsp-candidate-receipt
+          path: candidate-receipt.json
+          if-no-files-found: error
+          retention-days: 30
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gcc
+            compiler: g++
+            sanitize: false
+          - name: clang
+            compiler: clang++
+            sanitize: false
+          - name: sanitizers
+            compiler: clang++
+            sanitize: true
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - name: Configure ROM-free tests
+        env:
+          CXX_NAME: ${{ matrix.compiler }}
+          SANITIZE: ${{ matrix.sanitize }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          git rev-parse HEAD > evidence/commit.txt
+          git rev-parse 'HEAD^{tree}' > evidence/tree.txt
+          extra=()
+          mode=Release
+          if [[ "$SANITIZE" == "true" ]]; then
+            mode=Debug
+            extra=(-DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined)
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE="$mode" -DCMAKE_CXX_COMPILER="$CXX_NAME" "${extra[@]}" 2>&1 | tee evidence/configure.log
+      - name: Build
+        run: set -o pipefail; cmake --build build --parallel 2 2>&1 | tee evidence/build.log
+      - name: Test
+        run: set -o pipefail; ctest --test-dir build --output-on-failure --timeout 90 --output-junit "$GITHUB_WORKSPACE/evidence/tests.xml" 2>&1 | tee evidence/test.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dsp-candidate-${{ matrix.name }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
