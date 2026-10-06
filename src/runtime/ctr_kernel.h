@@ -237,6 +237,10 @@ public:
     void Reserve(ResourceLimitType type, std::int32_t amount) noexcept;
 
 private:
+    friend class Kernel; // Only the owning kernel updates application CPU state.
+    void SetCpuTime(std::int32_t value) noexcept {
+        current_[static_cast<std::size_t>(ResourceLimitType::CpuTime)] = value;
+    }
     std::array<std::int32_t,
                static_cast<std::size_t>(ResourceLimitType::Max)> limits_{};
     std::array<std::int32_t,
@@ -334,6 +338,24 @@ public:
                                   std::uint32_t names_address,
                                   std::uint32_t name_count) noexcept;
 
+    // Bounded PM:APP UpdateResourceLimit(CpuTime) path into the SAME object
+    // exposed by GetResourceLimit[Values]. Only core-0 application threads are
+    // currently executable once an accepted update activates this contract.
+    // nullopt = host stop; never pretend that core-1 preemption is enforced.
+    std::optional<Result> UpdateAppCpuTimeLimit(std::uint32_t value) noexcept;
+    [[nodiscard]] std::uint32_t app_cpu_time_current() const noexcept {
+        return static_cast<std::uint32_t>(application_resource_limit_->Current(ResourceLimitType::CpuTime));
+    }
+    [[nodiscard]] std::int32_t app_cpu_time_maximum() const noexcept {
+        return application_resource_limit_->Limit(ResourceLimitType::CpuTime);
+    }
+    [[nodiscard]] bool app_cpu_core0_only() const noexcept { return app_cpu_core0_only_; }
+    [[nodiscard]] bool AppCpuExecutionSupported() const noexcept;
+    [[nodiscard]] bool AppCpuThreadCreationSupported(std::int32_t processor) const noexcept {
+        // Leave invalid IDs to the existing guest argument validation.
+        return !app_cpu_core0_only_ || processor < 1 || processor > 3;
+    }
+
     Result DuplicateHandle(Handle* out_handle, Handle handle) noexcept;
     Result CloseHandle(Handle handle) noexcept;
 
@@ -383,6 +405,7 @@ private:
 
     std::shared_ptr<ProcessObject> current_process_;
     std::shared_ptr<ResourceLimitObject> application_resource_limit_;
+    bool app_cpu_core0_only_{};
     std::shared_ptr<ThreadObject> current_thread_;
     HandleTable handles_;
 

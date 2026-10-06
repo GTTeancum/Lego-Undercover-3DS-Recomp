@@ -31,6 +31,7 @@ enum class RunnerStopReason : std::uint8_t {
     HostEventLimit,
     OtherExit,
     UnsupportedDisplayEvent,
+    UnsupportedCpuExecution,
 };
 
 struct RunnerResult {

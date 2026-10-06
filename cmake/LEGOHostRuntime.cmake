@@ -5,6 +5,7 @@ get_filename_component(LEGO_RECOMP_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 function(lego_add_ctr_runtime target_name)
     add_library(${target_name} STATIC
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_kernel.cpp"
+        "${LEGO_RECOMP_ROOT}/src/runtime/ctr_cpu_time.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_service_event.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_svc_bridge.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_memory.cpp"

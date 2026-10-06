@@ -30,6 +30,7 @@ const char* StopName(ctr::RunnerStopReason reason) {
     case R::HostEventLimit: return "HostEventLimit";
     case R::OtherExit: return "OtherExit";
     case R::UnsupportedDisplayEvent: return "UnsupportedDisplayEvent";
+    case R::UnsupportedCpuExecution: return "UnsupportedCpuExecution";
     }
     return "Unknown";
 }
@@ -174,6 +175,10 @@ int main(int argc,char** argv) {
             if (runner.display_error())std::cout<<"display_error="<<runner.display_error()<<'\n';
         }
         const auto& state=runner.live_state();
+        std::cout << "app_cpu_time_current=" << kernel.app_cpu_time_current()
+                  << " maximum=" << kernel.app_cpu_time_maximum()
+                  << " core0_only=" << kernel.app_cpu_core0_only()
+                  << " core1_enforcement=unimplemented\n";
         std::uint32_t clock_counter=0, clock_fault=0;
         std::uint64_t clock_date=0, clock_tick=0;
         if (memory.Read32(ctr::kSharedPageBase,&clock_counter)) {

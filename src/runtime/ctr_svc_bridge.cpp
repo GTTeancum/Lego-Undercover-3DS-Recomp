@@ -68,6 +68,11 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
         auto* guest_memory = dynamic_cast<GuestMemory*>(memory);
         if (guest_memory == nullptr) return exit;
         const std::uint32_t operation = state.r[0];
+        // Commit is the only implemented ControlMemory operation. Previously a
+        // valid Map (4) was given a fabricated InvalidCombination result and
+        // the original program entered its fatal-report wait. Stop at the real
+        // request instead, without touching CPU registers, maps or accounting.
+        if ((operation & 0xFFU) != 3U) return exit;
         const std::uint32_t addr0 = state.r[1];
         const std::uint32_t addr1 = state.r[2];
         const std::uint32_t size = state.r[3];
@@ -107,6 +112,8 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
     }
 
     case kSvcCreateThread: {
+        if (!kernel_.AppCpuThreadCreationSupported(static_cast<std::int32_t>(state.r[4])))
+            return exit; // Untouched host stop BEFORE allocation or CPU state mutation.
         ::lego::ctr::Handle handle = 0;
         const Result result = kernel_.CreateThread(
             &handle, state.r[1], state.r[2], state.r[3], state.r[0],

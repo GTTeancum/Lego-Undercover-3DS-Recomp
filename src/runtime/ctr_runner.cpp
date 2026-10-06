@@ -139,6 +139,10 @@ RunnerResult NativeRunner::Stop(RunnerStopReason reason,
 RunnerResult NativeRunner::Run(std::uint32_t block_limit_per_dispatch,
                                std::uint32_t host_event_limit) noexcept {
     idle_events_=0; idle_limit_=host_event_limit; display_error_=nullptr;
+    if (!kernel_.AppCpuExecutionSupported()) {
+        return Stop(RunnerStopReason::UnsupportedCpuExecution,
+                    {a32::ExitKind::Unsupported,live_state_.r[15],a32::FallbackReason::None,1},0);
+    }
     if (!memory_.EnsureTlsMappings(kernel_)) {
         return Stop(
             RunnerStopReason::MemoryFault,
@@ -157,6 +161,12 @@ RunnerResult NativeRunner::Run(std::uint32_t block_limit_per_dispatch,
     }
 
     for (std::uint32_t round = 1U; round <= host_event_limit; ++round) {
+        // Fail closed even for externally created/retargeted threads. A changed
+        // resource value must never make unmetered core-1 execution look supported.
+        if (!kernel_.AppCpuExecutionSupported()) {
+            return Stop(RunnerStopReason::UnsupportedCpuExecution,
+                        {a32::ExitKind::Unsupported,live_state_.r[15],a32::FallbackReason::None,1},round);
+        }
         // Guest execution is single-host-threaded. Publish a complete snapshot
         // before entering it; never advance guest time merely to unblock code.
         if (!memory_.EnsureSharedClockPage(kernel_.now_ns(), rtc_epoch_ms_)) {

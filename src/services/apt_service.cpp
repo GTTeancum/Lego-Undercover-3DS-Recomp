@@ -5,6 +5,9 @@ bool AptService::CanHandle(const IpcCommandBuffer& command) const noexcept {
     // Application startup shapes plus the paired parameter-consumption API.
     // Unknown/malformed requests stop before side effects. ReceiveParameter is
     // component-tested; this checkpoint does not claim the game called it.
+    if (command[0] == IpcMakeHeader(0x4F, 2, 0) ||
+        command[0] == IpcMakeHeader(0x50, 1, 0))
+        return initialized_ && registered_ && command[1] == 1;
     if (command[0] == IpcMakeHeader(1, 1, 0)) return command[1] == 0;
     if (command[0] == IpcMakeHeader(2, 2, 0))
         return !initialized_ && command[1] == 0x300 && command[2] == 0;
@@ -26,8 +29,29 @@ bool AptService::CanHandle(const IpcCommandBuffer& command) const noexcept {
     return false;
 }
 
-Result AptService::Handle(IpcRouter&, Kernel& kernel, GuestMemory& memory, ThreadObject& thread,
+Result AptService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& memory, ThreadObject& thread,
                           IpcCommandBuffer& command) {
+    if (IpcCommandId(command[0]) == 0x4F || IpcCommandId(command[0]) == 0x50) {
+        if (!CanHandle(command)) return kResultNotFound;
+        const auto id = IpcCommandId(command[0]);
+        if (id == 0x4F) {
+            const auto result = kernel.UpdateAppCpuTimeLimit(command[2]);
+            if (!result) {
+                router.RequestHostStop("APT CPU-time update requires unsupported core-1 scheduling or launch limit");
+                return kResultSuccess; // Router preserves request; no guest response.
+            }
+            command.fill(0);
+            command[0] = IpcMakeHeader(id, 1, 0);
+            command[1] = *result;
+        } else {
+            const auto value = kernel.app_cpu_time_current();
+            command.fill(0);
+            command[0] = IpcMakeHeader(id, 2, 0);
+            command[1] = kResultSuccess;
+            command[2] = value;
+        }
+        return kResultSuccess;
+    }
     if (IpcCommandId(command[0]) == 0x4B)
         return ReplyBoundedUtility(memory, thread, command);
     if (IpcCommandId(command[0]) == 0xE || IpcCommandId(command[0]) == 0xD)
