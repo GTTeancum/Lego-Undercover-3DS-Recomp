@@ -10,6 +10,7 @@
 #include "runtime/ctr_memory.h"
 #include "runtime/ctr_svc_bridge.h"
 #include "services/ptm_service.h"
+#include "services/cfg_service.h"
 #include "services/fs_romfs_service.h"
 #include "services/gsp_display_transfer.h"
 
@@ -48,7 +49,8 @@ public:
                  PtmStepMode ptm_step_mode = PtmStepMode::Unconfigured,
                  std::shared_ptr<const RomfsImage> romfs = {},
                  GpuVramMode vram_mode = GpuVramMode::Unconfigured,
-                 DisplayClockMode display_mode = DisplayClockMode::Disabled);
+                 DisplayClockMode display_mode = DisplayClockMode::Disabled,
+                 CfgProfile cfg_profile = CfgProfile::Unconfigured);
 
     bool InitializeMainThread(std::uint32_t entry_point = kTextBase,
                               std::uint32_t stack_top = kMainStackTop) noexcept;

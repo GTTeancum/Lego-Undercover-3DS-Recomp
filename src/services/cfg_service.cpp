@@ -1,0 +1,82 @@
+#include "services/cfg_service.h"
+#include <exception>
+#include <stdexcept>
+
+namespace lego::ctr {
+namespace {
+// azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac,
+// cfg_defaults.cpp DEFAULT_STEREO_CAMERA_SETTINGS (Global / UserRead).
+// Exact binary32 words in source order, serialized explicitly little-endian.
+// The reference describes these as compatibility defaults, NOT measured reset
+// state or fully understood calibration fields. Do not name unknown fields.
+constexpr std::array<std::uint32_t, 8> kStereoWords{
+    0x42780000U, 0x43908000U, 0x4299999AU, 0x423851ECU,
+    0x41200000U, 0x40A00000U, 0x425E51ECU, 0x41AC8F5CU,
+};
+constexpr auto kStereoBytes = [] {
+    std::array<std::uint8_t, kCfgStereoBytes> out{};
+    for (std::size_t i = 0; i < kStereoWords.size(); ++i)
+        for (unsigned b = 0; b < 4; ++b) out[i * 4 + b] = kStereoWords[i] >> (b * 8);
+    return out;
+}();
+}
+
+CfgService::CfgService(CfgProfile profile) : profile_(profile) {
+    if (profile != CfgProfile::Unconfigured && profile != CfgProfile::ReferenceStereo)
+        throw std::invalid_argument("unsupported CFG profile");
+}
+
+const std::array<std::uint8_t, kCfgStereoBytes>&
+CfgService::ReferenceStereoBytes() noexcept { return kStereoBytes; }
+
+bool CfgService::CanHandle(const IpcCommandBuffer& q) const noexcept {
+    // Exact observed write-only mapped-buffer shape, not a static buffer.
+    // Size mismatches and other blocks remain host stops, not fabricated Results
+    // or reference error-path zero output. No guest-controlled allocation size.
+    return profile_ == CfgProfile::ReferenceStereo &&
+           q[0] == IpcMakeHeader(1, 2, 2) && q[1] == kCfgStereoBytes &&
+           q[2] == kCfgStereoBlock && q[3] == ((kCfgStereoBytes << 4) | 0xCU);
+}
+
+Result CfgService::Handle(IpcRouter& router, Kernel&, GuestMemory& memory,
+                          ThreadObject& thread, IpcCommandBuffer& q) {
+    if (!CanHandle(q)) return kResultNotFound;
+    const auto address = q[4];
+    if (std::uint64_t(address) + kCfgStereoBytes > 0x100000000ULL ||
+        !memory.IsWritable(address, kCfgStereoBytes))
+        return kResultInvalidPointer;
+    const auto cb64 = std::uint64_t(thread.tls_address) + kIpcCommandBufferOffset;
+    if (cb64 + sizeof(IpcCommandBuffer) > 0x100000000ULL ||
+        !memory.IsReadable(static_cast<std::uint32_t>(cb64), sizeof(IpcCommandBuffer)) ||
+        !memory.IsWritable(static_cast<std::uint32_t>(cb64), sizeof(IpcCommandBuffer)))
+        return kResultInvalidPointer;
+    if (memory.SpansAlias(address, kCfgStereoBytes,
+                          static_cast<std::uint32_t>(cb64), sizeof(IpcCommandBuffer))) {
+        router.RequestHostStop("CFG output aliases IPC response");
+        return kResultSuccess; // Router stops without committing a guest reply.
+    }
+    try {
+        // Reuse the reservation-safe private write path. Shared output and
+        // cross-region spans are outside this bounded direct-buffer model.
+        // This is host containment policy, not a claim that firmware forbids them.
+        if (!memory.PrepareDeviceWrite(address, kCfgStereoBytes)) {
+            router.RequestHostStop("CFG output requires private writable backing");
+            return kResultSuccess;
+        }
+    } catch (const std::exception& error) {
+        router.RequestHostStop(error.what()); // No output bytes were changed.
+        return kResultSuccess;
+    }
+    if (!memory.CommitDeviceWrite(address, kStereoBytes)) {
+        router.RequestHostStop("CFG prepared output commit invariant failed");
+        return kResultSuccess;
+    }
+    const auto descriptor = q[3];
+    q.fill(0);
+    q[0] = IpcMakeHeader(1, 1, 2);
+    q[1] = kResultSuccess;
+    q[2] = descriptor;
+    q[3] = address;
+    return kResultSuccess;
+}
+} // namespace lego::ctr

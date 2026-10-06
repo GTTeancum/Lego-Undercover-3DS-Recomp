@@ -20,13 +20,14 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
                            PtmStepMode ptm_step_mode,
                            std::shared_ptr<const RomfsImage> romfs,
                            GpuVramMode vram_mode,
-                           DisplayClockMode display_mode)
+                           DisplayClockMode display_mode,
+                           CfgProfile cfg_profile)
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_),
       display_mode_(display_mode), display_clock_(kernel.now_ns()) {
     if (display_mode!=DisplayClockMode::Disabled && display_mode!=DisplayClockMode::ReferenceIdle)
         throw std::invalid_argument("invalid display clock mode");
     ipc_.RegisterService("APT:U", std::make_shared<AptService>());
-    ipc_.RegisterService("cfg:u", std::make_shared<CfgService>());
+    ipc_.RegisterService("cfg:u", std::make_shared<CfgService>(cfg_profile));
     auto gsp=std::make_shared<GspGpuService>();
     if (vram_mode==GpuVramMode::ReferenceZero)
         gsp->ConfigureVram(GpuVramBank::ReferenceZero());

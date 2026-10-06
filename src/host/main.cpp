@@ -78,20 +78,26 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
         std::filesystem::path shared_extdata_root, romfs_path;
         auto vram_mode=ctr::GpuVramMode::Unconfigured;
         auto display_mode=ctr::DisplayClockMode::Disabled;
+        auto cfg_profile=ctr::CfgProfile::Unconfigured;
         auto ptm_step_mode = ctr::PtmStepMode::Unconfigured;
         std::uint32_t block_limit=1000000,event_limit=4096;
         std::uint64_t rtc_epoch_ms=ctr::kDefaultRtcMsSince1900;
         for (int i=2; i<argc; i+=2) {
             if (i+1==argc) throw std::runtime_error("missing option value");
             const std::string_view option(argv[i]);
-            if (option=="--display-clock-mode") {
+            if (option=="--cfg-profile") {
+                if (std::string_view(argv[i+1])!="reference-stereo")
+                    throw std::runtime_error("CFG profile must be reference-stereo (or omit the option)");
+                cfg_profile=ctr::CfgProfile::ReferenceStereo;
+            }
+            else if (option=="--display-clock-mode") {
                 if (std::string_view(argv[i+1])!="reference-idle")
                     throw std::runtime_error("unsupported display clock mode (expected reference-idle)");
                 display_mode=ctr::DisplayClockMode::ReferenceIdle;
@@ -147,13 +153,15 @@ int main(int argc,char** argv) {
             std::cout << "romfs_sha256=" << romfs->sha256() << " raw_bytes=" << ctr::kLegoRawRomfsBytes
                       << " view_offset=" << ctr::kLegoRomfsViewOffset << " view_bytes=" << romfs->size() << '\n';
         }
-        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode);
+        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile);
         if (!shared_extdata_root.empty())
             std::cout << "shared_extdata_root=" << shared_extdata_root.generic_string() << '\n';
         if (ptm_step_mode == ctr::PtmStepMode::EmptyHistory)
             std::cout << "ptm_step_source=explicit_empty_history total_steps=0 sensor_input=none\n";
         if (vram_mode==ctr::GpuVramMode::ReferenceZero)
             std::cout << "gpu_vram_source=pinned_hle_zero_initialization bytes=6291456 cpu_mapping=none\n";
+        if (cfg_profile==ctr::CfgProfile::ReferenceStereo)
+            std::cout << "cfg_profile=pinned_hle_stereo_default block=00050005 bytes=32 recovered_calibration=false\n";
         if (!runner.InitializeMainThread()) throw std::runtime_error("main thread setup failed");
         std::cout << "rtc_epoch_ms_since_1900=" << rtc_epoch_ms
                   << " guest_time_source=kernel_ns\n";
