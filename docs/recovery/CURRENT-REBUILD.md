@@ -1,155 +1,155 @@
 # LEGO Chase Begins — canonical continuation handoff
 
-Updated October 6, 2026. Continue in assistant scratch, NOT the user's PC or Work.
-Project: LEGO City Undercover: The Chase Begins (Nintendo 3DS USA). Headless native
-startup reconstruction, NOT playable. POST AN UPDATED DOWNLOADABLE HANDOFF AND
-SOURCE/EVIDENCE CHECKPOINT EVERY WORK TURN. Show only genuine meaningful game output;
-there is still no logo, rendered frame, main menu or useful screenshot.
+Updated October 6, 2026. Continue in assistant scratch, **not the user's PC or Work**.
+Project: LEGO City Undercover: The Chase Begins, Nintendo 3DS USA. This is a headless
+native startup reconstruction, not a playable port. Post an updated downloadable
+Markdown handoff and recoverable source/evidence checkpoint every work turn.
+Screenshots must be meaningful genuine game output. None exist at this checkpoint.
 
-## Published implementation and exact baseline
+## Source and recovery
 
-Implementation: `3e9ecc1617fe4c472b4aeb306c292283add67a40`.
-Exact tested/uploaded tree: `2dbb59ed4538fb020c9cbbb82fbecc1ad63e8f97`.
-Base main: `38f0bbe5aad24bff95cea465f58487333a99cf2e`, tree
-`5502c3652bf7ce1f87bbe96b0340411aa5bdd101`. The downloadable receipt records the
-subsequent report/delivery commit. Use the fresh remote parent and force=false,
-with expected_sha when available. Local Git is a snapshot/index, NOT remote history.
+The commit containing this handoff implements diagnostic dual-core scheduling.
+Its parent is `095af71fa4aa1afa1fe47d6b55c9ff693ee9550f`, whose verified tree is
+`22ff0094627462e5a8490dd7affe02f70dbe6dc8`. The downloadable receipt appended after
+publication identifies the final commit, tree, archive and observed hosted CI.
+Use the freshly read remote parent and force=false when publishing. Local Git is
+a reconstructed snapshot/index, not remote history.
 
-The attached predecessor was restored and verified: 591 manifest files and 342
-source blobs, exact baseline tree. Original code/AOT and prepared RomFS parts were
-available; no user upload, CCI extraction or user-PC access was needed. The full
-baseline reproduced the untouched APT setter at round 238; all three threads were
-processor 0. The game-specific ExHeader CPU maximum was NOT revalidated this turn.
+095af71 survived an interrupted turn. It already implemented real private memory
+aliases, canonical reservation epochs and bounded Protect, but its handoff was stale.
+Recovered its source from Actions run 37463588994, artifact 11413276822. ZIP SHA:
+`186aa2bbd7df0ac0c68e46369da0c5f4aa5af5ef07868278433a63e600a3f0a9`.
+The ZIP, inner tar, commit and full reconstructed tree were checked before edits.
+The full GCC baseline passed 41 tests and reproduced processor-1 CreateThread at
+round 245. These memory operations are inherited work, not new implementation here.
+The older alias traces mentioned in that commit were not recovered. This turn made
+new final-state captures; do not claim those earlier 74 traces as current evidence.
 
-## Actual progress: application CPU resource state, not core-1 enforcement
+## Actual original-game boundary
 
-Original APT `SetAppCpuTimeLimit(1,30)` now updates the SAME kernel application
-ResourceLimitObject exposed through existing resource handles. Current CpuTime
-changes from 0 to 30, with the inherited maximum 80 unchanged. The response is
-`004F0040 00000000`, with remaining IPC words cleared. The paired APT getter and
-existing SVC resource readback are component-tested; the game has not called that
-getter in this run. This is not a disconnected APT percentage or thread-priority edit.
-
-Pinned PM:APP accepts values at or below the current maximum; larger unsigned
-values return success without changing state. Accepted values are assignments,
-not cumulative reservations. Initialization/registration, exact request shapes and
-must_be_one=1 are required in this bounded handler; the latter is stricter than
-the reference, which logs other values. No other resource category is implemented.
-
-IMPORTANT: the reference updates a CORE-1 limiter. This host does NOT implement
-core-1 preemption, CPU-cycle charging, full multicore execution or title launch
-resource-policy reconstruction. An accepted update is supported only while every
-live thread is processor 0. It activates a guard: future SVC thread creation for
-processors 1..3 stops untouched before allocation, and the runner rejects externally
-created/retargeted non-core-0 threads before execution. Default/all processor aliases
-retain the inherited resolution to core 0. Invalid IDs retain existing validation.
-A core-1 thread already present causes an accepted-value setter to stop unchanged.
-The above-maximum no-op does not activate the guard. No fabricated enforcement,
-preemption timer, priority change or forced wake is introduced.
-
-## New exact untouched boundary
-
-After accepting 30, original code closes the APT session, releases its mutex and
-creates two events. Fresh startup then stops at:
+With the explicit modes and command below, original startup now reaches:
 
 ```text
-app_cpu_time_current=30 maximum=80 core0_only=1 core1_enforcement=unimplemented
-stop=UnsupportedSvc pc=0x0025c9f4 detail=0x00000001 thread=1 dispatch_rounds=243
-r0=00000004 r1=0e000000 r2=08045000 r3=00008000 r4=00000003
+cpu_ticks=4839693 core0_instructions=2180849 core1_instructions=0 quota_transitions=0
+display_periods=1 guest_now_ns=18051022
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=248
+last_ipc_session=hid:USER request_header=0x000a0000
 ```
 
-This is `ControlMemory(Map)`, operation 4, destination 0x0E000000, source 0x08045000,
-size 0x8000 (32768 bytes), requested permissions 3. The source is mapped read/write;
-the destination is unmapped. The source and CPU registers are unchanged across the
-stop. Source SHA: c35020473aed1b4642cd726cad727b63fff2824ad68cedd7ffb73c7cbd890479.
-No map, alias, copy, successful return or memory-accounting change is implemented.
-The last_ipc_session remains APT because this stop is an SVC, not another IPC.
+The original code maps/protects its 32 KB stack alias, creates its actual processor-1
+thread and changes that worker's priority to 49. There are four threads and 22 handles.
+Application CpuTime remains 30. Source 0x08045000 is protected; alias 0x0E000000 is
+writable and shares its original backing, rather than a copy or replacement allocation.
 
-The inherited SVC path previously returned InvalidCombination for this unimplemented
-operation. Initial exploration therefore entered the game's fatal-report path,
-failed to connect to err:f, and spent the bounded run waiting while display periods
-continued. Those exploratory logs are retained, NOT claimed as frame/gameplay
-progress. The SVC bridge now leaves all non-Commit ControlMemory requests untouched
-instead of inventing a guest error for missing host functionality. Commit behavior
-and the memory backend are unchanged. Other ControlMemory operations remain next work.
+**The original processor-1 worker has executed zero instructions at this stop.**
+It is Ready at PC 0x00104DF4, TLS 0x1FF82600. Its first eligible app window is still
+at tick 5180070. The main thread reaches HID first. Synthetic programs verify actual
+execution on both logical cores, but that is not proof that this game's worker ran.
 
-Existing-gamecoin startup reaches the map at round 235. Fresh time remains
-16713681 ns after one display period. No CFG retains round 235 at GetConfig; no
-clock retains the old wait at round 228; no VRAM retains transfer round 170; absent
-RomFS and unconfigured PTM retain their earlier stops. Existing-gamecoin is not
-save readback. Original video memory is still zero under explicit reference-zero
-policy; no rendered frame, shader execution or gameplay has been demonstrated.
+HID is discovery-only. The pinned command 0xA is GetIPCHandles. The request remains
+untouched: no input shared page, event handles, controller values, sample timestamps
+or successful initialization reply is supplied. The complete 6 MiB VRAM bank is
+still zero. No logo, rendered frame, main menu, executed shader, audio or gameplay
+has been demonstrated. Do not substitute test patterns or blank-buffer screenshots.
 
-## Verification and scope
+Strict mode remains the default. Without --cpu-mode, startup still stops at processor-1
+CreateThread, PC 0x00102FCC, round 245, time 16713681 ns. Diagnostic mode's default
+1,000,000 budget hits BlockLimit (exit 4) before the documented boundary. Use
+--block-limit 100000000. Other absent-profile paths remain distinct diagnostic stops.
 
-Full GCC and Clang native builds link all 599 unchanged private AOT pages. All 40
-CTest suites pass with each compiler; all 40 ROM-free Clang ASan/UBSan suites pass
-with leak checking/halt-on-error. Twenty production cases match logs, exits and
-newly created test-file bytes across compilers. No previous suite was removed or
-changed. New tests cover all 0..80 assignments, extremes/no-op, actual resource
-readback, session sharing, handle identity/exhaustion, protected replies, malformed
-requests, core-1 guards, untouched non-Commit maps and nonzero synthetic VRAM.
+## Execution model and limitations
 
-All 86 private capture files match between GCC and Clang. The setter changes the
-actual resource value only; time/handles are unchanged across that call. All 1842
-GPU words, upload state, the GSP page/epochs and the full 6 MiB bank are unchanged.
-The final map's CPU registers and full source span are likewise unchanged. These
-are logging-only alternative IPC/runner captures; normal builds independently reach
-the same stop. Synthetic test patterns never enter original-game execution.
+New opt-in: `--cpu-mode diagnostic-dual`. One host executor issues at most one immutable
+recorded A32 instruction per logical core per ARM11 tick, core 0 then core 1. One
+instruction per tick is an explicit diagnostic cost assumption, not measured ARM11
+latency, cache/bus behavior, physical parallel execution or cycle-accurate emulation.
+The nominal clock is 268111856 Hz. Absolute tick deadlines round up to nanoseconds,
+without accumulating rounding per instruction. A local recorded-step adapter uses
+the existing PackedOps/ExecuteBlock and bounded callback-return suffixes. Vendor,
+opcode backends and private AOT pages are unchanged. Thumb remains unsupported.
 
-Final identity checks match code.bin, whole raw RomFS and all 603 regular AOT archive
-members. Full IVFC block checking was not repeated; raw SHA matches prior verified
-image. Registry 111043 blocks / 545111 words is STATIC inventory, not executed
-instruction counts, frames or completion percentages. No Windows/macOS build.
+The existing application ResourceLimitObject feeds core-1 eligibility. The pinned
+HLE Multi limiter uses a 536223-tick period; 30% gives 375357 system ticks followed
+by 160866 application ticks. Zero disables preemption. Active updates flip/rebase
+as the inspected reference does. Its unimplemented Single limiter is aliased to
+Multi: this checkpoint does not establish the title's actual ExHeader mode or CPU
+maximum. Maximum 80 remains inherited. No sysmodule instructions are modeled.
+Denied application workers stay Ready but ineligible; no sleep completion is faked.
+Core 0 is not gated. Cores 2 and 3 remain unsupported.
 
-Ten implementation files changed: two CMake files; src/host/main.cpp;
-src/runtime/ctr_kernel.h, new ctr_cpu_time.cpp, ctr_runner.h/.cpp, ctr_svc_bridge.cpp;
-src/services/apt_service.cpp; tests/ctr_apt_cpu_limit_test.cpp. ctr_kernel.cpp,
-production IPC, opcode/vendor/AOT, memory backends, GPU, FS and existing timer/priority
-algorithms are unchanged. Runner edits add guards, not CPU scheduling enforcement.
+Each logical core selects its own eligible priority/TLS/pseudo-thread context. Host
+core alternation preserves reservations. Actual same-core thread replacement, a
+denied quota phase or a completed SVC clears that core's reservation. No complete
+ARM weak-memory model, general same-priority fairness or priority-inheritance parity
+is claimed. The observed priority change is supported only for a never-executed
+Ready worker; arbitrary changes to active/waiting threads remain unsupported.
+HID discovery does not implement its complete session-limit behavior.
 
-GitHub Actions run 37451651219 on implementation 3e9ecc1 passed both GCC and Clang
-jobs. Hosted suites are ROM-free, separate from full local original-game runs.
+Timers, quota and display events can run during CPU-busy execution as well as idle.
+Timeouts precede quota/display at equal timestamps, an explicit host tie policy.
+Display preparation precedes time advance; failed preparation retains the pending
+issue slot/deadline for correct retry. In diagnostic mode --block-limit bounds
+successful recorded instructions between SVCs. Strict mode retains its old block
+budget. SVC attempts and timed-event pumps are independently bounded by the host
+work limit. Keep these assumptions explicit when extending the scheduler.
 
-## Evidence and setup limitations
+## Validation and evidence
 
-Current evidence: apt-limit-checkpoint/. Final logs: build-final-gcc/clang/asan.txt,
-ctest-final-gcc/clang/asan.txt. validate_matrix.py and validation-summary.json contain
-20 paired cases. make_trace.py, inherited-trace-support.inc, map_trace_snippet.inc
-and generated trace sources reproduce captures-gcc/clang. verify_trace.py checks
-trace-proof.json; verify_inputs.py checks identity-proof.json. Raw captures remain
-PRIVATE. Exploratory captures before the explicit map stop are separately named.
+Full GCC and Clang builds link all 599 unchanged AOT page units. All 44 CTest suites
+pass with each compiler. All 44 ROM-free Clang ASan/UBSan suites pass with leak checks
+and halt-on-error. No prior suite was removed. New tests cover recorded stepping,
+quota phases and overflow, per-core context and monitors, cross-core flag exchange,
+CPU-busy timers, work/resume limits, priority validation and failed-event retry.
 
-setup-notes.txt records early new-test compile errors (fixed before final suites),
-finite-call timeouts, unavailable streaming execution, a temporary CMake quote error,
-and incomplete matrix attempts followed by the complete new-root run. These are not
-hidden or reported as successful final tests. Retain the logs, not compiled objects.
+Twelve paired production scenarios match stdout, exit and owned test-file bytes:
+strict-full, dual-full, diagnostic default budget, no display, no CFG, no VRAM,
+no RomFS, no PTM, invalid/missing CPU mode, and two work limits. Strict and diagnostic
+captures each have six files per compiler; every corresponding byte matches.
+These are final-state inspection snapshots, not a complete invocation trace or an
+independent ARM emulator comparison. Original core-1 execution is still pending.
+
+Code.bin and whole raw RomFS hashes match, and all 603 regular AOT backup members
+are byte-identical. Full IVFC checking was not repeated. The 111043 registry blocks
+and 545111 words are static inventory, not executed counts or frames. No Windows or
+macOS build was performed. Initial new branch tests used wrong opcode metadata and
+two suites failed; corrected tests and failure logs are retained. A pending-tick
+retry issue was fixed and regression-tested before final builds. Interrupted finite
+builds and unavailable streaming execution are preserved as setup limitations.
+
+Current private evidence: `core1-checkpoint/`. Important files: build-results.json,
+ctest-final-gcc/clang/asan.txt, validate_matrix.py, matrix-results.json,
+inspect_original.cpp, inspect_driver.py, capture-strict-gcc/clang,
+capture-dual-gcc/clang, proof.json, identity.json, references.json, restore.json and
+setup-notes.txt. Inspection builds use a separate diagnostic main with the same
+production libraries/AOT. Ordinary CLI runs independently reach the same stops.
+Pre-adapter intermediate logs are separately named. Native binaries are not backed up.
+
+Public report: reports/recovery-host/DIAGNOSTIC-DUAL-CORE.md. Public summaries:
+DUAL-CORE-PROOF.json, DUAL-CORE-MATRIX.json, DUAL-CORE-FULL-GCC.txt and
+DUAL-CORE-STRICT-GCC.txt. Raw captures stay private, never public GitHub.
 
 ## Next exact work
 
-Inspect pinned SVC ControlMemory and process/VM Map handling, then implement the
-observed 32 KiB request with actual backing/alias and source-permission semantics.
-Do not allocate fresh zero memory, copy bytes, or return success as a substitute
-for a required alias. Check state transitions, alignment/ranges, permissions,
-reservation epochs, resource accounting, overlap and rollback. The pinned handler
-implementation has not yet been inspected here; only its declaration was fetched.
-Rerun unchanged original code in NEW test state and follow the next actual request.
-Keep core-1 limitations explicit; do not remove guards merely to pass another stop.
+Inspect pinned HID GetIPCHandles and module construction. Implement its actual
+shared-memory and retained-event ownership response without invented input samples
+or completion signals. Rerun unchanged code in new empty test state and observe
+when the original second-core worker becomes eligible and what it actually executes.
+Do not blindly remove timing/safety guards. Preserve strict mode and prior GPU,
+filesystem, memory-alias and CPU tests. Genuine visuals remain the goal.
 
-Reference pin: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
-Inspected PM pm_app.cpp (df4ff2c48d66c339fd09c0388414f11cfb64022f), kernel
-resource_limit.cpp (210f4d6359c832e5f03f2be1ba4f4a49ef65851c), thread.cpp
-(164b5df04fc4a6b7d30de9503b6f17a46e54a935), and the earlier APT setter/getter path.
-Exact provenance is in references.json. Do not substitute mutable upstream silently.
+Primary pin: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
+Relevant files: src/core/hle/kernel/thread.cpp/.h, kernel.h, svc.cpp, errors.h;
+src/core/core_timing.h; src/core/hle/service/hid/hid_user.cpp. Exact available blob
+identities are in references.json. Mutable searches were used only for navigation.
 
-## Scratch, rebuild and durable recovery
+## Scratch and reproduction
 
-Root /mnt/data/lego_recovery/. Source repo/; AOT generated2/; code restored/code.bin;
-RomFS game/prepared-romfs/romfs.bin; parts/manifest romfs-library-roundtrip/.
-Builds build-gcc/, build-clang/, build-asan/. Current work apt-limit-checkpoint/.
-private-state/apt-* and apt-limit-validation.* are newly created TEST state, not
-recovered NAND. Preserve unknown saves. The paired validator removes only its own
-byte-verified fresh gamecoin to repeat with the other compiler.
+Root: /mnt/data/lego_recovery/. Source: repo/. AOT: generated2/.
+Code: restored/code.bin. RomFS: game/prepared-romfs/romfs.bin.
+Prepared parts/manifest: romfs-library-roundtrip/. Builds: build-gcc/, build-clang/,
+build-asan/. Evidence: core1-checkpoint/. Recovered snapshot: snapshot-095af71/;
+original source ZIP: /mnt/data/LEGO-source-095af71.zip. Preserve unknown save roots.
+The paired validator removes only its own new byte-verified gamecoin file.
 
 ```sh
 cd /mnt/data/lego_recovery
@@ -157,37 +157,41 @@ cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPI
 cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure
 mkdir -p private-state
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/control-map-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/hid-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
-./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle --cfg-profile reference-stereo
+./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle --cfg-profile reference-stereo --cpu-mode diagnostic-dual --block-limit 100000000
 ```
 
-Expected exit 3: untouched ControlMemory Map, round 243. Use clang++ for Clang and
-omit LEGO_AOT_DIR for ROM-free sanitizers. Keep all explicit policies. The matrix
-script accepts start/stop indices; start 0 creates a new root and each case saves
-progress. Final chunks were 0 3, 3 9, 9 15, 15 20. Trace drivers need new capture paths.
+Expected exit 3: untouched HID GetIPCHandles, round 248. Omit CPU mode for the strict
+core-1 creation stop. Use clang++ for Clang. Omit LEGO_AOT_DIR for ROM-free sanitizers;
+exact sanitizer commands are in core1-checkpoint/build-remaining.py.
+
+## Durable recovery and every-turn mandate
 
 GitHub: GTTeancum/Lego-Undercover-3DS-Recomp main. Library: /LEGO-Chase-Recovery/.
-Restore the latest archive, verify CHECKPOINT-MANIFEST.json with verify_checkpoint.py,
-and reconstruct all SOURCE-INDEX.json paths/blobs/modes, including ignored reports.
-Never force-push local snapshot history. The downloadable receipt names this delivery.
-The previous 38f0bbe archive/handoff remain unchanged under historical/. Extract
-history separately, NEVER over repo/; it retains earlier captures and nested backups.
+Restore the newest checkpoint, verify CHECKPOINT-MANIFEST.json before extraction,
+then reconstruct SOURCE-INDEX.json paths/blobs/modes, including ignored tracked
+reports. Never force-push snapshot history. Final commit/CI/archive names are appended
+to the downloadable handoff after actual publication.
 
-Private inputs have separate backups: code.bin, unchanged
-LEGO-Chase-current-AOT-599pages-2026-10-03.tgz (unpacks generated2/), and Prepared-RomFS/
-two raw parts plus romfs-parts.json. Parts are 402653184 and 366526464 bytes. Restore
-using repo/tools/restore_romfs_parts.py with the manifest beside the parts, creating
-only the output parent directory first. It refuses existing output; verify rather
-than overwrite. No CCI extraction or user reupload is needed. Raw RomFS size
-769179648; native view offset 4096, size 769175552. Preserve integrity tables.
+Private inputs have existing separate backups: code.bin;
+LEGO-Chase-current-AOT-599pages-2026-10-03.tgz (unpacks generated2/);
+Prepared-RomFS/ two raw parts and romfs-parts.json. Part sizes are 402653184 and
+366526464 bytes. Reassemble with repo/tools/restore_romfs_parts.py after creating
+the output parent. Restore refuses an existing output: verify instead of overwrite.
+No original CCI extraction or user reupload is needed. Raw RomFS is 769179648 bytes;
+native view offset 4096, size 769175552. Preserve the integrity tables.
+
 RomFS SHA: 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
 Code SHA: 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
 AOT SHA: 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
 Historical CCI SHA: 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
 
-Scratch can reset; Library/GitHub are recovery paths. Actions artifacts expire after
-30 days. Keep game code, derived private AOT, raw RomFS, binaries and private captures
-OUT of public GitHub. Publish tested source/reports and save private backups when
-tools permit. Never fabricate CI, persistence, enforcement, screenshots or gameplay.
-Post the updated Markdown and source/evidence checkpoint every work turn.
+Preserve the previous 48635d1 private checkpoint/MD and 095af71 source ZIP unchanged
+under historical/. Extract older source separately, never over current repo/.
+The source/evidence backup excludes code, AOT, raw RomFS, CCI, .git, build products
+and native executables. Raw state captures belong only in private backups. Scratch
+can reset; Library/GitHub are recovery paths, not permanent scratch. Actions artifacts
+expire after 30 days. Publish tested source/reports and durable backups when available.
+Never invent CI, persistence, original second-core execution, visuals or gameplay.
+Post updated downloadable Markdown and recoverable source/evidence every work turn.

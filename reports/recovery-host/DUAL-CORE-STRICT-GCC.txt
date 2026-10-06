@@ -1,0 +1,21 @@
+code_sha256=5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f
+registry_pages=599 blocks=111043 instruction_words_verified=545111
+romfs_sha256=6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf raw_bytes=769179648 view_offset=4096 view_bytes=769175552
+shared_extdata_root=/mnt/data/lego_recovery/private-state/dual-matrix.zcopp10d/strict-full
+ptm_step_source=explicit_empty_history total_steps=0 sensor_input=none
+gpu_vram_source=pinned_hle_zero_initialization bytes=6291456 cpu_mapping=none
+cfg_profile=pinned_hle_stereo_default block=00050005 bytes=32 recovered_calibration=false
+rtc_epoch_ms_since_1900=3155673600000 guest_time_source=kernel_ns
+display_clock=reference_idle frame_ticks=4481136 clock_hz=268111856 presentation=none
+display_periods=1 guest_now_ns=16713681
+app_cpu_time_current=30 maximum=80 core0_only=1 core1_enforcement=unimplemented
+shared_clock_counter=1 snapshot_ms_since_1900=3155673600000 snapshot_tick=0 guest_now_ns=16713681
+stop=UnsupportedSvc pc=0x00102fcc detail=0x00000008 thread=1 dispatch_rounds=245
+r0=0x00000030 r1=0x00104df4 r2=0x0e007fe0 r3=0x0e007fe0
+r4=0x00000001 r5=0x00000000 r6=0x00000010 r7=0x0ffff638
+r8=0x0e008000 r9=0x0010dad8 r10=0x00000001 r11=0x00000000
+r12=0x080448e0 r13=0x0ffff5e0 r14=0x0025b874 r15=0x00102fcc
+cpsr=0x80000010 fpscr=0x23000018 tls=0x1ff82000
+last_ipc_session=APT:U requested_service= request_header=0x004f0080
+ipc_words= 004f0040 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+ipc_static_buffer0= 00000000 00000000

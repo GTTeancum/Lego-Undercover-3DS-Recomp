@@ -6,6 +6,7 @@
 #include "services/gsp_gpu_service.h"
 #include "services/ptm_service.h"
 #include "services/y2r_user_service.h"
+#include "services/hid_user_service.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -21,9 +22,13 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
                            std::shared_ptr<const RomfsImage> romfs,
                            GpuVramMode vram_mode,
                            DisplayClockMode display_mode,
-                           CfgProfile cfg_profile)
+                           CfgProfile cfg_profile,
+                           CpuExecutionMode cpu_mode)
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_),
-      display_mode_(display_mode), display_clock_(kernel.now_ns()) {
+      display_mode_(display_mode), display_clock_(kernel.now_ns()),
+      cpu_mode_(cpu_mode),diagnostic_origin_(kernel.now_ns()) {
+    if(!kernel_.ConfigureCpuExecution(cpu_mode))
+        throw std::invalid_argument("CPU mode must be configured before thread creation/resource setup");
     if (display_mode!=DisplayClockMode::Disabled && display_mode!=DisplayClockMode::ReferenceIdle)
         throw std::invalid_argument("invalid display clock mode");
     ipc_.RegisterService("APT:U", std::make_shared<AptService>());
@@ -35,6 +40,7 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
         throw std::invalid_argument("invalid GPU VRAM mode");
     gsp_=gsp;
     ipc_.RegisterService("gsp::Gpu",std::move(gsp));
+    ipc_.RegisterService("hid:USER",std::make_shared<HidUserService>());
     ipc_.RegisterService("y2r:u", std::make_shared<Y2rUserService>());
     ipc_.RegisterService("ptm:u", std::make_shared<PtmService>(ptm_step_mode));
     ipc_.RegisterService("ndm:u", std::make_shared<NdmService>());
@@ -53,6 +59,7 @@ bool NativeRunner::InitializeMainThread(std::uint32_t entry_point,
         return false;
     }
 
+    kernel_.current_thread()->execution_started=true;
     live_state_ = kernel_.CurrentGuestState();
     live_state_.r[0] = 0U;
     live_state_.r[13] = stack_top;
@@ -138,6 +145,8 @@ RunnerResult NativeRunner::Stop(RunnerStopReason reason,
 
 RunnerResult NativeRunner::Run(std::uint32_t block_limit_per_dispatch,
                                std::uint32_t host_event_limit) noexcept {
+    if(cpu_mode_==CpuExecutionMode::DiagnosticDual)
+        return RunDiagnosticDual(block_limit_per_dispatch,host_event_limit);
     idle_events_=0; idle_limit_=host_event_limit; display_error_=nullptr;
     if (!kernel_.AppCpuExecutionSupported()) {
         return Stop(RunnerStopReason::UnsupportedCpuExecution,

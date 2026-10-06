@@ -51,7 +51,8 @@ public:
                  std::shared_ptr<const RomfsImage> romfs = {},
                  GpuVramMode vram_mode = GpuVramMode::Unconfigured,
                  DisplayClockMode display_mode = DisplayClockMode::Disabled,
-                 CfgProfile cfg_profile = CfgProfile::Unconfigured);
+                 CfgProfile cfg_profile = CfgProfile::Unconfigured,
+                 CpuExecutionMode cpu_mode = CpuExecutionMode::Strict);
 
     bool InitializeMainThread(std::uint32_t entry_point = kTextBase,
                               std::uint32_t stack_top = kMainStackTop) noexcept;
@@ -64,6 +65,11 @@ public:
         return live_state_;
     }
 
+    [[nodiscard]] const std::array<std::uint64_t,2>& issued_instructions() const noexcept{return issued_;}
+    [[nodiscard]] std::uint64_t diagnostic_ticks() const noexcept{return diagnostic_tick_;}
+    [[nodiscard]] std::uint64_t quota_transitions() const noexcept{return quota_transitions_;}
+    [[nodiscard]] const GspGpuService& gpu_diagnostics() const noexcept{return *gsp_;}
+    [[nodiscard]] const char* cpu_error() const noexcept{return cpu_error_;}
     [[nodiscard]] std::uint64_t display_periods() const noexcept { return display_clock_.periods_delivered(); }
     [[nodiscard]] std::optional<std::uint64_t> next_display_deadline() const noexcept { return display_clock_.next_deadline_ns(); }
     [[nodiscard]] const char* display_error() const noexcept { return display_error_; }
@@ -74,6 +80,8 @@ private:
     RunnerResult Stop(RunnerStopReason reason,
                       const a32::ExecutionResult& exit,
                       std::uint32_t dispatch_rounds) const noexcept;
+    RunnerResult RunDiagnosticDual(std::uint32_t instruction_limit,std::uint32_t event_limit) noexcept;
+    bool AdvanceDiagnosticTime(std::uint64_t ns,std::uint32_t event_limit) noexcept;
     bool EnsureRunnableCurrent() noexcept;
     bool AllThreadsDead() const noexcept;
     bool PumpIdleEvents() noexcept;
@@ -91,6 +99,13 @@ private:
     DisplayClock display_clock_;
     std::uint32_t idle_events_{},idle_limit_{};
     const char* display_error_{};
+    CpuExecutionMode cpu_mode_;
+    std::uint64_t diagnostic_origin_{},diagnostic_tick_{},quota_transitions_{};
+    std::array<std::uint64_t,2> issued_{};
+    std::uint32_t diagnostic_slot_{};
+    bool diagnostic_tick_work_{};
+    std::optional<std::uint64_t> pending_issue_deadline_;
+    const char* cpu_error_{};
 };
 
 }  // namespace lego::ctr

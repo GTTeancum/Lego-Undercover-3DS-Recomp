@@ -10,6 +10,12 @@ std::optional<Result> Kernel::UpdateAppCpuTimeLimit(std::uint32_t value) noexcep
     // Pinned PM ignores values above maximum but replies success. In particular
     // an unsigned encoding of a negative value must not wrap into current state.
     if (value > static_cast<std::uint32_t>(maximum)) return kResultSuccess;
+    if(cpu_mode_==CpuExecutionMode::DiagnosticDual) {
+        if(!AppCpuExecutionSupported() || !core1_quota_.Update(value,diagnostic_tick_))
+            return std::nullopt;
+        application_resource_limit_->SetCpuTime(static_cast<std::int32_t>(value));
+        return kResultSuccess;
+    }
     for (const auto& thread : threads_) {
         if (thread->status != ThreadStatus::Dead && thread->processor_id != 0)
             return std::nullopt;
@@ -24,6 +30,10 @@ std::optional<Result> Kernel::UpdateAppCpuTimeLimit(std::uint32_t value) noexcep
 }
 
 bool Kernel::AppCpuExecutionSupported() const noexcept {
+    if(cpu_mode_==CpuExecutionMode::DiagnosticDual)
+        return std::all_of(threads_.begin(),threads_.end(),[](const auto& t){
+            return t->status==ThreadStatus::Dead || t->processor_id==0 || t->processor_id==1;
+        });
     if (!app_cpu_core0_only_) return true;
     return std::all_of(threads_.begin(), threads_.end(), [](const auto& thread) {
         return thread->status == ThreadStatus::Dead || thread->processor_id == 0;

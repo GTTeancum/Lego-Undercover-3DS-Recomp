@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "recomp/a32_runtime.h"
+#include "runtime/ctr_cpu_schedule.h"
 
 namespace lego::ctr {
 namespace a32 = oot3d::recomp::a32;
@@ -122,6 +123,7 @@ public:
     void Acquire(ThreadObject&) noexcept override {}
 
     std::uint32_t thread_id{};
+    bool execution_started{}; // Diagnostic provenance for bounded fresh-thread operations.
     ThreadStatus status{ThreadStatus::Dormant};
     std::uint32_t entry_point{};
     std::uint32_t argument{};
@@ -316,6 +318,16 @@ public:
     void SetCurrentGuestState(const a32::GuestState& state) noexcept;
     [[nodiscard]] const a32::GuestState& CurrentGuestState() const noexcept;
     bool Reschedule(a32::GuestState& live_state) noexcept;
+    // One host executor selects a logical core; independent core priority order
+    // and context/TLS are retained. Host core switching is not a guest preemption.
+    bool ConfigureCpuExecution(CpuExecutionMode mode) noexcept;
+    bool SelectDiagnosticCore(std::uint32_t core,a32::GuestState& live) noexcept;
+    [[nodiscard]] bool DiagnosticCoreReady(std::uint32_t core) const noexcept;
+    [[nodiscard]] CpuExecutionMode cpu_execution_mode() const noexcept{return cpu_mode_;}
+    void SetDiagnosticTick(std::uint64_t tick) noexcept{diagnostic_tick_=tick;}
+    [[nodiscard]] const Core1Quota& core1_quota() const noexcept{return core1_quota_;}
+    bool ConsumeCpuQuota(std::uint64_t tick) noexcept;
+
 
     Result ControlMemory(GuestMemory* memory, std::uint32_t* out_address,
                          std::uint32_t addr0, std::uint32_t addr1,
@@ -339,9 +351,9 @@ public:
                                   std::uint32_t name_count) noexcept;
 
     // Bounded PM:APP UpdateResourceLimit(CpuTime) path into the SAME object
-    // exposed by GetResourceLimit[Values]. Only core-0 application threads are
-    // currently executable once an accepted update activates this contract.
-    // nullopt = host stop; never pretend that core-1 preemption is enforced.
+    // exposed by GetResourceLimit[Values]. Strict mode stops unsupported core-1
+    // execution; DiagnosticDual uses its explicit timed application windows.
+    // nullopt = host stop. No cycle-accurate hardware enforcement is claimed.
     std::optional<Result> UpdateAppCpuTimeLimit(std::uint32_t value) noexcept;
     [[nodiscard]] std::uint32_t app_cpu_time_current() const noexcept {
         return static_cast<std::uint32_t>(application_resource_limit_->Current(ResourceLimitType::CpuTime));
@@ -353,6 +365,8 @@ public:
     [[nodiscard]] bool AppCpuExecutionSupported() const noexcept;
     [[nodiscard]] bool AppCpuThreadCreationSupported(std::int32_t processor) const noexcept {
         // Leave invalid IDs to the existing guest argument validation.
+        if(cpu_mode_==CpuExecutionMode::DiagnosticDual)
+            return processor!=2 && processor!=3;
         return !app_cpu_core0_only_ || processor < 1 || processor > 3;
     }
 
@@ -381,6 +395,9 @@ public:
     Result CreateThread(Handle* out_handle, std::uint32_t entry_point,
                         std::uint32_t argument, std::uint32_t stack_top,
                         std::uint32_t priority, std::int32_t processor_id) noexcept;
+    // First priority assignment before the thread executes. Broader priority
+    // inheritance/reordering on running or waiting threads is not modeled here.
+    std::optional<Result> SetFreshThreadPriority(Handle handle,std::uint32_t priority) noexcept;
     void ExitCurrentThread() noexcept;
     bool SleepCurrentThread(std::int64_t nanoseconds) noexcept;
 
@@ -406,6 +423,10 @@ private:
     std::shared_ptr<ProcessObject> current_process_;
     std::shared_ptr<ResourceLimitObject> application_resource_limit_;
     bool app_cpu_core0_only_{};
+    CpuExecutionMode cpu_mode_{CpuExecutionMode::Strict};
+    Core1Quota core1_quota_;
+    std::uint64_t diagnostic_tick_{};
+    std::array<std::weak_ptr<ThreadObject>,2> diagnostic_core_threads_{};
     std::shared_ptr<ThreadObject> current_thread_;
     HandleTable handles_;
 

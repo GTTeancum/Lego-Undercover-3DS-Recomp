@@ -79,7 +79,7 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
@@ -87,13 +87,19 @@ int main(int argc,char** argv) {
         auto vram_mode=ctr::GpuVramMode::Unconfigured;
         auto display_mode=ctr::DisplayClockMode::Disabled;
         auto cfg_profile=ctr::CfgProfile::Unconfigured;
+        auto cpu_mode=ctr::CpuExecutionMode::Strict;
         auto ptm_step_mode = ctr::PtmStepMode::Unconfigured;
         std::uint32_t block_limit=1000000,event_limit=4096;
         std::uint64_t rtc_epoch_ms=ctr::kDefaultRtcMsSince1900;
         for (int i=2; i<argc; i+=2) {
             if (i+1==argc) throw std::runtime_error("missing option value");
             const std::string_view option(argv[i]);
-            if (option=="--cfg-profile") {
+            if(option=="--cpu-mode") {
+                if(std::string_view(argv[i+1])!="diagnostic-dual")
+                    throw std::runtime_error("CPU mode must be diagnostic-dual (or omit the option)");
+                cpu_mode=ctr::CpuExecutionMode::DiagnosticDual;
+            }
+            else if (option=="--cfg-profile") {
                 if (std::string_view(argv[i+1])!="reference-stereo")
                     throw std::runtime_error("CFG profile must be reference-stereo (or omit the option)");
                 cfg_profile=ctr::CfgProfile::ReferenceStereo;
@@ -154,7 +160,7 @@ int main(int argc,char** argv) {
             std::cout << "romfs_sha256=" << romfs->sha256() << " raw_bytes=" << ctr::kLegoRawRomfsBytes
                       << " view_offset=" << ctr::kLegoRomfsViewOffset << " view_bytes=" << romfs->size() << '\n';
         }
-        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile);
+        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile,cpu_mode);
         if (!shared_extdata_root.empty())
             std::cout << "shared_extdata_root=" << shared_extdata_root.generic_string() << '\n';
         if (ptm_step_mode == ctr::PtmStepMode::EmptyHistory)
@@ -167,9 +173,17 @@ int main(int argc,char** argv) {
         std::cout << "rtc_epoch_ms_since_1900=" << rtc_epoch_ms
                   << " guest_time_source=kernel_ns\n";
         if (display_mode==ctr::DisplayClockMode::ReferenceIdle)
-            std::cout<<"display_clock=reference_idle frame_ticks="<<ctr::kDisplayPeriodTicks
+            std::cout<<"display_clock="<<(cpu_mode==ctr::CpuExecutionMode::DiagnosticDual?"diagnostic_cpu_periodic":"reference_idle")
+                     <<" frame_ticks="<<ctr::kDisplayPeriodTicks
                      <<" clock_hz="<<ctr::kArm11TicksPerSecond<<" presentation=none\n";
+        if(cpu_mode==ctr::CpuExecutionMode::DiagnosticDual)
+            std::cout<<"cpu_model=diagnostic_dual issue=one_recorded_A32_per_core_per_tick order=core0_then_core1 hardware_cycles=false\n";
         const auto result=runner.Run(block_limit,event_limit);
+        if(cpu_mode==ctr::CpuExecutionMode::DiagnosticDual) {
+            std::cout<<"cpu_ticks="<<runner.diagnostic_ticks()<<" core0_instructions="<<runner.issued_instructions()[0]
+                     <<" core1_instructions="<<runner.issued_instructions()[1]<<" quota_transitions="<<runner.quota_transitions()<<'\n';
+            if(runner.cpu_error())std::cout<<"cpu_model_error="<<runner.cpu_error()<<'\n';
+        }
         if (display_mode==ctr::DisplayClockMode::ReferenceIdle) {
             std::cout<<"display_periods="<<runner.display_periods()<<" guest_now_ns="<<kernel.now_ns()<<'\n';
             if (runner.display_error())std::cout<<"display_error="<<runner.display_error()<<'\n';
@@ -178,7 +192,7 @@ int main(int argc,char** argv) {
         std::cout << "app_cpu_time_current=" << kernel.app_cpu_time_current()
                   << " maximum=" << kernel.app_cpu_time_maximum()
                   << " core0_only=" << kernel.app_cpu_core0_only()
-                  << " core1_enforcement=unimplemented\n";
+                  << " core1_enforcement=" << (cpu_mode==ctr::CpuExecutionMode::DiagnosticDual?"diagnostic_windows":"unimplemented") << '\n';
         std::uint32_t clock_counter=0, clock_fault=0;
         std::uint64_t clock_date=0, clock_tick=0;
         if (memory.Read32(ctr::kSharedPageBase,&clock_counter)) {

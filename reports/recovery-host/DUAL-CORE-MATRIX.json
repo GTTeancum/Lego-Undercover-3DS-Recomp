@@ -1,0 +1,65 @@
+{
+  "root": "/mnt/data/lego_recovery/private-state/dual-matrix.zcopp10d",
+  "cases": [
+    {
+      "case": "strict-full",
+      "exit": 3,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "dual-full",
+      "exit": 3,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "dual-default-budget",
+      "exit": 4,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "dual-no-clock",
+      "exit": 3,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "dual-no-cfg",
+      "exit": 3,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "dual-no-vram",
+      "exit": 3,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "dual-no-romfs",
+      "exit": 3,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "dual-no-ptm",
+      "exit": 3,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "invalid-cpu",
+      "exit": 2,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "missing-cpu",
+      "exit": 2,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "dual-event-bound",
+      "exit": 4,
+      "compiler_logs_and_file_bytes_match": true
+    },
+    {
+      "case": "dual-instruction-bound",
+      "exit": 4,
+      "compiler_logs_and_file_bytes_match": true
+    }
+  ]
+}

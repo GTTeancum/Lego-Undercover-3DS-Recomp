@@ -1,0 +1,23 @@
+code_sha256=5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f
+registry_pages=599 blocks=111043 instruction_words_verified=545111
+romfs_sha256=6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf raw_bytes=769179648 view_offset=4096 view_bytes=769175552
+shared_extdata_root=/mnt/data/lego_recovery/private-state/dual-matrix.zcopp10d/dual-full
+ptm_step_source=explicit_empty_history total_steps=0 sensor_input=none
+gpu_vram_source=pinned_hle_zero_initialization bytes=6291456 cpu_mapping=none
+cfg_profile=pinned_hle_stereo_default block=00050005 bytes=32 recovered_calibration=false
+rtc_epoch_ms_since_1900=3155673600000 guest_time_source=kernel_ns
+display_clock=diagnostic_cpu_periodic frame_ticks=4481136 clock_hz=268111856 presentation=none
+cpu_model=diagnostic_dual issue=one_recorded_A32_per_core_per_tick order=core0_then_core1 hardware_cycles=false
+cpu_ticks=4839693 core0_instructions=2180849 core1_instructions=0 quota_transitions=0
+display_periods=1 guest_now_ns=18051022
+app_cpu_time_current=30 maximum=80 core0_only=0 core1_enforcement=diagnostic_windows
+shared_clock_counter=1 snapshot_ms_since_1900=3155673600000 snapshot_tick=0 guest_now_ns=18051022
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=248
+r0=0x000a8024 r1=0x0ffff654 r2=0x0ffff658 r3=0x0ffff65c
+r4=0x1ff82080 r5=0x0ffff650 r6=0x0ffff654 r7=0x0ffff658
+r8=0x0ffff65c r9=0x0ffff660 r10=0x0ffff664 r11=0x00000000
+r12=0x00000008 r13=0x0ffff628 r14=0x001216e8 r15=0x0025947c
+cpsr=0x40000010 fpscr=0x23000018 tls=0x1ff82000
+last_ipc_session=hid:USER requested_service= request_header=0x000a0000
+ipc_words= 000a0000 00000000 00000010 000a8024 00000000 00000000 00000000 00000000
+ipc_static_buffer0= 00000000 00000000

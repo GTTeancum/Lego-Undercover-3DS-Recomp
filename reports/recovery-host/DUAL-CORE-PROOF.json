@@ -1,0 +1,27 @@
+{
+  "strict": {
+    "paired_capture_files": 6,
+    "sha256": {
+      "relay.bin": "7fbc047ae8e607b7559055259c05ab095ceb35877c7c6df20b6192f5a4cf4387",
+      "gpu-registers.bin": "a61ae7a25caccbf737d4b0a02b09e208f09bf7514804e85fc3447891b2e752ce",
+      "stack-alias.bin": "704a51e2dd24d6283bd1bfbb9a63e31b1eb77b248b0ea35a426ecb5fc98e6057",
+      "vram.bin": "b69dae56a14d1a8314ed40664c4033ea0a550eea2673e04df42a66ac6b9faf2c",
+      "state.txt": "47f6321f87aa0258d03c273f4fdfc3031de23457619f563eb33533c5e0bdd19f",
+      "shared/00048000/F000000B/user/gamecoin.dat": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    },
+    "state": "reason=2 pc=102fcc detail=8 rounds=245\nnow_ns=16713681 ticks=0 instructions0=0 instructions1=0 quota_transitions=0 display=1\ncpu_limit=30 core0_only=1 quota_deadline=0 app_allowed=1\nhandles=20 threads=3 aliases=1 source_readable=0 alias_writable=1\nvram_nonzero=0\nthread=1 core=0 priority=48 status=0 started=1 tls=1ff82000 savedpc=25c9f8\nthread=2 core=0 priority=47 status=4 started=0 tls=1ff82200 savedpc=2594c4\nthread=3 core=0 priority=26 status=4 started=0 tls=1ff82400 savedpc=2594c4\nsession=APT:U requested= header=4f0080\nlive=30 104df4 e007fe0 e007fe0 1 0 10 ffff638 e008000 10dad8 1 0 80448e0 ffff5e0 25b874 102fcc \n"
+  },
+  "dual": {
+    "paired_capture_files": 6,
+    "sha256": {
+      "relay.bin": "7fbc047ae8e607b7559055259c05ab095ceb35877c7c6df20b6192f5a4cf4387",
+      "gpu-registers.bin": "a61ae7a25caccbf737d4b0a02b09e208f09bf7514804e85fc3447891b2e752ce",
+      "stack-alias.bin": "704a51e2dd24d6283bd1bfbb9a63e31b1eb77b248b0ea35a426ecb5fc98e6057",
+      "vram.bin": "b69dae56a14d1a8314ed40664c4033ea0a550eea2673e04df42a66ac6b9faf2c",
+      "state.txt": "cc8ee608891032efcdec3bde2632ea81a7e66852dfb030a6d3546a8ef5cae7d7",
+      "shared/00048000/F000000B/user/gamecoin.dat": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    },
+    "state": "reason=3 pc=25947c detail=32 rounds=248\nnow_ns=18051022 ticks=4839693 instructions0=2180849 instructions1=0 quota_transitions=0 display=1\ncpu_limit=30 core0_only=0 quota_deadline=5180070 app_allowed=0\nhandles=22 threads=4 aliases=1 source_readable=0 alias_writable=1\nvram_nonzero=0\nthread=1 core=0 priority=48 status=0 started=1 tls=1ff82000 savedpc=25947c\nthread=2 core=0 priority=47 status=4 started=1 tls=1ff82200 savedpc=2594c4\nthread=3 core=0 priority=26 status=4 started=1 tls=1ff82400 savedpc=2594c4\nthread=4 core=1 priority=49 status=1 started=0 tls=1ff82600 savedpc=104df4\nsession=hid:USER requested= header=a0000\nlive=a8024 ffff654 ffff658 ffff65c 1ff82080 ffff650 ffff654 ffff658 ffff65c ffff660 ffff664 0 8 ffff628 1216e8 25947c \n"
+  },
+  "scope": "Final snapshots of original execution. Diagnostic dual creates but has not executed the original core-1 thread. Core-1 execution and quota/fairness are tested with synthetic programs."
+}
