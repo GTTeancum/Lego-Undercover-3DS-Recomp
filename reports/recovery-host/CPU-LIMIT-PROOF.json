@@ -1,0 +1,26 @@
+{
+  "paired_capture_files": 86,
+  "app_cpu_time_before": 0,
+  "app_cpu_time_after": 30,
+  "inherited_maximum": 80,
+  "scope": "actual application resource; core-0-only; core-1 preemption NOT implemented",
+  "setter_response": "004F0040 00000000",
+  "service_adds_handles": false,
+  "service_changes_time": false,
+  "gpu_words_unchanged": 1842,
+  "vram_bytes_unchanged": 6291456,
+  "vram_all_zero": true,
+  "next_stop": "ControlMemory Map, UnsupportedSvc at 0x0025C9F4, round 243",
+  "map_arguments": [
+    4,
+    234881024,
+    134500352,
+    32768,
+    3
+  ],
+  "map_source_sha256": "c35020473aed1b4642cd726cad727b63fff2824ad68cedd7ffb73c7cbd890479",
+  "source_unchanged": true,
+  "destination_unmapped": true,
+  "map_cpu_registers_unchanged": true,
+  "rendering": false
+}

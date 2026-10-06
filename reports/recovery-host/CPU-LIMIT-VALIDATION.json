@@ -1,0 +1,125 @@
+{
+  "root": "/mnt/data/lego_recovery/private-state/apt-limit-validation.a22ti0oi",
+  "cases": [
+    {
+      "case": "fresh",
+      "exit": 3,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "98c836c404c326e70aaa74f274e033502a75133a627b9fc8e36e59e90fcc83eb"
+    },
+    {
+      "case": "existing",
+      "exit": 3,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "7f59e81dd2f46d72ae047d905a7eb9c1b26d23e84b43280fea918133b036dd48"
+    },
+    {
+      "case": "no-clock",
+      "exit": 3,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "068bf459a07d957165afa86f313b541f41a5c58569731be74af813e2c44cbfb3"
+    },
+    {
+      "case": "invalid-clock",
+      "exit": 2,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "98bbe8d2bb3bd653c5dfd881c02e6f53af146565ab31b189fd3d8ccd8cea3611"
+    },
+    {
+      "case": "missing-clock",
+      "exit": 2,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "76e362f21dde4b82886744dfb274d2544eabbd0e9853da4ba5ebe1b53eff4379"
+    },
+    {
+      "case": "strict-no-vram",
+      "exit": 3,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "04f1b991a592c67c28467cbb41efc7d9cbb3ee27300231f39d807504fa8f1fea"
+    },
+    {
+      "case": "invalid-vram",
+      "exit": 2,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "8684773f94dd50620f58767c38e7c3167ebc6614694fe155edfafe1dd278f1bf"
+    },
+    {
+      "case": "missing-vram",
+      "exit": 2,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "76e362f21dde4b82886744dfb274d2544eabbd0e9853da4ba5ebe1b53eff4379"
+    },
+    {
+      "case": "ptm-off",
+      "exit": 3,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "63026aadfcc0075c3c91f9b26f89183b885b5f8c0e65f60f3328452e3892e1ed"
+    },
+    {
+      "case": "rtc-next-day",
+      "exit": 3,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "0de0e467b92095dc195e5a5b69518b0a29b4b08d78f06fd6ac989d3aecc70aae"
+    },
+    {
+      "case": "no-romfs",
+      "exit": 3,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "3045442195e642ddc30c920e9f0994a784577b48499f82d525cea6c9fda6695c"
+    },
+    {
+      "case": "no-root",
+      "exit": 3,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "0c80edc26e405061117401c92ae387aaa36b70fe53e107e57f04c7f506b2305d"
+    },
+    {
+      "case": "missing-archive",
+      "exit": 3,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "3a2da71b85e74118d843e0764f460cf9c159ac7c1f7965ee5b301b08eab4d4b4"
+    },
+    {
+      "case": "invalid-root",
+      "exit": 2,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "ae209e453503f01646686f05e40b9d4540a9e4d2a6be10a096cf094accc8bb45"
+    },
+    {
+      "case": "invalid-ptm",
+      "exit": 2,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "af3ba88998fd2d04f01d4b971fefe758ab727bcd12101d07a1489a649afeddad"
+    },
+    {
+      "case": "missing-romfs",
+      "exit": 2,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "a47f5899ebf6d92d9409d6d30ea28c4c04cb8936cbde4d2ed452eae0746d8372"
+    },
+    {
+      "case": "wrong-romfs-size",
+      "exit": 2,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "a89e5a41948ad04d75c6d3a850cb8beb2091b06e0da3f2672aef4f4503f6436d"
+    },
+    {
+      "case": "strict-no-cfg",
+      "exit": 3,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "4e8560b5e7fe816cf8fc2bf2b8398d141398d3071cd8c9a891cb1ab19f04b76c"
+    },
+    {
+      "case": "invalid-cfg",
+      "exit": 2,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "051621c020b393612173d597016a9f1d87b09a756380f90b09fcf49a778a1442"
+    },
+    {
+      "case": "missing-cfg",
+      "exit": 2,
+      "compiler_logs_and_file_match": true,
+      "log_sha256": "76e362f21dde4b82886744dfb274d2544eabbd0e9853da4ba5ebe1b53eff4379"
+    }
+  ]
+}
