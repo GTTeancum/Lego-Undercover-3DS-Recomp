@@ -1,0 +1,27 @@
+{
+  "baseline_commit": "da5c9a9e8aa74567deae519380caa86e06e35247",
+  "implementation_commit": "82cf8dfe9abeeb4f628bab94d1c0abc282079c66",
+  "implementation_tree": "15faf07b962cd5c682adcf93fd11f63852a06221",
+  "workflow_run": 37404725362,
+  "branch": "work/lcd-blanking",
+  "hosted_jobs": [
+    {"variant": "gcc-release", "job_id": 112079632741, "status": "completed", "conclusion": "success", "test_suites": 37},
+    {"variant": "clang-release", "job_id": 112079633005, "status": "completed", "conclusion": "success", "test_suites": 37},
+    {"variant": "clang-sanitizers", "job_id": 112079632465, "status": "completed", "conclusion": "success", "test_suites": 37}
+  ],
+  "scope": "ROM-free hosted runtime and synthetic tests only",
+  "local_execution_available": false,
+  "original_game_rerun": false,
+  "full_private_AOT_build": false,
+  "private_inputs_rehashed": false,
+  "new_game_boundary": null,
+  "meaningful_game_screenshot": false,
+  "last_verified_original_stop": {
+    "source": "baseline da5c9a9 private display-checkpoint evidence",
+    "pc": "0x0025947C",
+    "dispatch_rounds": 232,
+    "request": "GSP SetLcdForceBlack",
+    "header": "0x000B0040",
+    "argument": 0
+  }
+}

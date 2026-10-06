@@ -6,27 +6,34 @@ POST AN UPDATED DOWNLOADABLE HANDOFF AND SOURCE/EVIDENCE CHECKPOINT EVERY WORK T
 No useful game visuals exist in the last verified run. Do not substitute test
 patterns, generated art, reference screenshots, or blank buffers for genuine output.
 
-## Current change: LCD blanking (awaiting hosted verification)
+## Current change: LCD blanking — hosted tests passed; game run pending
 
-This source adds the observed GSP SetLcdForceBlack request, exact header 0x000B0040.
-The baseline is main commit da5c9a9e8aa74567deae519380caa86e06e35247, source tree
-ea8fb58dae3570e62dbb512d63524d0faa9cebc3. Preserve that private source/evidence archive.
-The current implementation has NOT yet been validated in an original-game run.
-Do not claim startup has advanced or name a new game blocker without running it.
+Implementation commit: 82cf8dfe9abeeb4f628bab94d1c0abc282079c66.
+Implementation/source tree: 15faf07b962cd5c682adcf93fd11f63852a06221.
+Baseline main: da5c9a9e8aa74567deae519380caa86e06e35247, source tree
+ea8fb58dae3570e62dbb512d63524d0faa9cebc3. Preserve its private source/evidence archive.
+The final hosted package receipt identifies the subsequent documentation commit.
+
+GitHub Actions run 37404725362 built and passed all 37 ROM-free CTest suites in
+GCC Release, Clang Release and Clang Debug with ASan/UBSan. The source was tested
+on work/lcd-blanking before promotion. No prior test was removed or changed.
+The implementation has NOT been validated in an original-game run. Do not claim
+startup has advanced or name a new game blocker without running it.
 
 Local container execution and Python initialization failed before any local command
-could run. GitHub connector reads/writes still worked. Development uses a separate
-work/lcd-blanking branch and ROM-free hosted tests; no original code.bin, private
-AOT pages, ROM, RomFS or private game captures are uploaded to public GitHub/Actions.
-The candidate requires GCC, Clang and Clang ASan/UBSan validation before promotion.
+could run. GitHub connector reads/writes still worked. No original code.bin, private
+AOT pages, ROM, RomFS or private game captures were uploaded to public GitHub/Actions.
+The final package workflow independently rebuilds all three variants, verifies
+JUnit results and exact committed source blobs, and validates the generated archive.
+Those are HOSTED checks, not a local archive round-trip or a 599-page game build.
 
 ## LCD implementation scope
 
-Only a connected client can issue the exact one-normal-word, zero-descriptor IPC.
-Pinned IPC Pop<bool> consumes the low byte: (word & 0xFF) != 0. Upper 24 bits do
-not enable blanking. SetLcdForceBlack constructs zero RGB plus enable bit 24, and
-stores the complete value in BOTH global LCD color-fill control words. The words
-are separate from PICA GPU register storage, VRAM and framebuffer descriptors.
+Only a connected client can issue the exact one-normal-word, zero-descriptor IPC,
+header 0x000B0040. Pinned IPC Pop<bool> consumes the low byte: (word & 0xFF) != 0.
+Upper 24 bits do not enable blanking. SetLcdForceBlack constructs zero RGB plus
+enable bit 24, storing the complete value in BOTH global LCD color-fill controls.
+The words are separate from PICA registers, VRAM and framebuffer descriptors.
 
 Read-only lcd_color_fill_word(screen) exposes top=0/bottom=1; invalid screen indexes
 return nullopt. The initial zero words follow pinned PicaCore::RegsLcd regs_lcd{},
@@ -35,17 +42,17 @@ frame presentation, draw engine or arbitrary color-fill interface is added.
 
 Successful reply: header 0x000B0040, Result 0, remaining command buffer words zero.
 GPU ownership or relay registration is not required by the inspected handler.
-The control is shared between sessions. An independent service has independent
-state. No event, queue, framebuffer pixels, PICA upload, handle count or time is
-changed by this request. Existing full response-capacity/readability preflight
-runs before handler dispatch. Unsupported request shapes remain untouched stops.
+The controls are shared between sessions. An independent service has independent
+state. The handler changes no event, queue, framebuffer pixels, PICA upload, handle
+count or time. Existing complete response-capacity/readability preflight runs before
+handler dispatch. Unsupported request shapes remain untouched diagnostic stops.
 
-New ctr_lcd_blank_test covers all 256 low-byte values with and without nonzero
-upper bytes, the exact original zero request, enable/disable/repeat, shared and
-independent services, nonowner and unregistered clients, duplicated handles,
-retained event lifetime, a full handle table, protected/partial/write-only response
-areas, malformed headers, every GPU word, complete GSP shared bytes/epochs, upload
-storage and a nonzero 6 MiB SYNTHETIC VRAM bank. The test bank is not game artwork.
+ctr_lcd_blank_test covers all 256 low-byte values with and without nonzero upper
+bytes, the exact original zero request, enable/disable/repeat, shared and independent
+services, nonowner/unregistered clients, duplicated handles, retained event lifetime,
+a full handle table, protected/partial/write-only response areas and malformed headers.
+It compares every GPU word, complete GSP shared bytes/epochs, upload storage, and a
+nonzero 6 MiB SYNTHETIC VRAM bank. The test bank is not game artwork or game-run input.
 
 ## Last verified original-game state (inherited, NOT this change's test result)
 
@@ -81,12 +88,16 @@ shared archive with every explicit policy enabled. Observe the real SetLcdForceB
 response, both LCD words, unchanged VRAM and the next actual stop. Do not infer it.
 Post a screenshot only once meaningful genuine native output exists.
 
-Source implementation changes are CMakeLists.txt, src/services/gsp_gpu_service.h,
+Implementation paths changed: CMakeLists.txt, src/services/gsp_gpu_service.h,
 and new tests/ctr_lcd_blank_test.cpp. ROM-free packaging/CI support is in
 .github/workflows/rom-free-checkpoint.yml and tools/package_romfree_checkpoint.py.
-No vendor backend, scheduling, filesystem, game bytes or private AOT is modified.
-The hosted package verifies exact tracked blob identities and test evidence; this
-is NOT a full original-game build or a replacement for private trace verification.
+No vendor backend, scheduling, filesystem, game bytes or private AOT was modified.
+The old ctr-runtime-ci.yml and source-snapshot.yml are unchanged. The new workflow
+retains hosted configure/build/test logs and JUnit evidence; no private data is used.
+An inherited legacy-barrier test narrowing warning remains visible, not suppressed.
+Local execution failures and blocked raw-download attempts are recovery limitations,
+not hidden native test failures. No native compilation/test failure occurred in the
+observed successful branch run. The package receipt records final run verification.
 
 ## Pinned primary references
 
