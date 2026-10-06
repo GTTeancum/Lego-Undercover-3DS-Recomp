@@ -1,0 +1,20 @@
+{
+  "reference_pin": "86a9f9236ae42bb5a2b995dbc933d599d8ea07ac",
+  "profile": "explicit reference-stereo; not console calibration",
+  "cfg_bytes_sha256": "eb666a350f0f714ab7ca73c9ee5cdace24f90cb79b7afa30fd03be193b52c5b6",
+  "cfg_bytes_hex": "00007842008090439a999942ec513842000020410000a040ec515e425c8fac41",
+  "cfg_address": "0x00594218",
+  "changed_cfg_bytes": 25,
+  "neighbour_bytes_unchanged": 64,
+  "paired_capture_files": 78,
+  "gpu_register_words_unchanged": 1842,
+  "vram_bytes_unchanged": 6291456,
+  "guest_now_ns": 16713681,
+  "next_request_header": "0x004F0080",
+  "next_request_arguments": [
+    1,
+    30
+  ],
+  "next_request_untouched": true,
+  "game_rendering": false
+}

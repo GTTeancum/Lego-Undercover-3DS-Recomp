@@ -1,147 +1,135 @@
 # LEGO Chase Begins — canonical continuation handoff
 
-Continue in assistant scratch, NOT the user's PC or Work. Nintendo 3DS USA:
-LEGO City Undercover: The Chase Begins. This is headless native reconstruction,
-not playable. POST AN UPDATED DOWNLOADABLE HANDOFF AND SOURCE/EVIDENCE EVERY TURN.
-Only post genuine meaningful game visuals, never generated art, test patterns or blank buffers.
+Continue in assistant scratch, NOT the user's PC or Work. Project: LEGO City
+Undercover: The Chase Begins (Nintendo 3DS USA). This is headless native startup
+reconstruction, not a playable port. POST THIS UPDATED MARKDOWN AND A RECOVERABLE
+SOURCE/EVIDENCE CHECKPOINT EVERY WORK TURN. Screenshots must be meaningful genuine
+game output, not blank VRAM, test patterns, reference screenshots or generated art.
 
-## Current checkpoint and restored baseline
+## Published implementation and restored baseline
 
-Implementation: `1cf1c1d1ec6af90854c4dac44d997a511d9ed70d`.
-Exact tested/uploaded implementation tree: `871749f15b6f11e42326da896feb31703405ed1b`.
-Base main: `dfa588edbf998155981aa838533b73f12cd82f15`, tree
-`64d781d22bb05d7e584f7cfd8e73445a30e4d3c0`. The final downloadable receipt records
-this checkpoint's subsequent report commit and backup name. Local Git is a snapshot,
-NOT remote history. Re-read remote main and publish with its parent and force=false.
+Implementation: `1bc3c7d5ecc7508c902d3d035bf590ea2dd5532e`.
+Exact tested/uploaded implementation tree: `cd08e620bac867620213031bd50fc50aff715e58`.
+Baseline: `237def70338cb07641a9daec4898b320f78a724b`, tree
+`9497b84eaff20374b3c507ec73fe873f97d6782e`.
+The final downloadable receipt records the subsequent report/delivery commit.
+Use current remote parents and force=false (expected_sha when available).
+Local Git is a reconstructed snapshot/index, NOT full remote history.
 
-The previous LCD change had only hosted ROM-free verification. Local execution now
-works. Its ZIP and inner archive checksum, all 355 manifest entries and all 333
-source blobs were verified; the reconstructed index matched the base tree exactly.
-Private code/AOT and the two prepared RomFS parts were present and reverified.
-No user upload, original CCI extraction, Work or user-PC access was needed.
+This turn restored the attached 237def7 archive: all 534 manifest entries and 338
+source blobs verified, with exact baseline tree match. Private code/AOT and prepared
+RomFS parts were already available. No reupload, CCI extraction or user-PC access.
+The full GCC baseline reproduced the untouched CFG call at round 235 before edits.
 
-The FULL baseline now confirms LCD succeeds. It then took the original Break at
-0x0011FB80, round 234, because srv: returned ServiceNotRegistered for y2r:u. A
-separate discovery-only run exposed the original DriverInitialize request 0x002B0000.
-No Break or failed lookup was bypassed. Those baseline/intermediate logs are retained.
+## Current actual progress and remaining boundary
 
-## Actual progress and next untouched request
+New explicit option: `--cfg-profile reference-stereo`.
+It supplies ONLY block 0x00050005 using eight exact binary32 compatibility defaults
+from pinned Azahar cfg_defaults.cpp. This is NOT recovered console calibration,
+measured hardware reset state or a complete CFG save. The source does not fully
+identify the eight fields; do not invent their meanings. The default profile stays
+unconfigured. Unknown blocks/sizes/descriptors still stop without output.
 
-The original LCD zero request gets `000B0040 00000000`; both LCD words remain zero.
-Y2R DriverInitialize now gets `002B0040 00000000`, with genuine configuration reset
-and the same retained one-shot completion event cleared, not signaled. Initial
-input-line width becomes 1024; input-lines remains zero according to the pin.
-No YUV conversion, DMA, converted pixels, completion signal or extra time occurs.
+The original game now receives the exact 32-byte configuration at 0x00594218:
+request `00010082 00000020 00050005 0000020c 00594218`,
+reply `00010042 00000000 0000020c 00594218` followed by zeros.
+Data SHA: eb666a350f0f714ab7ca73c9ee5cdace24f90cb79b7afa30fd03be193b52c5b6.
+Independent Python binary32 serialization matches every byte. Twenty-five bytes
+change from the original output, while 64 neighbouring captured bytes stay unchanged.
 
-Fresh original startup now stops at:
+Fresh original startup then reaches:
 
 ```text
-stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=235
-last_ipc_session=cfg:u requested_service= request_header=0x00010082
-ipc_words= 00010082 00000020 00050005 0000020c 00594218 00000000 00000000 00000000
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=238
+last_ipc_session=APT:U requested_service= request_header=0x004f0080
+ipc_words= 004f0080 00000001 0000001e 00090020 00000000 00000000 00000000 00000000
 ```
 
-Pinned CFG names command 1 GetConfig and block 0x00050005 StereoCameraSettings.
-This requests 32 bytes at guest 0x00594218. The complete IPC and destination remain
-untouched. No camera settings or calibration were guessed or supplied. This is
-NOT a successfully read configuration block. Existing-gamecoin reaches the same
-request at round 227; it skips file initialization and is not a save-readback test.
+This is SetAppCpuTimeLimit with arguments 1 and 30. Word 3 is outside the declared
+request, hence stale buffer contents, NOT a handle argument. The call is untouched:
+no CPU resource limit is applied and no success response returned. Existing-gamecoin
+reaches the same call at round 230; this skips file initialization, not save readback.
 
-Logging-only GCC and Clang captures match byte-for-byte for LCD, Y2R and CFG calls.
-At each call, all 1842 GPU words, serialized upload state, 4096-byte shared page,
-all shared epochs and full 6 MiB VRAM are unchanged. Both LCD words remain zero;
-GSP event stays unsignaled. Time stays 16713681 ns and there are three threads.
-Handle count is 17 at LCD, 18 at Y2R/CFG after the actual service connection.
-The two display callbacks and all older GPU paths remain inherited, not new work.
+Time remains 16713681 ns after one display period. The full 1842-word GPU image,
+uploads, GSP page/epochs, LCD words and 6 MiB VRAM remain unchanged across CFG and
+the rejected APT call. The APT service connection brings handles from 18 to 19;
+the call itself adds none. All 78 logging-only capture files match between GCC/Clang.
+VRAM is still entirely zero. NO logo, main menu, rendered frame or gameplay exists.
 
-VRAM is still entirely zero under the explicit reference-HLE cold-bank policy.
-No useful screenshot, rendered frame, main menu, shader execution or gameplay.
+## Implementation scope
 
-## Implemented scope and safeguards
+Eight implementation paths changed: CMakeLists.txt, cmake/LEGOHostRuntime.cmake,
+src/host/main.cpp, src/runtime/ctr_runner.h/.cpp, src/services/cfg_service.h/.cpp,
+tests/ctr_cfg_stereo_test.cpp. The runner change passes an immutable profile into CFG;
+its scheduling logic is unchanged. No original game bytes, AOT, vendor/opcode,
+production IPC, memory backend, APT, GPU, LCD, Y2R or filesystem implementation changed.
 
-Y2rUserService permits one connected session, following the pinned service limit.
-A duplicate handle retains the same session; a failed handle allocation releases
-the temporary lease. State and the one-shot EventObject survive disconnect/reconnect.
-An independent endpoint has independent state. The registration endpoint itself
-cannot execute IPC. Only the exact zero-parameter 0x002B0000 request is supported.
+The handler supports only exact header 0x00010082, block 0x00050005, size 32 and
+write-only mapped descriptor 0x20C. Full output and response permissions are checked.
+The pre-existing private PrepareDeviceWrite/CommitDeviceWrite path reserves metadata
+before output and commits without allocation, invalidating touched exclusive epochs.
+Shared output, cross-region spans and reply aliases stop; invalid pointers return
+transport InvalidPointer. These strict bounds and direct-buffer restrictions are
+HOST POLICY, not complete firmware parity or error precedence. No NAND is created.
+CFG keeps its previous shared-service session model; full session-limit parity is
+not claimed. Other configuration reads and writes are not silently enabled.
 
-DriverInitialize resets input/output formats, rotation, alignment, coefficients,
-width, alpha, planar Y/U/V and destination buffers. Pinned SetInputLines(1024)
-does not assign the lines field; input_lines, src_yuyv and padding are deliberately
-retained. Nondefault pure-state tests verify that distinction. Initial values follow
-the reference's value initialization, not recovered hardware registers.
+The selected reference words, serialized little-endian:
+42780000 43908000 4299999A 423851EC 41200000 40A00000 425E51EC 41AC8F5C.
+They represent 62, 289, 76.80000305175781, 46.08000183105469, 10, 5,
+55.58000183105469, 21.56999969482422 in the pinned order.
 
-Initialization clears the existing event without allocating a guest handle, waking
-threads, signaling completion or changing guest memory outside the IPC response.
-The inherited full response readability/writability preflight runs before mutation.
-Malformed requests and every other Y2R operation remain explicit stops, including
-StartConversion, IsBusyConversion, GetTransferEndEvent and DriverFinalize. No
-conversion scheduler, dithering behavior or buffer I/O is implemented.
+## Tests and evidence
 
-Six runtime/test/build paths changed: CMakeLists.txt, cmake/LEGOHostRuntime.cmake,
-src/runtime/ctr_runner.cpp, new services/y2r_user_service.h/.cpp and the new
-ctr_y2r_initialize_test.cpp. The runner change only registers this service.
-Production IPC, GPU/LCD code, scheduler, memory, vendor, AOT and file backends are unchanged.
+Full GCC and Clang native builds link all 599 unchanged private AOT page units.
+All 39 CTest suites pass under each compiler, plus 39 ROM-free Clang ASan/UBSan
+suites with leak checking/halt-on-error. No earlier suite was removed or changed.
+Twenty original-startup scenarios match stdout, exit code and newly created file
+bytes across compilers. Strict-no-CFG retains round 235; no display clock retains
+round 228; no explicit VRAM retains round 170; absent RomFS/PTM preserve older stops.
+The matrix also checks malformed and missing profile options.
 
-The seventh implementation path, tools/package_romfree_checkpoint.py, now checks
-exact configured CTest names instead of a stale hardcoded 37-suite count. It fails
-closed if this repository's literal foreach list is malformed or duplicated.
-Hosted package receipts refer to separate private evidence rather than an obsolete
-fixed predecessor. This is packaging support, not runtime progress.
+All 603 AOT archive members, code.bin and raw RomFS match their private backups.
+Full IVFC-block verification was not repeated; the raw SHA matches the prior verified
+image. Registry counts 111043 blocks/545111 words are STATIC inventory, not execution
+counts or frames. No Windows/macOS build. No native test failure occurred.
+Setup-only issues and bounded build interruptions: cfg-checkpoint/setup-notes.txt.
 
-## Validation and evidence
-
-Full GCC and Clang native executables link all 599 unchanged private AOT pages.
-All 38 CTest suites pass with GCC and Clang; all 38 ROM-free Clang ASan/UBSan suites
-pass with leak checks and halt-on-error. Seventeen production scenarios have
-byte-identical compiler logs, exit codes and resulting test-file bytes. Strict modes
-remain distinct: no display clock waits at round 228; no explicit VRAM stops at the
-earlier transfer round 170; absent RomFS and unconfigured PTM preserve earlier stops.
-
-New tests cover exact reset fields, preserved fields, one-session limits, duplicate
-lifetime, reconnect, independent endpoints, real-event clearing, full handle tables,
-failed-connection rollback, protected/partial/write-only replies, malformed IPC and
-untouched unsupported conversions. No previous test was removed or changed.
-
-Original code, whole RomFS and all 603 regular AOT backup members match their inputs.
-Full IVFC checking was not repeated; the raw SHA matches the previously verified image.
-111043 registry blocks / 545111 words are STATIC inventory, not execution or frames.
-No Windows/macOS build. Clang build and initial monolithic matrix each hit a container
-call timeout; bounded continuation/new-root matrix completed. Streaming sessions are
-unavailable. Setup notes retain these limitations; no native test failure was hidden.
-
-Current private evidence: lcd-native-checkpoint/. Important files: baseline-game.txt,
-discovery-game.txt, initialize-game.txt, ctest-gcc/clang/asan.txt, trace-proof.json,
-identity-proof.json, validation-summary.json, references.json and setup-notes.txt.
-make_trace.py builds alternate logging-only IPC objects; production IPC is unchanged.
-trace_support.inc and verify_trace.py serialize and check all compared state; the
-52 files per compiler under captures-gcc/clang are PRIVATE, not public GitHub.
-validate_matrix.py runs bounded ranges 0 6, 6 11, 11 17 on one owned new test root;
-start 0 always creates a new root. Earlier partial roots are not reused or deleted.
+Current evidence directory: cfg-checkpoint/.
+build_and_test.py, configure-*/build-* logs, ctest-gcc/clang/asan.txt, tests.json;
+validate_matrix.py and validation-summary.json (20 cases);
+make_trace.py / trace_ipc.cpp / trace_support.inc (diagnostic-only alternative IPC);
+captures-gcc/clang (78 files each), verify_trace.py / trace-proof.json;
+identity-proof.json, restore.json and references.json.
+Production IPC is untouched. Raw captures/disassembly are PRIVATE.
+LLVM wrapper disassembly uses section-relative offsets: add 0x100000 for guest PCs.
+The wrapper at guest 0x0012B050 forms the mapped descriptor and checks the Result.
 
 ## Next exact work
 
-Inspect pinned CFG GetConfig, block permissions/size, StereoCameraSettings structure
-and the original caller. Establish a justified source or explicit reference policy
-for block 0x00050005 before returning data. Do not fill the 32-byte destination with
-guessed zeros or silently impersonate recovered console calibration. Then rerun
-unchanged code from NEW test state with the explicit modes below. The next real
-request, not assumptions about cameras or video playback, determines further work.
+Implement the observed APT SetAppCpuTimeLimit only after tracing its actual resource
+state. The pinned APT handler calls PM:APP UpdateResourceLimit(CpuTime, value);
+it is NOT a standalone stored percentage/success stub. PM and kernel limit behavior
+remain uninspected in this checkpoint. Read that path, validate arguments/state and
+determine implications for the current single-process kernel. Do not fake enforcement
+or apply an unrelated thread priority. Then rerun original game code with all explicit
+modes on a NEW empty private shared archive and follow the next observed operation.
 
-Reference: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
-This turn inspected service/cam/y2r_u.cpp/.h (DriverInitialize, SetInputLines,
-construction/state), service/cfg/cfg.h (block names), cfg_u.cpp (GetConfig command).
-These paths have prefix src/core/hle/. Exact blob hashes: references.json.
-Y2R files are under cam/, not service/y2r/. Configuration data semantics are next work.
+Primary pin: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
+Read src/core/hle/service/cfg/cfg.cpp (6eb7302a942c8b34eaa7268eb0411a916a195020),
+cfg_defaults.cpp (424664396a50c369dd7401b97372b924e28def2e),
+apt/apt.cpp (e40bd9c82633aeac18b6116c11a931068bab0b75),
+apt/apt_u.cpp (57539fbee163a7fbb0119222cd15abf36ea478cb).
+Exact references also in private references.json; keep the pin, not mutable upstream.
 
-## Scratch and reproduction
+## Scratch and reproducible run
 
-Root /mnt/data/lego_recovery/. Current source repo/; private AOT generated2/;
-code restored/code.bin; raw RomFS game/prepared-romfs/romfs.bin; raw parts and manifest
-romfs-library-roundtrip/. Builds build-gcc/, build-clang/, build-asan/.
-New private-state/y2r-* and lcd-baseline.* directories contain guest-created TEST
-state, not recovered NAND. Do not overwrite unknown saves. Trace drivers refuse
-existing capture directories. Older source/evidence remains separate in historical/.
+Root /mnt/data/lego_recovery/. Source repo/, private AOT generated2/,
+code restored/code.bin, raw RomFS game/prepared-romfs/romfs.bin,
+parts/manifest romfs-library-roundtrip/. Builds build-gcc/, build-clang/, build-asan/.
+Work and current captures cfg-checkpoint/. New private-state/cfg-* roots are
+guest-created TEST state, not recovered NAND. Preserve unknown saves.
+The paired validator removes only its own just-created, verified 20-byte gamecoin.
 
 ```sh
 cd /mnt/data/lego_recovery
@@ -149,43 +137,48 @@ cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPI
 cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure
 mkdir -p private-state
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/cfg-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/apt-limit-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
-./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle
+./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle --cfg-profile reference-stereo
 ```
 
-Expected exit 3, CFG GetConfig pending, round 235. Use clang++ for Clang. Omit
-LEGO_AOT_DIR for ROM-free sanitizer builds. Never silently enable or drop the modes.
+Expected exit 3: untouched APT 0x004F0080 at round 238.
+Use clang++ for Clang; omit LEGO_AOT_DIR for ROM-free sanitizers.
+Matrix chunks: `python -S cfg-checkpoint/validate_matrix.py 0 6`, then `6 13`,
+then `13 20`. Start 0 creates a new root. Trace drivers refuse existing captures;
+select a new capture directory rather than overwrite unknown results.
+Never silently enable/drop explicit PTM/VRAM/display/CFG modes.
 
-## Durable recovery and mandate
+## Recovery and persistence mandate
 
 GitHub GTTeancum/Lego-Undercover-3DS-Recomp main; Library /LEGO-Chase-Recovery/.
-Restore the latest private source/evidence checkpoint, not the older hosted-only ZIP.
-Verify CHECKPOINT-MANIFEST.json before extraction. SOURCE-INDEX.json records exact
-Git paths, modes and blob identities including ignored tracked reports. Reconstruct
-the index faithfully, but never replace remote history with a local snapshot.
+Restore the latest checkpoint/MD, not historical source. Verify the archive's
+CHECKPOINT-MANIFEST.json with verify_checkpoint.py. SOURCE-INDEX.json records
+all exact Git blobs/modes, including ignored tracked reports. Restore its index
+faithfully, never force-push reconstructed local history.
 
-Private inputs remain separately backed up: code.bin; unchanged
-LEGO-Chase-current-AOT-599pages-2026-10-03.tgz; Prepared-RomFS/ two uncompressed parts
-and romfs-parts.json. AOT unpacks as generated2/. Part sizes: 402653184 and 366526464.
-Restore with repo/tools/restore_romfs_parts.py using the manifest beside the parts;
-restore refuses existing output. No CCI re-extraction or user upload is necessary.
-Raw RomFS size 769179648, native view offset 4096, view bytes 769175552. Retain tables.
-RomFS SHA 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
-Code SHA 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
-AOT SHA 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
-Historical CCI SHA 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
+Original private inputs have separate backups: code.bin;
+LEGO-Chase-current-AOT-599pages-2026-10-03.tgz (unpacks generated2/);
+Prepared-RomFS/ two raw parts and romfs-parts.json (402653184 + 366526464 bytes).
+Reassemble using repo/tools/restore_romfs_parts.py with the manifest beside parts.
+The restore refuses existing outputs; verify instead of overwrite. No CCI extraction
+or user reupload is needed. Raw RomFS is 769179648 bytes; native view offset 4096,
+view length 769175552. Keep all integrity tables.
+RomFS SHA: 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
+Code SHA: 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
+AOT SHA: 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
+Historical CCI SHA: 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
 
-Preserve both previous archives: LEGO-Chase-LCD-checkpoint-dfa588e.zip for hosted
-source/evidence and LEGO-Chase-source-checkpoint-da5c9a9.tgz for private display
-captures and nested prior history. The new checkpoint retains both unchanged.
-Scratch may reset; Library and GitHub are recovery paths, not permanent scratch.
-Actions artifacts expire after 30 days. Keep private code/AOT/RomFS/captures/binaries
-OUT of public GitHub. Publish tested source/reports and save private checkpoints
-when tools permit. Never invent push, CI, persistence, screenshots or gameplay.
-POST THE UPDATED HANDOFF AND RECOVERABLE SOURCE/EVIDENCE FILE EVERY WORK TURN.
+The new backup nests unchanged LEGO-Chase-source-checkpoint-237def7.tgz under
+historical/ with its handoff. That contains prior private captures and nested history.
+Extract history separately, NEVER over current repo/. New source/evidence excludes
+code/AOT/raw RomFS/CCI/7z/.git/native binaries/build directories. Private captures
+must never enter public GitHub. Scratch may reset; Library/GitHub are recovery
+paths, not permanent scratch. Actions snapshots expire after 30 days.
+Publish tested source/reports and durable backups when tools permit. Never fabricate
+CI, persistence, renders or gameplay. Post updated MD and source/evidence every turn.
 
 ## Hosted confirmation
 
-Actions run 37407926702 on implementation 1cf1c1d passed both GCC and Clang jobs.
-These are ROM-free hosted suites, separate from the full local original-game runs.
+GitHub Actions run 37410669875 on implementation 1bc3c7d passed both GCC and Clang
+jobs. These are ROM-free suites, separate from the full local original-game runs.
