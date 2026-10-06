@@ -24,7 +24,8 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
                            GpuVramMode vram_mode,
                            DisplayClockMode display_mode,
                            CfgProfile cfg_profile,
-                           CpuExecutionMode cpu_mode)
+                           CpuExecutionMode cpu_mode,
+                           DspSpecialConfig dsp_config, DspProbeOptions dsp_probe)
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_),
       display_mode_(display_mode), display_clock_(kernel.now_ns()),
       cpu_mode_(cpu_mode),diagnostic_origin_(kernel.now_ns()) {
@@ -42,7 +43,8 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
     gsp_=gsp;
     ipc_.RegisterService("gsp::Gpu",std::move(gsp));
     ipc_.RegisterService("hid:USER",std::make_shared<HidUserService>());
-    ipc_.RegisterService("dsp::DSP",std::make_shared<DspDiscoveryService>());
+    dsp_=std::make_shared<DspDiscoveryService>(dsp_config,dsp_probe);
+    ipc_.RegisterService("dsp::DSP",dsp_);
     ipc_.RegisterService("y2r:u", std::make_shared<Y2rUserService>());
     ipc_.RegisterService("ptm:u", std::make_shared<PtmService>(ptm_step_mode));
     ipc_.RegisterService("ndm:u", std::make_shared<NdmService>());

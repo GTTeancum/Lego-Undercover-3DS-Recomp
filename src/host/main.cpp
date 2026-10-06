@@ -1,6 +1,8 @@
 #include "runtime/ctr_runner.h"
 #include "host/sha256.h"
 #include "host/launch_header.h"
+#include "host/dsp_special_input.h"
+#include "services/dsp_discovery_service.h"
 #include "lego_aot_generated.h"
 #include <charconv>
 #include <fstream>
@@ -80,11 +82,16 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual] [--exheader FILE]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
         std::filesystem::path shared_extdata_root, romfs_path, exheader_path;
+        ctr::DspSpecialConfig dsp_config;
+        ctr::DspProbeOptions dsp_probe;
+        bool dsp_executor_selected=false,dsp_reset_selected=false,dsp_steps_selected=false;
+        std::filesystem::path dsp_special_path;
+        bool dsp_special_selected=false;
         auto vram_mode=ctr::GpuVramMode::Unconfigured;
         auto display_mode=ctr::DisplayClockMode::Disabled;
         auto cfg_profile=ctr::CfgProfile::Unconfigured;
@@ -99,6 +106,34 @@ int main(int argc,char** argv) {
                 if(std::string_view(argv[i+1])!="diagnostic-dual")
                     throw std::runtime_error("CPU mode must be diagnostic-dual (or omit the option)");
                 cpu_mode=ctr::CpuExecutionMode::DiagnosticDual;
+            }
+            else if (option=="--dsp-executor") {
+                if(dsp_executor_selected || std::string_view(argv[i+1])!="guarded-teakra")
+                    throw std::runtime_error("select DSP executor guarded-teakra once, or omit it");
+                dsp_executor_selected=true;dsp_probe.enabled=true;
+            }
+            else if (option=="--dsp-reset-profile") {
+                if(dsp_reset_selected || std::string_view(argv[i+1])!="reference-zero-data")
+                    throw std::runtime_error("select DSP reset profile reference-zero-data once, or omit it");
+                dsp_reset_selected=true;dsp_probe.reset=ctr::DspProbeReset::ReferenceZeroData;
+            }
+            else if (option=="--dsp-probe-steps") {
+                if(dsp_steps_selected)throw std::runtime_error("select DSP probe step limit once");
+                dsp_steps_selected=true;dsp_probe.steps=PositiveNumber(argv[i+1]);
+                if(dsp_probe.steps>ctr::DspExecutionProbe::kMaxStepsPerCall)
+                    throw std::runtime_error("DSP probe step limit exceeds host cap 100000");
+            }
+            else if (option=="--dsp-special-profile" || option=="--dsp-special-block") {
+                if (dsp_special_selected) throw std::runtime_error("select DSP special configuration only once");
+                dsp_special_selected=true;
+                if (option=="--dsp-special-profile") {
+                    if (std::string_view(argv[i+1])!="empty-config")
+                        throw std::runtime_error("DSP special profile must be empty-config (or omit the option)");
+                    dsp_config=ctr::DspSpecialConfig::EmptySystemConfig();
+                } else {
+                    if (!argv[i+1][0]) throw std::runtime_error("empty DSP special block path");
+                    dsp_special_path=argv[i+1];
+                }
             }
             else if(option=="--exheader") {
                 if(!argv[i+1][0])throw std::runtime_error("empty ExHeader path");
@@ -143,6 +178,9 @@ int main(int argc,char** argv) {
             }
             else throw std::runtime_error("unknown option");
         }
+        if((dsp_reset_selected || dsp_steps_selected) && !dsp_probe.enabled)
+            throw std::runtime_error("DSP reset/step options require --dsp-executor guarded-teakra");
+        if (!dsp_special_path.empty()) dsp_config=lego::host::ReadDspSpecialBlock(dsp_special_path);
         std::optional<lego::host::LaunchPolicy> launch;
         if(!exheader_path.empty()) {
             if(cpu_mode!=ctr::CpuExecutionMode::DiagnosticDual)
@@ -182,7 +220,7 @@ int main(int argc,char** argv) {
             std::cout << "romfs_sha256=" << romfs->sha256() << " raw_bytes=" << ctr::kLegoRawRomfsBytes
                       << " view_offset=" << ctr::kLegoRomfsViewOffset << " view_bytes=" << romfs->size() << '\n';
         }
-        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile,cpu_mode);
+        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile,cpu_mode,dsp_config,dsp_probe);
         if (!shared_extdata_root.empty())
             std::cout << "shared_extdata_root=" << shared_extdata_root.generic_string() << '\n';
         if (ptm_step_mode == ctr::PtmStepMode::EmptyHistory)
@@ -191,6 +229,12 @@ int main(int argc,char** argv) {
             std::cout << "gpu_vram_source=pinned_hle_zero_initialization bytes=6291456 cpu_mapping=none\n";
         if (cfg_profile==ctr::CfgProfile::ReferenceStereo)
             std::cout << "cfg_profile=pinned_hle_stereo_default block=00050005 bytes=32 recovered_calibration=false\n";
+        if (dsp_config.profile()==ctr::DspSpecialProfile::EmptySystemConfig)
+            std::cout<<"dsp_special_profile=explicit_empty_system_config block=00070000 read=missing fallback=documented_zero recovered_calibration=false\n";
+        else if (dsp_config.profile()==ctr::DspSpecialProfile::SuppliedBlock) {
+            std::span<const std::uint8_t> block;(void)dsp_config.Read(block);
+            std::cout<<"dsp_special_profile=host_supplied_block bytes=532 sha256="<<lego::host::Sha256(block)<<" authentication=not_asserted\n";
+        }
         if (!runner.InitializeMainThread()) throw std::runtime_error("main thread setup failed");
         std::cout << "rtc_epoch_ms_since_1900=" << rtc_epoch_ms
                   << " guest_time_source=kernel_ns\n";
@@ -200,7 +244,21 @@ int main(int argc,char** argv) {
                      <<" clock_hz="<<ctr::kArm11TicksPerSecond<<" presentation=none\n";
         if(cpu_mode==ctr::CpuExecutionMode::DiagnosticDual)
             std::cout<<"cpu_model=diagnostic_dual issue=one_recorded_A32_per_core_per_tick order=core0_then_core1 hardware_cycles=false\n";
+        if(dsp_probe.enabled)
+            std::cout<<"dsp_executor=guarded_teakra host_probe_only=true data_reset="
+                     <<(dsp_probe.reset==ctr::DspProbeReset::ReferenceZeroData?"explicit_reference_zero":"known_image_only")
+                     <<" program_gaps=unknown step_limit="<<dsp_probe.steps<<'\n';
         const auto result=runner.Run(block_limit,event_limit);
+        if(const auto* probe=runner.dsp_diagnostics().execution_probe()) {
+            const auto& p=probe->summary();
+            std::cout<<"dsp_probe_completed_steps="<<p.completed_steps<<" attempted_steps="<<p.attempted_steps
+                     <<" read_words="<<p.read_words<<" written_words="<<p.written_words
+                     <<" known_bytes="<<p.known_bytes<<" replies="<<p.reply_count
+                     <<" pc_before=0x"<<std::hex<<p.pc_before<<" pc_after=0x"<<p.pc_after<<std::dec<<'\n';
+            if(p.has_fault_address)std::cout<<"dsp_probe_fault_byte=0x"<<std::hex<<p.fault_address<<std::dec<<'\n';
+            for(const auto& reply:probe->replies())
+                std::cout<<"dsp_probe_reply="<<unsigned(reply.index)<<":"<<reply.word<<" after_steps="<<reply.after_steps<<'\n';
+        }
         if(cpu_mode==ctr::CpuExecutionMode::DiagnosticDual) {
             std::cout<<"cpu_ticks="<<runner.diagnostic_ticks()<<" core0_instructions="<<runner.issued_instructions()[0]
                      <<" core1_instructions="<<runner.issued_instructions()[1]<<" quota_transitions="<<runner.quota_transitions()<<'\n';

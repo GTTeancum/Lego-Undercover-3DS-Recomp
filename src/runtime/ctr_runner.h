@@ -11,11 +11,14 @@
 #include "runtime/ctr_svc_bridge.h"
 #include "services/ptm_service.h"
 #include "services/cfg_service.h"
+#include "services/dsp_special_config.h"
+#include "services/dsp_execution_probe.h"
 #include "services/fs_romfs_service.h"
 #include "services/gsp_display_transfer.h"
 
 namespace lego::ctr {
 class GspGpuService;
+class DspDiscoveryService;
 namespace a32 = oot3d::recomp::a32;
 
 enum class RunnerStopReason : std::uint8_t {
@@ -52,7 +55,9 @@ public:
                  GpuVramMode vram_mode = GpuVramMode::Unconfigured,
                  DisplayClockMode display_mode = DisplayClockMode::Disabled,
                  CfgProfile cfg_profile = CfgProfile::Unconfigured,
-                 CpuExecutionMode cpu_mode = CpuExecutionMode::Strict);
+                 CpuExecutionMode cpu_mode = CpuExecutionMode::Strict,
+                 DspSpecialConfig dsp_config = {},
+                 DspProbeOptions dsp_probe = {});
 
     bool InitializeMainThread(std::uint32_t entry_point = kTextBase,
                               std::uint32_t stack_top = kMainStackTop) noexcept;
@@ -69,6 +74,7 @@ public:
     [[nodiscard]] std::uint64_t diagnostic_ticks() const noexcept{return diagnostic_tick_;}
     [[nodiscard]] std::uint64_t quota_transitions() const noexcept{return quota_transitions_;}
     [[nodiscard]] const GspGpuService& gpu_diagnostics() const noexcept{return *gsp_;}
+    [[nodiscard]] const DspDiscoveryService& dsp_diagnostics() const noexcept {return *dsp_;}
     [[nodiscard]] const char* cpu_error() const noexcept{return cpu_error_;}
     [[nodiscard]] std::uint64_t display_periods() const noexcept { return display_clock_.periods_delivered(); }
     [[nodiscard]] std::optional<std::uint64_t> next_display_deadline() const noexcept { return display_clock_.next_deadline_ns(); }
@@ -95,6 +101,7 @@ private:
     SvcBridge svc_;
     a32::GuestState live_state_{};
     std::shared_ptr<GspGpuService> gsp_;
+    std::shared_ptr<DspDiscoveryService> dsp_;
     DisplayClockMode display_mode_;
     DisplayClock display_clock_;
     std::uint32_t idle_events_{},idle_limit_{};

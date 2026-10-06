@@ -1,0 +1,43 @@
+{
+  "parent": "3aca88f93a0305d37463525bca2bbd25893c188b",
+  "paired_capture_files_per_mode": 81,
+  "modes": [
+    "default",
+    "empty-config"
+  ],
+  "changed_diagnostic_files_between_modes": [
+    "252-after-dsp-data-known.bin",
+    "252-after-dsp-special.json",
+    "252-after-dsp-stage.json"
+  ],
+  "guest_state_unchanged": true,
+  "special_receipt": {
+    "source": 1,
+    "read_status": 1,
+    "block_id": 458752,
+    "target_bytes": 122450,
+    "bytes": 532,
+    "sha256": "47bed81b9dd45f914b6f4c65d96eb6803050cbb576f6f4d2e7911d0b35983b51"
+  },
+  "known_program_bytes": 43692,
+  "known_data_bytes": 5788,
+  "added_known_special_bytes": 532,
+  "remaining_data_bytes_unknown": 256356,
+  "load_component_completed": false,
+  "dsp_instructions_executed": 0,
+  "boot_handshake_component_connected": false,
+  "validation": {
+    "full_aot_builds": [
+      "gcc",
+      "clang"
+    ],
+    "tests": {
+      "gcc": 52,
+      "clang": 52,
+      "clang_asan_ubsan_rom_free": 52
+    },
+    "matrix_cases": 10,
+    "original_game_new_boundary": false,
+    "new_hosted_ci": false
+  }
+}

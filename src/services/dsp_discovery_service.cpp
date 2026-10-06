@@ -24,10 +24,36 @@ Result DspDiscoveryService::Handle(IpcRouter& router,Kernel&,GuestMemory& memory
             router.RequestHostStop(Dsp1ErrorName(result.error));
             return kResultSuccess;
         }
+        DspSpecialReceipt receipt;
+        if (candidate->special.required && config_.profile()!=DspSpecialProfile::Unconfigured) {
+            const auto special=StageDspSpecial(config_,*candidate,receipt);
+            if (special!=DspSpecialError::None) {
+                router.RequestHostStop(DspSpecialErrorName(special));
+                return kResultSuccess;
+            }
+        }
         // Reinspection replaces only the diagnostic snapshot after full validation.
         // It never resets hardware, writes guest memory or changes events/timing.
         inspected_=std::move(candidate);
-        router.RequestHostStop(inspected_->special.required ?
+        special_receipt_=receipt;
+        if (probe_options_.enabled) {
+            const char* error=nullptr;
+            auto probe=DspExecutionProbe::Create(*inspected_,probe_options_.reset,error);
+            if (!probe) {
+                router.RequestHostStop(error);return kResultSuccess;
+            }
+            probe->Advance(probe_options_.steps);
+            probe_=std::move(probe); // HOST-ONLY diagnostics, never a loaded device.
+            const auto& s=probe_->summary();
+            router.RequestHostStop(s.state==DspProbeState::Fault ? s.error.data() :
+                s.state==DspProbeState::ProtocolComplete ?
+                "DSP probe handshake complete; live execution and pipes still unimplemented" :
+                "DSP execution probe reached its bounded step limit; load remains pending");
+            return kResultSuccess;
+        }
+        router.RequestHostStop(special_receipt_.source!=DspSpecialSource::None ?
+            "DSP1 ordinary and special bytes staged only: firmware executor and boot handshake unimplemented" :
+            inspected_->special.required ?
             "DSP1 image verified/staged only: special-segment data and firmware boot handshake unresolved" :
             "DSP1 image verified/staged only: firmware boot handshake unimplemented");
     } catch (const std::bad_alloc&) {

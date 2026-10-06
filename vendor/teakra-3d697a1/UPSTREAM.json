@@ -1,0 +1,203 @@
+{
+  "repository": "wwylele/teakra",
+  "commit": "3d697a18df504f4677b65129d9ab14c7c597e3eb",
+  "tree": "2cb32e8deda4483e72091241874697101c7f7407",
+  "license": "MIT; see LICENSE",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "84ac887a2ae105eacfb5aeb1921502ef91e0bd230bb2e6de3e8507f79177adf5",
+      "blob": "6208ca9619862811e03a883fe89c8279b6327c25"
+    },
+    {
+      "path": "README.md",
+      "sha256": "f8bb872ebb334eb8adc92418d161a04b6d992201b06739060ed75853538f25de",
+      "blob": "3e7228896e25347bc2227a31e7489a56a8bfa261"
+    },
+    {
+      "path": "include/teakra/disassembler.h",
+      "sha256": "f0eb66b4475f3f7f6468651d06fa8c79432a9859c2c418df53805f6456d51792",
+      "blob": "f6af37ec33eddd212ce70aeaa1eafa6de3060a99"
+    },
+    {
+      "path": "include/teakra/disassembler_c.h",
+      "sha256": "8587296e711d3c41a16f37a7fd9e3e16b59f4a9eecb771c84c79cf28b8647730",
+      "blob": "4da7b31751cfd77fdc24a0abbd09f4c284dd306e"
+    },
+    {
+      "path": "include/teakra/impl/register.h",
+      "sha256": "c034b0681cfb3477913a92b81cfa44f6e59384a57b81eeaa15715037ed67ad00",
+      "blob": "49b1ac61d3b56a86ec8ed03abe73fb0cb808fa51"
+    },
+    {
+      "path": "include/teakra/teakra.h",
+      "sha256": "f3e64dcc5209311bd5efbbe1522e25405c9ea22379a5c1bebad80d0f0e3f7a5a",
+      "blob": "be7a865b65497bbca2c70c7ede4b08c10d5defdc"
+    },
+    {
+      "path": "include/teakra/teakra_c.h",
+      "sha256": "998a83206cee126b18ff4ff17eca1accced93cc5cb4aa03cef678de3e289fb61",
+      "blob": "d52a9f1c28deec1ad4778d15cde57c97c7466541"
+    },
+    {
+      "path": "src/ahbm.cpp",
+      "sha256": "ecddc090f0d62a9c8c71a11acf737fe8fb8e13e90815535c044c106b4f1c750f",
+      "blob": "c51419b7d76c378ed81d50ae97a747b79e0e494e"
+    },
+    {
+      "path": "src/ahbm.h",
+      "sha256": "d65892f4e05971dfa8a84db0a6297210edd66dcbe6f296d84ac769905f9e2993",
+      "blob": "5d476fe5d909dd0fe22f3d196d919e3cc666f6bb"
+    },
+    {
+      "path": "src/apbp.cpp",
+      "sha256": "86b3971803eefc6a8311ca4ff60d46865b8fb194d900c031c41343525db4a74d",
+      "blob": "da30168420d50037b6fae02f59fe8c5f3c58156f"
+    },
+    {
+      "path": "src/apbp.h",
+      "sha256": "f1a996d12bc690aa241b10aa5c84f27b38bb570ee1327f7c91e1f6c2701083ff",
+      "blob": "f9ac6787f91b00344ccb5b8d1f5c37c1ca952bf2"
+    },
+    {
+      "path": "src/bit.h",
+      "sha256": "8829fe873bcad43505fd11056d21d8328e6a7013d71304bb90556a5badcd1751",
+      "blob": "73793292e7b465f52935a7c37f6dd68f96a64708"
+    },
+    {
+      "path": "src/btdmp.cpp",
+      "sha256": "af792f1731ece63926f768eb24eafaa05fa1c5afe0a0b4b6785cdf18cf5c2a87",
+      "blob": "20a1f09458cff63ef5d1ce3d19b64763b57bcb1a"
+    },
+    {
+      "path": "src/btdmp.h",
+      "sha256": "3657381eaeeabf025864c2d84608c58757e3d7cad5855faafdfb9dd53400061a",
+      "blob": "63cbb9b27491d29850f07d803fecedb632554369"
+    },
+    {
+      "path": "src/common_types.h",
+      "sha256": "55dc04139b7611bff3c2c7e19b8ccf2e771e0a0190b3df41767b5d00bb4e0953",
+      "blob": "37a6c93157b98c9f2e991a2cf812a839bf6f4e73"
+    },
+    {
+      "path": "src/core_timing.h",
+      "sha256": "c30d36725d12f7d10b4a73617ffdf910f3d6fc0d4747a40822d3a2378becafb9",
+      "blob": "80e870303411f5487e4c9dcad529db61030c4463"
+    },
+    {
+      "path": "src/crash.h",
+      "sha256": "28861a98c6e7a2984742ac0e35704fe310985b3a2651c4e1038d44e97299b5e5",
+      "blob": "3d21aef00355581c89463c31053197e732816dd6"
+    },
+    {
+      "path": "src/decoder.h",
+      "sha256": "951c52262f72d1f0bb964cece774571615deb963cf42712ab9bdf5179a09ad9c",
+      "blob": "e8ecff33d691722c57f6118ec1ca138331551a80"
+    },
+    {
+      "path": "src/disassembler.cpp",
+      "sha256": "bbed4e6e72353d40aadb6491b6fc2e58042dcd205ca7562f6b2358c97dd7e67d",
+      "blob": "7f3aa031505dd35e88ec37ae9d13a64971b2dc1f"
+    },
+    {
+      "path": "src/dma.cpp",
+      "sha256": "652112416b64202036dc0aba4d2ac0d8c93a5f783553e4cc0404a0a8a9bb4049",
+      "blob": "6379e8f9d1de418d0b56d6769b7229bddc777e29"
+    },
+    {
+      "path": "src/dma.h",
+      "sha256": "1368520882843ede79e993f992de1400057b8ee9b4d4c96355520465624ac9d0",
+      "blob": "f5a81125faf7c9ded4f7552e4272717f4725af55"
+    },
+    {
+      "path": "src/icu.h",
+      "sha256": "279ad786e44ec62342cf8ebffc907c49e597e4edebeea5969716be7b00cd398f",
+      "blob": "060bb3dfd79ef19ea48cede13798457fe2846152"
+    },
+    {
+      "path": "src/interpreter.h",
+      "sha256": "758e667b95fbff4fe87845d188d258d2830e06ed9c29d633aab2978d4373aca9",
+      "blob": "2106a6cde63ea15a7503753f8a844f02a1bcc8dc"
+    },
+    {
+      "path": "src/matcher.h",
+      "sha256": "f05088a7bb070d5dea54dc58b081f543b9549b72bd8d3cd8a92e3ed0a1024a2c",
+      "blob": "bb698eeed4caa78c8baee35e8edd060cf5964c28"
+    },
+    {
+      "path": "src/memory_interface.cpp",
+      "sha256": "5e41e5b3183342c02eafdd84a9710dda5887cdf5eae89778e4df6dab8f27db93",
+      "blob": "ef30b95ac895ed490b8c31bcbc19caa3f5d92995"
+    },
+    {
+      "path": "src/memory_interface.h",
+      "sha256": "1fad881ac977c42c6431dbad41f3ef0f2ac89ddfdb66c32b2ef5a507a9212ce2",
+      "blob": "08c0ed50ecfe56d24366fef348ecaea2e9cf246d"
+    },
+    {
+      "path": "src/mmio.cpp",
+      "sha256": "69b0a562f4c929b269d3d52670ce71664af70df443567531e522e002594ee72b",
+      "blob": "0a8e3bc22ad3b7c6072ff7953d3b4f7dd8f0391f"
+    },
+    {
+      "path": "src/mmio.h",
+      "sha256": "dd630b2436a3d7290f217a7dba3afbd15dc7eb2f8c2133cbc6b35bede70192f5",
+      "blob": "e655b0a64c2cc036fb381ee64f86d3f6e7f79aca"
+    },
+    {
+      "path": "src/operand.h",
+      "sha256": "785e90c48be4144601761e519e602e0f3dfe113322cd4fe820fef9c76263ece9",
+      "blob": "67900bd6b9e33f3ff1b6f713fb68d73c127d397b"
+    },
+    {
+      "path": "src/parser.h",
+      "sha256": "71177f285c08b70a1a59f887481b5833d4314b26302627534a37fc1372cbcbef",
+      "blob": "d9b4f51f18d259e1da73e30ec892496de4b16009"
+    },
+    {
+      "path": "src/processor.cpp",
+      "sha256": "55e8bcd3085b0329796f49809e3781c083a50a204227433fae4388fa6dc8f897",
+      "blob": "d8519eefd17d90d9c8b242cf8a6cdaf79bcc7dfb"
+    },
+    {
+      "path": "src/processor.h",
+      "sha256": "7a8fb390886756010ec4a8cd8c3c164cd0946fcd1106138df93588e3388974f8",
+      "blob": "85c2ca0cbc90d03615f0e4cb21d73d00db579280"
+    },
+    {
+      "path": "src/shared_memory.h",
+      "sha256": "800efc5f92f59cc86f94f2053ae5039679a8b1a8dd33f16e9162b88cae312e83",
+      "blob": "eddd5d87c25bd0ac05844be0a7e2cf4291e60865"
+    },
+    {
+      "path": "src/teakra.cpp",
+      "sha256": "b5d9197753d8ca8e051fa4b7e0296a61e57b768686f5f4c7ef65b1b17315276a",
+      "blob": "af14ab652cda3905f22a3e047d25ecc183ddf501"
+    },
+    {
+      "path": "src/test.h",
+      "sha256": "915be6355bf5e49c651595c694e789345269ce793e748afdaac9e946c720b117",
+      "blob": "e06d0b8942c9c786c6f768449698e1e0864a8ab3"
+    },
+    {
+      "path": "src/test_generator.h",
+      "sha256": "eb775cde79f307ee45278ad82f407dcca0af0debbf94c68636b0bc4789e499e0",
+      "blob": "b7e66519633415ffdd180d0ab462c206e9ab8286"
+    },
+    {
+      "path": "src/timer.cpp",
+      "sha256": "f563885917261a3216ac4b01c1d1806ed6e63e83400e7f3cae4d18718f79c2fa",
+      "blob": "434a33e420f0a2f3ecabf0dc9eb1e401394052bd"
+    },
+    {
+      "path": "src/timer.h",
+      "sha256": "dcdeac650bf8c817c74b0b09cf56b3fcdd987d759e8cd13f5566ba569f492dfb",
+      "blob": "8329eac9992540c5ed0c50b38f4cae5dc16601b4"
+    }
+  ],
+  "patches": [
+    "SRAM bounds and access observer",
+    "assertions throw instead of abort",
+    "unknown MMIO/no-op handlers reject instead of silently store/zero"
+  ]
+}

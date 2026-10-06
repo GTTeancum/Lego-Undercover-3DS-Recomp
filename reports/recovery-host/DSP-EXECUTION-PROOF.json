@@ -1,0 +1,80 @@
+{
+  "guarded": {
+    "paired_capture_files": 84,
+    "unchanged_guest_fields": [
+      "state.json",
+      "ipc.bin",
+      "gsp-epochs.bin",
+      "gsp.bin",
+      "uploads.bin",
+      "hid.bin",
+      "hid-epochs.bin",
+      "dsp-component.bin",
+      "gpu.bin",
+      "vram.bin",
+      "mapped-hid.bin"
+    ],
+    "summary": {
+      "completed_steps": 962,
+      "attempted_steps": 963,
+      "read_words": 1319,
+      "written_words": 304,
+      "known_bytes": 50068,
+      "state": 2,
+      "fault": 1,
+      "has_fault_address": true,
+      "fault_address": 264896,
+      "pc_before": 10522,
+      "pc_after": 10524,
+      "has_pipe_base": false,
+      "pipe_base": 0,
+      "replies": []
+    },
+    "firmware_written_distinct_bytes": 588,
+    "changed_sram_bytes": 210,
+    "probe_memory_sha256": "b01f74d9b688501cf59a6d15aeeac803c2e0b1e4a985f688c842b6891509e6f4",
+    "provenance_sha256": "193213ad4665ea06ca724afdb6461aad7165e5f4e5083785f0128f5421406a45",
+    "image_sha256": "cc2c599dd3bdea0f7785943ca94a6c2aed9cac95c21756c546db1dd04187afe3",
+    "vram_zero": true,
+    "scope": "host-only DSP probe; original guest LoadComponent still pending; no independent DSP CPU oracle"
+  },
+  "reference": {
+    "paired_capture_files": 84,
+    "unchanged_guest_fields": [
+      "state.json",
+      "ipc.bin",
+      "gsp-epochs.bin",
+      "gsp.bin",
+      "uploads.bin",
+      "hid.bin",
+      "hid-epochs.bin",
+      "dsp-component.bin",
+      "gpu.bin",
+      "vram.bin",
+      "mapped-hid.bin"
+    ],
+    "summary": {
+      "completed_steps": 1424,
+      "attempted_steps": 1425,
+      "read_words": 1948,
+      "written_words": 432,
+      "known_bytes": 305836,
+      "state": 2,
+      "fault": 3,
+      "has_fault_address": false,
+      "fault_address": 0,
+      "pc_before": 3336,
+      "pc_after": 3338,
+      "has_pipe_base": false,
+      "pipe_base": 0,
+      "replies": []
+    },
+    "firmware_written_distinct_bytes": 732,
+    "changed_sram_bytes": 285,
+    "probe_memory_sha256": "e07b1bf05f3fbb965bcb6ebb766a4bb9292932f8e3f6a1b30f436aa1211741c3",
+    "provenance_sha256": "b1e12465c85a365dd63b5315e5fcbdaaaed556081387d4abdeb8b2974dac5293",
+    "image_sha256": "cc2c599dd3bdea0f7785943ca94a6c2aed9cac95c21756c546db1dd04187afe3",
+    "vram_zero": true,
+    "scope": "host-only DSP probe; original guest LoadComponent still pending; no independent DSP CPU oracle"
+  }
+}
