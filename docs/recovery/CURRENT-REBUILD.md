@@ -1,227 +1,164 @@
 # LEGO Chase Begins — canonical continuation handoff
 
-Continue in scratch, NOT the user's PC or Work. Project: LEGO City Undercover:
-The Chase Begins (Nintendo 3DS USA), not LEGO Batman. Headless native reconstruction,
-not playable. Historical Recovery F/J claims are not current gameplay proof.
-POST A DOWNLOADABLE UPDATED HANDOFF AND SOURCE/EVIDENCE CHECKPOINT EVERY WORK TURN.
+Continue development in assistant scratch or ROM-free GitHub Actions, NOT on the
+user's PC or Work. Project: LEGO City Undercover: The Chase Begins, Nintendo 3DS USA.
+POST AN UPDATED DOWNLOADABLE HANDOFF AND SOURCE/EVIDENCE CHECKPOINT EVERY WORK TURN.
+No useful game visuals exist in the last verified run. Do not substitute test
+patterns, generated art, reference screenshots, or blank buffers for genuine output.
 
-# Scheduled display notification and framebuffer latching
+## Current change: LCD blanking (awaiting hosted verification)
 
-Checkpoint: October 5, 2026 (America/Indiana/Indianapolis; final UTC logs cross into October 6).
-Implementation `2a24226c75bf6e76901493809930da224486d29d`; exact tested/uploaded tree `e64f386ae8dba547317a8cffe0321e1667562d4a`.
-Baseline `0b4f9c352463197f87f606655d0e5d49a69c4415`, tree
-`ae2d03b14458cb77f0170132e5e4df19935d9a94`.
+This source adds the observed GSP SetLcdForceBlack request, exact header 0x000B0040.
+The baseline is main commit da5c9a9e8aa74567deae519380caa86e06e35247, source tree
+ea8fb58dae3570e62dbb512d63524d0faa9cebc3. Preserve that private source/evidence archive.
+The current implementation has NOT yet been validated in an original-game run.
+Do not claim startup has advanced or name a new game blocker without running it.
 
-## Original startup now leaves its display wait
+Local container execution and Python initialization failed before any local command
+could run. GitHub connector reads/writes still worked. Development uses a separate
+work/lcd-blanking branch and ROM-free hosted tests; no original code.bin, private
+AOT pages, ROM, RomFS or private game captures are uploaded to public GitHub/Actions.
+The candidate requires GCC, Clang and Clang ASan/UBSan validation before promotion.
 
-The baseline was restored from its attached source/evidence archive. All 636 manifest
-entries and 317 indexed source blobs verified, and the restored Git tree matched.
-A full native GCC baseline reproduced WaitingNoRunnableThread at round 228 before edits.
-The private code/AOT and prepared RomFS parts were already available; no reupload,
-CCI extraction, user-PC access or Work development was required.
+## LCD implementation scope
 
-New explicit option: `--display-clock-mode reference-idle`. It schedules a display
-period every 4481136 ARM11 ticks at 268111856 Hz, following the pinned reference.
-Absolute cycle positions are rounded UP to nanosecond deadlines: the first deadline
-is 16713681 ns. The second is 33427362 ns; rounding is not accumulated per period.
-The default remains disabled and reproduces the original display wait.
+Only a connected client can issue the exact one-normal-word, zero-descriptor IPC.
+Pinned IPC Pop<bool> consumes the low byte: (word & 0xFF) != 0. Upper 24 bits do
+not enable blanking. SetLcdForceBlack constructs zero RGB plus enable bit 24, and
+stores the complete value in BOTH global LCD color-fill control words. The words
+are separate from PICA GPU register storage, VRAM and framebuffer descriptors.
 
-With the new option, the original code reaches:
+Read-only lcd_color_fill_word(screen) exposes top=0/bottom=1; invalid screen indexes
+return nullopt. The initial zero words follow pinned PicaCore::RegsLcd regs_lcd{},
+not a measured hardware reset image. No CPU LCD MMIO map, backlight, LCD scanout,
+frame presentation, draw engine or arbitrary color-fill interface is added.
+
+Successful reply: header 0x000B0040, Result 0, remaining command buffer words zero.
+GPU ownership or relay registration is not required by the inspected handler.
+The control is shared between sessions. An independent service has independent
+state. No event, queue, framebuffer pixels, PICA upload, handle count or time is
+changed by this request. Existing full response-capacity/readability preflight
+runs before handler dispatch. Unsupported request shapes remain untouched stops.
+
+New ctr_lcd_blank_test covers all 256 low-byte values with and without nonzero
+upper bytes, the exact original zero request, enable/disable/repeat, shared and
+independent services, nonowner and unregistered clients, duplicated handles,
+retained event lifetime, a full handle table, protected/partial/write-only response
+areas, malformed headers, every GPU word, complete GSP shared bytes/epochs, upload
+storage and a nonzero 6 MiB SYNTHETIC VRAM bank. The test bank is not game artwork.
+
+## Last verified original-game state (inherited, NOT this change's test result)
+
+The da5c9a9 original-game trace stopped with:
 
 ```text
 display_periods=1 guest_now_ns=16713681
 stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=232
-last_ipc_session=gsp::Gpu requested_service= request_header=0x000b0040
+last_ipc_session=gsp::Gpu request_header=0x000b0040
 ipc_words= 000b0040 00000000 00000000 00000000 00000000 00000000 00000000 00000000
 ```
 
-That is SetLcdForceBlack, argument zero, NOT another queued GPU command. It remains
-unsupported and its request is untouched. There is no successful LCD-blanking change
-or rendered frame in this checkpoint. Existing-gamecoin reaches the same call at
-round 224, while a fresh run without the clock option retains round 228.
+Argument zero requests disabling force-black, not rendering a new image. The entire
+6 MiB device VRAM bank was zero under explicit reference-HLE cold-bank policy.
+No meaningful screenshot, rendered frame, main menu, executed shader or gameplay
+was established. Existing-gamecoin reached the same call at round 224. It is not
+save-readback proof. The baseline's private display-checkpoint/ captures are in the
+private da5c9a9 archive; retain them rather than replacing them with hosted test logs.
 
-## Effects independently checked
+Earlier verified behavior remains in the baseline: real RomFS metadata reads,
+game-created gamecoin.dat, non-drawing PICA uploads, actual byte fill/transfer paths,
+recorded A32 callback-return suffixes, P3D/PPF/PSC events and one modeled PDC period.
+The original callbacks (not the host) changed the display counters from zero to one.
+GPU timing is synchronous; opt-in display timing advances only idle guest time.
+These features were not newly implemented or privately reverified in this change.
 
-The first event broadcasts PDC0 and then PDC1 through the actual registered GSP relay.
-Before the event, both original counters at 0x00593C84 and 0x00593C88 are zero. They
-remain zero immediately after service delivery. Only after the original relay worker
-runs do both become one. The host does not write those counters or return synthetic
-success from their wait.
+## Next exact work
 
-Thread 3 moves from WaitSynchAny to Ready with pending_wake=true and Result=0. Its
-retained one-shot event becomes signaled again by the second notification, and the
-original worker subsequently consumes it. At the final IPC stop it is waiting again,
-the event is unsignaled, the relay is drained, and the handle count remains 17.
+Restore the new hosted source checkpoint and the separate private inputs below.
+Keep current source distinct from older evidence. Build the full 599-page executable
+with GCC and Clang, run all tests, and rerun unchanged game code from a NEW empty
+shared archive with every explicit policy enabled. Observe the real SetLcdForceBlack
+response, both LCD words, unchanged VRAM and the next actual stop. Do not infer it.
+Post a screenshot only once meaningful genuine native output exists.
 
-Both pending framebuffer descriptors are latched into the real stored GPU register
-image. The selected second-buffer addresses become top PA 0x18346500 and bottom PA
-0x18038400; right addresses are zero, stride 720, formats 0x341/0x301, shown_fb=1.
-The two dirty bits clear. This changes configuration, NOT pixels or scanout output.
+Source implementation changes are CMakeLists.txt, src/services/gsp_gpu_service.h,
+and new tests/ctr_lcd_blank_test.cpp. ROM-free packaging/CI support is in
+.github/workflows/rom-free-checkpoint.yml and tools/package_romfree_checkpoint.py.
+No vendor backend, scheduling, filesystem, game bytes or private AOT is modified.
+The hosted package verifies exact tracked blob identities and test evidence; this
+is NOT a full original-game build or a replacement for private trace verification.
 
-Independent Python replay matches every byte of the full 4096-byte page and all
-1842 register words after delivery. Page bytes changed only at offsets 1, 24, 25,
-513 and 577. The final page also matches the original worker consuming both entries.
-PICA upload storage and the complete device VRAM bank remain unchanged.
+## Pinned primary references
 
-## Visual status
+azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac:
 
-The full 6 MiB VRAM bank is still zero. Those bytes come from the inherited explicit
-reference-HLE cold-bank policy, not recovered artwork. No useful game screenshot,
-rendered frame, main menu, executed shader or gameplay has been demonstrated. Test
-patterns are not presented as game output. The user accepts no screenshot until
-there is meaningful genuine visual output.
+- src/core/hle/service/gsp/gsp_gpu.cpp: SetLcdForceBlack zero-color object and bool;
+  blob 6f915e4d6a5d27853321d0a233103afb9d877bc0.
+- src/core/hle/ipc_helpers.h: Pop<bool> uses Pop<u8>() != 0;
+  blob 9381ae22c8c1f1a557e16363d5eb7727f9ea1a50.
+- src/video_core/gpu.cpp: SetColorFill stores top and bottom LCD color-fill words;
+  blob 40f29fea0867b0e8cf4d89a8753ddabf02c3b54b.
+- src/video_core/pica/regs_lcd.h: RGB bits 0..23, enable bit 24, separate LCD words;
+  blob 0f8a622af300c3576284d704bef8e3bfba72d652.
 
-## Timing and safety scope
+Pinned semantics are not blanket hardware parity. Pop<bool> reads a byte even
+though the IPC occupies a word. Do not replace it with a full-word nonzero test.
 
-ReferenceIdle is a deterministic, opt-in PLATFORM MODEL, not cycle-accurate 3DS timing.
-CPU dispatches still incur no modeled cycles. Only when no thread is runnable does
-the runner advance to the earliest existing thread deadline or display deadline.
-No host wall clock is consulted. CPU-busy display timing, scanline timing, rendering,
-frame presentation and complete asynchronous GPU timing remain unimplemented.
-A caller that externally advances time may leave a past-due display event, handled
-at a subsequent idle pump; this is not a complete real-time event scheduler.
+## Recovery paths and commands
 
-The existing kernel timer expiration and wait-wakeup algorithms are unchanged.
-A new read-only NextWakeDeadline accessor lets the runner respect earlier timeouts.
-At equal timestamps, timeout expiration occurs before display delivery, with no
-intervening guest execution. This tie order and whole-event preflight are explicit
-host policies, not measured hardware ordering. Deadlines retain phase across Run
-calls. Idle events are separately bounded by that call's host_event_limit, in addition
-to the existing dispatch-round limit; a fully waiting/ignoring process cannot spin
-forever in the host. Terminal dead processes receive no further display events.
+GitHub: GTTeancum/Lego-Undercover-3DS-Recomp. Library: /LEGO-Chase-Recovery/.
+The new hosted package contains repo/ plus hosted-test-evidence/, SOURCE-INDEX.json,
+CHECKPOINT-MANIFEST.json, verify_checkpoint.py and this handoff. The package receipt
+records its exact commit, source tree, run and filenames. It intentionally excludes
+all private original-game captures and binary assets. Retrieve the private predecessor
+LEGO-Chase-source-checkpoint-da5c9a9.tgz for display-checkpoint/ and nested earlier
+source/evidence. Extract historical material separately, never over new repo/.
 
-PDC is broadcast to all registered sessions, even without GPU ownership. The service
-honors ignore_pdc and the 32-pending-interrupt threshold, increments the corresponding
-32-bit missed counter with wrap, and uses the 52-slot ring otherwise. It updates dirty
-framebuffer state even when a PDC is ignored or counted as missed. Index/dirty fields
-use their defined low bits; unrelated header bits are retained. Address conversion
-supports only null, the existing VRAM selector and the original linear-heap selector.
-It adds no CPU VRAM mapping or replacement pixel memory.
-
-Invalid/failed rings or unsupported framebuffer selectors stop the complete event
-before register/page/event mutation or clock advance. Prepared host-owned plans must
-remain unmodified and are committed synchronously without intervening guest code;
-source/generation checks reject stale plans. A hypothetical failed commit after time
-advancement is reported explicitly, not described as rollback; none occurred.
-Only the modified shared fields invalidate their backing reservation granules.
-Existing command execution, P3D/PPF/PSC handlers and strict unsupported IPC are retained.
-SaveVRAM HLE events, force-swap recovery, display-cache readers and general framebuffer
-addressing are not added. No draw or blanking success is manufactured.
-
-## Validation and recovery
-
-Full GCC and Clang native builds link all 599 unchanged private AOT pages. All 36
-CTest suites pass under each compiler. All 36 ROM-free Clang ASan/UBSan suites pass
-with leak checking and halt-on-error. The new suites cover rational deadlines and
-overflow, early/equal/late timers, phase retention, event-work bounds, strict default,
-real retained-event wakeups, registered-session broadcast, dirty latching, ring wrap,
-PDC suppression/missed counters, retired sessions and stale/invalid event rejection.
-No previous CTest suite was removed. Seventeen original-startup scenarios have
-byte-identical GCC/Clang logs and exits, including disabled and malformed clock modes.
-
-The original executable, whole RomFS and all 603 AOT backup members are unchanged.
-The whole RomFS SHA was rechecked; full IVFC-block verification was not repeated.
-Registry 111043 blocks / 545111 raw words remains STATIC inventory, not executed CPU
-instructions, frames or a completion percentage. No Windows or macOS build was run.
-
-Setup issues are preserved in display-checkpoint/setup-notes.txt: an unsupported
-streaming interface, an interrupted foreground matrix, and a duplicated Python
-option-removal statement in an early matrix driver. The corrected final driver
-completed all 17 scenarios on a new owned root. These were not suppressed native
-test failures, and incomplete matrices are not reported as the final result.
-
-Private evidence: display-checkpoint/ with capture/, make_trace.py, verify_display.py,
-display-proof.json, validate.py, validation-summary.json, identity-proof.json,
-ctest-gcc/clang/asan.txt, build_remaining.py, final_matrix.py and driver logs.
-The trace uses a logging-only alternate runner; ordinary GCC/Clang runs independently
-reach the same stop. Raw uploads/VRAM/page captures remain private. Public summaries
-are DISPLAY-PROOF.json, DISPLAY-VALIDATION.json and DISPLAY-*-GCC.txt.
-
-## Primary references and next work
-
-Pin: azahar-emu/azahar @ 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
-Inspected GPU constructor/VBlankCallback/SetBufferSwap in src/video_core/gpu.cpp;
-FRAME_TICKS in gpu.h; BASE_CLOCK_RATE_ARM11 in src/core/core_timing.h; GSP PDC
-broadcast/relay/dirty-framebuffer handling in src/core/hle/service/gsp/gsp_gpu.cpp;
-FrameBufferInfo/Update layout in gsp_gpu.h; FramebufferConfig in regs_external.h.
-Exact blob hashes are in the private references.json receipt.
-
-Next implement the observed SetLcdForceBlack request from inspected LCD color-fill
-semantics, without pretending that disabling a blanking flag renders a frame.
-Rerun the original code with all explicit policies and a NEW empty shared archive.
-Keep pursuing genuine visuals; post screenshots only once meaningful output exists.
-
-## Reproduction and durable private inputs
-
-Scratch root: /mnt/data/lego_recovery/. Current source: repo/. Private pages:
-generated2/. Original executable input: restored/code.bin. Raw RomFS:
-game/prepared-romfs/romfs.bin. Existing raw parts: romfs-library-roundtrip/.
-Builds: build-gcc/, build-clang/, build-asan/. Current work/evidence: display-checkpoint/.
-New private-state/display-* directories are guest-created TEST state, not recovered
-console NAND. Preserve unknown saves. The paired validator removes only its own
-byte-verified new gamecoin.dat to repeat the fresh path for the second compiler.
+Target scratch root: /mnt/data/lego_recovery/ (not confirmed accessible in this turn).
+Current source should be repo/, private AOT generated2/, original code restored/code.bin,
+raw RomFS game/prepared-romfs/romfs.bin. Builds build-gcc/, build-clang/, build-asan/.
+Private inputs have existing Library backups: code.bin;
+LEGO-Chase-current-AOT-599pages-2026-10-03.tgz; Prepared-RomFS/ two uncompressed parts
+and romfs-parts.json. Part sizes: 402653184 and 366526464. No CCI re-extraction needed.
 
 ```sh
 cd /mnt/data/lego_recovery
+# Verify the new archive before extraction; retain its exact source index.
+python verify_checkpoint.py LEGO-Chase-source-checkpoint-<commit>-HOSTED.tgz
+# Restore private AOT under this root to generated2/; code goes in restored/.
+mkdir -p game/prepared-romfs
+python repo/tools/restore_romfs_parts.py romfs-library-roundtrip/romfs-parts.json game/prepared-romfs/romfs.bin
+python repo/tools/verify_romfs.py game/prepared-romfs/romfs.bin
 cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DLEGO_AOT_DIR=/mnt/data/lego_recovery/generated2
 cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure
 mkdir -p private-state
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/lcd-blank-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/private-state/lcd-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
 ./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle
 ```
 
-Expected exit 3, untouched GSP SetLcdForceBlack (0x000B0040), argument 0, round 232.
-Without display-clock-mode, the previous wait remains at round 228/time 0.
-Without explicit VRAM, strict startup still stops at the earlier DisplayTransfer
-round 170. No RomFS retains OpenFileDirectly round 79; no explicit empty PTM retains
-step count round 71. Existing-gamecoin is a separate branch, not save-readback proof.
-Use clang++ for Clang. Omit LEGO_AOT_DIR for ROM-free tests. Sanitizer options are
-recorded in display-checkpoint/build_remaining.py. Do not silently drop opt-in modes.
+After this change the actual game stop is UNKNOWN until the run is performed.
+Omitting display-clock-mode reproduces the inherited wait at round 228/time zero.
+Omitting explicit VRAM keeps the earlier strict transfer stop. No RomFS retains
+OpenFileDirectly; no explicit empty PTM retains step-count. Preserve those branches.
+Restore tools refuse existing output; verify rather than overwrite unknown assets.
 
-GitHub: GTTeancum/Lego-Undercover-3DS-Recomp main. Library: /LEGO-Chase-Recovery/.
-The final receipt appended to the downloadable copy identifies the delivery commit
-and this turn's archive. Restore the latest checkpoint, not a historical pending one.
-verify_checkpoint.py checks CHECKPOINT-MANIFEST.json before extraction.
-SOURCE-INDEX.json records exact paths/modes/Git blobs, including ignored tracked logs.
-Reconstruct its index faithfully, but never force-push local snapshot history.
-Publication must use the freshly verified remote parent and force=false.
+Verified PRIVATE INPUT IDENTITIES FROM THE BASELINE (not rehashed in this turn):
+RomFS: 769179648 bytes, view offset 4096, view bytes 769175552; keep integrity tables.
+SHA 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
+Code SHA 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
+AOT SHA 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
+Historical CCI SHA 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
+Six original archive parts in Game-archive/ remain an alternate recovery route.
 
-Private inputs have separate existing Library backups: code.bin;
-LEGO-Chase-current-AOT-599pages-2026-10-03.tgz; and Prepared-RomFS/ two raw parts plus
-romfs-parts.json. Code goes in restored/; AOT unpacks under the root as generated2/.
-Prepared parts are 402653184 and 366526464 bytes. No original CCI extraction is needed.
+## Continuing mandate
 
-```sh
-mkdir -p game/prepared-romfs
-python repo/tools/restore_romfs_parts.py romfs-library-roundtrip/romfs-parts.json game/prepared-romfs/romfs.bin
-python repo/tools/verify_romfs.py game/prepared-romfs/romfs.bin
-```
-
-The restore tool refuses an existing output; verify rather than overwrite it.
-Raw RomFS: 769179648 bytes, view offset 4096, view size 769175552. Preserve all
-integrity tables; do not expose the IVFC prefix as the filesystem header.
-RomFS SHA: 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
-Code SHA: 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
-AOT SHA: 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
-Historical CCI SHA: 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
-Six original archive parts remain in Game-archive/ as an alternate recovery path.
-
-Prior source/evidence is retained unchanged in historical/LEGO-Chase-source-checkpoint-0b4f9c3.tgz,
-with its handoff alongside it. Extract historical material only into a separate
-directory, NEVER over current repo/. That archive contains the earlier fill,
-transfer, PICA, filesystem, callback and pending-checkpoint evidence through its
-nested history. Current captures do not replace older independently verified proofs.
-
-Scratch may reset. Library inputs/checkpoints and GitHub are recovery routes;
-Actions source snapshots expire after 30 days. Keep game bytes/private AOT/native
-binaries/private state captures OUT of public GitHub. Preserve raw private captures
-only in the private source/evidence backup. Never invent publication, CI, persistence,
-rendering or gameplay success. Screenshots must be meaningful genuine game output,
-not synthetic patterns, reference photos, generated images or blank buffers.
-
-## Hosted CI confirmation
-
-GitHub Actions run `37391938526` on implementation `2a24226` completed successfully
-for both GCC and Clang jobs. These hosted tests are ROM-free, not original-game runs.
+Do not describe hosted ROM-free tests as a full 599-page executable build. Do not
+claim original inputs were rehashed, game startup advanced, local archive recovery
+succeeded, or a Library upload happened unless those actions actually complete.
+Keep all private original game bytes, AOT and captures out of public GitHub/Actions.
+Publish only verified checkpoints; use a freshly checked remote parent and force=false.
+Never replace remote history with a reconstructed local Git snapshot. Actions
+artifacts expire after 30 days; preserve the new package in Library when possible.
+Keep posting this handoff and a recoverable source/evidence attachment every turn.

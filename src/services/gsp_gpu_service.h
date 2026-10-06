@@ -42,6 +42,7 @@ public:
     }
     bool CanHandle(const IpcCommandBuffer& command) const noexcept override {
         if (!identity_) return false; // Registration endpoint is never a client.
+        if (command[0]==IpcMakeHeader(0x000B,1,0)) return true;
         if (command[0]==IpcMakeHeader(0x000C,0,0)) return true;
         if (command[0]==IpcMakeHeader(0x0001,2,2))
             return command[2]<=0x3FFFF && command[3]==((command[2]<<14)|2U);
@@ -57,6 +58,18 @@ public:
     Result Handle(IpcRouter& router,Kernel& kernel,GuestMemory& memory,ThreadObject& thread,
                   IpcCommandBuffer& command) override {
         if(!CanHandle(command))return kResultNotFound;
+        if (IpcCommandId(command[0])==0x000B) {
+            // Pinned IPC Pop<bool> consumes the low byte, not the full word.
+            // SetLcdForceBlack builds a zero RGB ColorFill and changes bit 24.
+            // Both LCD controls share it; framebuffer pixels and IRQs do not.
+            // Router preflights the complete response before this state change.
+            const bool enabled=(command[1]&0xFFU)!=0;
+            shared_->lcd_color_fill_words.fill(enabled ? 0x01000000U : 0U);
+            command.fill(0);
+            command[0]=IpcMakeHeader(0x000B,1,0);
+            command[1]=kResultSuccess;
+            return kResultSuccess;
+        }
         if (IpcCommandId(command[0])==0x000C)
             return TriggerCommandQueue(router,kernel,memory,thread,command);
         if (IpcCommandId(command[0])==0x0001 || IpcCommandId(command[0])==0x0002)
@@ -112,6 +125,12 @@ public:
     [[nodiscard]] std::optional<std::uint32_t> register_word(std::uint32_t relative) const noexcept {
         const auto slot=RegisterSlot(relative);
         return slot ? std::optional<std::uint32_t>(shared_->register_words[*slot]) : std::nullopt;
+    }
+    // Separate LCD control state, NOT PICA registers, pixels, or scanout.
+    // Screen 0 is top; screen 1 is bottom. Invalid screen indexes are not aliased.
+    [[nodiscard]] std::optional<std::uint32_t> lcd_color_fill_word(std::uint32_t screen) const noexcept {
+        if (screen>=shared_->lcd_color_fill_words.size()) return std::nullopt;
+        return shared_->lcd_color_fill_words[screen];
     }
     [[nodiscard]] const PicaUploadState& pica_uploads() const noexcept { return shared_->pica_uploads; }
     [[nodiscard]] const PicaListResult& last_pica_result() const noexcept { return shared_->last_pica_result; }
@@ -176,6 +195,9 @@ private:
         // action triggers are modeled. Command-list register execution is distinct.
         // Reset policy is the pinned HLE constructor above, not physical hardware.
         PicaGpuRegisters register_words{};
+        // Matches the two color-fill words in pinned PicaCore::RegsLcd regs_lcd{}.
+        // Other LCD registers and presentation remain unmodeled; no CPU MMIO map.
+        std::array<std::uint32_t,2> lcd_color_fill_words{};
         PicaUploadState pica_uploads{};
         PicaListResult last_pica_result{};
         std::shared_ptr<GpuVramBank> vram;

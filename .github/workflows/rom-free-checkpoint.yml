@@ -1,0 +1,93 @@
+name: ROM-free checkpoint
+on:
+  push:
+    branches: [main, work/lcd-blanking]
+    paths:
+      - "src/services/gsp_gpu_service.h"
+      - "tests/ctr_lcd_blank_test.cpp"
+      - "CMakeLists.txt"
+      - "docs/recovery/CURRENT-REBUILD.md"
+      - "tools/package_romfree_checkpoint.py"
+      - ".github/workflows/rom-free-checkpoint.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gcc-release
+            compiler: g++
+            sanitize: false
+          - name: clang-release
+            compiler: clang++
+            sanitize: false
+          - name: clang-sanitizers
+            compiler: clang++
+            sanitize: true
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Configure
+        shell: bash
+        env:
+          CXX_NAME: ${{ matrix.compiler }}
+          SANITIZE: ${{ matrix.sanitize }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/source-commit.txt
+          "$CXX_NAME" --version > evidence/compiler.txt
+          build_type=Release
+          extra=()
+          if [[ "$SANITIZE" == "true" ]]; then
+            build_type=Debug
+            extra=(-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined\ -fno-omit-frame-pointer -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined)
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE="$build_type" -DCMAKE_CXX_COMPILER="$CXX_NAME" "${extra[@]}" | tee evidence/configure.log
+      - name: Build ROM-free runtime and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --parallel 2 2>&1 | tee evidence/build.log
+      - name: Test
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir build --output-on-failure --timeout 90 --output-junit "$GITHUB_WORKSPACE/evidence/ctest.xml" 2>&1 | tee evidence/ctest.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lcd-evidence-${{ matrix.name }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
+  package:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: lcd-evidence-*
+          path: evidence
+      - name: Package exact source, handoff and verified hosted evidence
+        run: python3 tools/package_romfree_checkpoint.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lcd-source-checkpoint
+          path: delivery/
+          if-no-files-found: error
+          retention-days: 30
