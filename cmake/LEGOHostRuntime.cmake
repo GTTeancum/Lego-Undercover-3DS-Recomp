@@ -6,6 +6,11 @@ function(lego_add_ctr_runtime target_name)
     add_library(${target_name} STATIC
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_kernel.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_cpu_time.cpp"
+        "${LEGO_RECOMP_ROOT}/src/runtime/ctr_core1_budget.cpp"
+        "${LEGO_RECOMP_ROOT}/src/runtime/ctr_handle_batch.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/hid_user_service.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/dsp1_image.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/dsp_discovery_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_dual_core.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_dual_runner.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_recorded_step.cpp"

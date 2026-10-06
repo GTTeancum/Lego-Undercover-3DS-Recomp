@@ -264,6 +264,10 @@ public:
                           std::shared_ptr<KernelObject> current_process) noexcept;
 
     Result Create(Handle* out_handle, std::shared_ptr<KernelObject> object) noexcept;
+    // Allocate a copied IPC-object batch atomically. Failure preserves output,
+    // free-list order, generation counters and every existing handle.
+    Result CreateCopies(std::span<const std::shared_ptr<KernelObject>> objects,
+                        std::span<Handle> out_handles) noexcept;
     Result Duplicate(Handle* out_handle, Handle handle) noexcept;
     Result Close(Handle handle) noexcept;
 

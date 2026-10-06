@@ -1,205 +1,195 @@
 # LEGO Chase Begins — canonical continuation handoff
 
 Updated October 6, 2026. Work in assistant scratch, NOT the user's PC or Work.
-Project: LEGO City Undercover: The Chase Begins, Nintendo 3DS USA. This is a
-headless native startup reconstruction, NOT playable. Post a downloadable updated
-Markdown handoff and recoverable source/evidence checkpoint every work turn.
-Show only meaningful genuine game visuals; none exist at this checkpoint.
+Nintendo 3DS USA: LEGO City Undercover: The Chase Begins. Native/headless startup
+reconstruction, NOT playable. Post updated downloadable Markdown and recoverable
+source/evidence at the end of EVERY work turn. Only show genuine meaningful game
+visuals; there is still no rendered logo, title screen, main menu, audio or gameplay.
 
-## Canonical source: reconciled, not the older pending variant
+## Canonical source and reconciliation
 
-Implementation: `274806aef6fdbba3dec5abbc17ee7c59a894f672`.
-Exact tested/uploaded tree: `dbd7c64d873de0da2a2c9678e54bb244c8297b5d`.
-Parent main: `4e6c9cdd3ea33554eaa0591c1bb71c11780c91cb`.
-Parent tree: `5293eb38219f5ba1871ed24c04ecb788d586b3b3`.
-The appended downloadable receipt records the final report/delivery commit.
-Use freshly read remote parents and force=false with expected_sha when publishing.
-Local Git is a reconstructed snapshot/index, NOT the remote history.
+The current checkpoint combines newer main `10b48d25fd8443751916d14daf0b622c49d9ca78`
+(tree `db674f651060aff0061fc070737d971a8aa7cd61`) with the complete pending HID work
+(tree `b81593cb4e9f3e47e4527876325f114f5045b1e2`, parent `4e6c9cd`). New work adds
+DSP1 validation/staging only. The final downloadable receipt identifies publication,
+source tree, backup paths and any actually observed hosted CI. Do not infer publication
+from an unfinished local Git commit; the local repository is a reconstructed index,
+not full upstream history. Use fresh remote parents and force=false/expected_sha.
 
-This turn began with CORE1-BUDGET-PENDING based on 095af71. That archive passed
-440 manifest-file and 356 source-blob checks. An independent reference-dual variant
-was implemented/tested. Before publication, main advanced with overlapping work to
-4e6c9cd. We retained the newer remote scheduler instead of overwriting it. Its
-source snapshot was downloaded and reconstructed to the exact parent tree above:
-Actions run 37472326460, artifact 11416783537; ZIP SHA
-0f456ad631f0273fa0ed21efdc9ac327595af4095dacf7150a5931342e31d871.
-Inner source tar SHA c095d4de43bcbcbd2353108785d4c4e0f8ba3f89e7c7d3e765d3bb3723ad6306.
-Only the verified launch-header/resource-ceiling addition was carried onto that
-source. The alternative scheduler is preserved privately, NOT merged or canonical.
+Both predecessor archives were verified before use: pending HID 743 manifest entries,
+379 source blobs; main 10b48d2 561 entries, 368 source blobs. Three-way reconciliation
+conflicted only in the CMake test list and old handoff. The union of all 48 predecessor
+suites was preserved. The newer launcher/ExHeader validation was not overwritten.
+Older pending-only HID reports were moved into private historical evidence; their
+original source/patch/archive is preserved unchanged separately, not lost.
+The isolated ctr_core1_budget component is still tested, but is NOT the live quota
+implementation. No scheduler, opcode, private AOT or GPU drawing implementation was
+added in this turn. This is not new multicore or HID input-sampling work.
 
-## Actual current boundary
+## Actual current original-game stop
 
-With all explicit options and the original ExHeader:
+With the command below, the original game obtains HID's real shared page/five events,
+maps the SAME page read-only at 0x10002000, and requests its DSP program. The optional
+verified ExHeader sets the actual application maximum to 30 (instead of inherited80).
 
 ```text
-cpu_ticks=4839693 core0_instructions=2180849 core1_instructions=0 quota_transitions=0
-display_periods=1 guest_now_ns=18051022
+cpu_ticks=4945873 core0_instructions=2287029 core1_instructions=0 quota_transitions=0
+display_periods=1 guest_now_ns=18447051
 app_cpu_time_current=30 maximum=30 core0_only=0 core1_enforcement=diagnostic_windows
-stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=248
-last_ipc_session=hid:USER request_header=0x000a0000
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=252
+last_ipc_session=dsp::DSP request_header=0x001100c2
+host_ipc_error=DSP1 image verified/staged only: special-segment data and firmware boot handshake unresolved
+ipc_words=001100c2 0000c234 000000ff 000e00ff 000c234a 0037a120 00000000 00000000
 ```
 
-The original game maps/protects the existing 32 KiB stack alias, creates the actual
-processor-1 worker and changes its priority to 49. There are four threads and 22
-handles. The child is Ready at 0x00104DF4, TLS 0x1FF82600. It has executed ZERO
-instructions; the budget remains in its system phase, next deadline 5180070.
-The main thread reaches HID before the worker's first eligible application window.
-Synthetic tests of both-core execution are not proof this game's worker ran.
+LoadComponent has NOT succeeded. The call, CPU registers, original input and guest
+memory remain untouched. The only new state is a HOST inspection snapshot. Four
+threads and 29 handles remain. Core1's original worker has executed ZERO instructions
+at this stop because its eligible window has not begun. No DSP program instructions
+have executed. The full VRAM bank is still zero; there are no quality screenshots.
 
-HID is discovery-only. Command 0xA is GetIPCHandles and remains untouched. No input
-shared page, event handles, controller state, sample timestamps, polling timer or
-successful HID reply is supplied. Words after the zero-parameter header are stale
-buffer contents, not additional arguments. All 6 MiB of VRAM remains zero under
-the inherited explicit reference-zero policy. No logo, rendered frame, main menu,
-executed shader, audio, useful screenshot or gameplay has been demonstrated.
+## DSP image: verified ordinary segments, unresolved special data and boot
 
-Without --exheader, diagnostic-dual reaches the same HID call but retains maximum
-80. Strict default still stops before processor-1 CreateThread at 0x00102FCC,
-round 245, time 16713681 ns. Diagnostic mode's default block budget stops earlier;
-use --block-limit 100000000. Do not silently enable or omit explicit policies.
+The input is 49716 bytes at guest0x0037A120, exactly code.bin[0x27A120:0x286354].
+SHA: 7ea3c44a1c57514bebbebce8a7995f7f3a290170ea3b6c145749ad9358672c97.
+There are five ordinary segments: 43692 program bytes and 5256 data bytes. All five
+stored SHA-256 hashes match. Per-byte known masks accompany separate 0x40000-byte
+host program/data banks. ProgramA/B share the program bank; target addresses are
+16-bit words. Unknown allocation storage is NOT valid zero SRAM or calibration.
+The parser does not authenticate the RSA signature; whole original code identity
+and segment integrity are distinct checks.
 
-## Verified original launch metadata
+Flags3 requires initial replies and a special segment: data word0xEF29, byte0x1DE52,
+length0x214 (532 bytes). Those bytes are NOT in the ordinary segments. The range is
+explicitly unknown. 3dbrew's DSP Binary documentation describes CFG system block
+0x70000 as its source and zero fallback if the read fails. This host has NOT modeled
+that system read/failure and does not substitute zeros. Pinned LLE leaves that step
+TODO. After loading it waits for register0/1/2 to each yield1, then register2 to yield
+a pipe-base address. These responses require a working DSP/backend, not constants.
+The reference HLE loader only hashes the image because an existing HLE audio engine
+supplies its surrounding semantics; that is not permission to bypass this backend.
 
-Recovered the original CCI by streaming the existing six split archive parts,
-checking its full 1073741824-byte SHA against the established image. The NCCH
-ExHeader hash also verified. The preserved 2048-byte ExHeader SHA is
-`d7641f0a3bb89697ca8f0751e88d31703b54aa185ac78f9e74e41169dfcdc004`.
-Its descriptor at 0x210 is 0x009E: Multi scheduling, maximum CPU 30. Program ID
-00040000000AD500, main ideal processor 0, priority 48, application category 0.
-Affinity bits are 1; do NOT invent a prohibition of the observed core-1 creation
-from that field. The pinned SVC path accepts processor 1.
+StageDsp1Image validates header/length/count/types/source/target ranges, selected
+banks, overlaps and hashes. It publishes a complete unique host image only after
+validation. Failure, including allocation failure, preserves the old output. Gaps
+and special bytes remain unknown. The service copies readable input, stages it,
+then requests an explicit host stop WITHOUT writing a guest reply or advancing time.
+A later failed inspection retains the last valid diagnostic snapshot; it is not
+live loaded firmware. Other DSP commands remain unsupported. The bounded 1MiB cap,
+odd-byte and overlap rejection, and full-mask-only IPC are HOST POLICY, not full
+firmware error behavior. No DSP SRAM mapping, pipes, semaphore signals, audio samples,
+component-ready flag, or initialized DSP state is fabricated.
 
-New optional --exheader FILE is accepted only with --cpu-mode diagnostic-dual.
-The launcher validates exact length, full SHA and expected title fields before
-configuring the actual kernel application resource object. Maximum becomes 30,
-current initially 0, and the original APT setter later sets current 30. Wrong or
-short inputs, incompatible mode and live policy replacement fail without a launch.
-Layout parsing alone is not authenticity. No raw title bytes are in public tests.
-Without the option, the inherited ceiling remains 80; this avoids silently changing
-old commands. The recovered header is now a small private prepared input, so another
-CCI extraction is unnecessary once the checkpoint/private backup is restored.
+## Scope retained
 
-This verifies launch metadata, NOT instruction latency, full firmware launch policy
-or cycle-accurate scheduling. The parent diagnostic model issues one recorded A32
-instruction per logical core per tick, core 0 before core 1, with independent
-contexts and explicit app windows. It is single-host-threaded, not parallel hardware.
-Its core selection, quota/event algorithm, recorded stepping, priority operation,
-HID discovery and memory alias behavior were preserved from 4e6c9cd.
+HID exports actual retained objects with transactional six-handle allocation and
+read-only client permissions. It still has NO periodic input producer/controller
+samples/sensor calibration. Empty HID storage is unpopulated state, not sampled
+neutral input. Strict CPU mode remains default. Diagnostic-dual is one recorded
+A32 instruction per logical core per nominal tick, core0 before core1, not measured
+ARM11 instruction latency or hardware parallelism. Title ExHeader now independently
+verifies Multi scheduling/max30, but does not validate timing. All explicit PTM,
+VRAM, display, CFG and CPU options below must remain visible.
 
-Six implementation files changed: CMakeLists.txt, src/host/launch_header.h,
-src/host/main.cpp, src/runtime/ctr_kernel.h, src/runtime/ctr_dual_core.cpp,
-tests/ctr_launch_header_test.cpp. The kernel change adds prelaunch resource setup;
-no GPU, opcode/vendor/AOT, memory backend, filesystem or HID handler is changed.
+## Tests and evidence actually completed
 
-## Final canonical verification and evidence
+GCC and Clang full native builds link all 599 unchanged private page units.
+All 50 CTest suites pass under each compiler. All 50 ROM-free Clang ASan/UBSan suites
+pass with leak checks/halt-on-error. Both new suites cover parser boundaries, hash
+failures, all segment types, known/unknown bytes, allocation rollback, protected
+responses, invalid IPC and no guest mutation. No inherited suite was removed.
 
-Full GCC/Clang native builds link all 599 unchanged private AOT pages. All 45 CTest
-suites pass with each compiler; all 45 ROM-free Clang ASan/UBSan suites pass with
-leak checking/halt-on-error. All 44 parent suites are retained, plus launch-header
-coverage. Ten paired CLI/startup cases match stdout, exit and owned test-file bytes.
-They cover authenticated and inherited launch, strict mode, invalid identity/length/
-path, incompatible mode, missing/empty arguments and default instruction budget.
+Six completed paired original-startup scenarios match logs, exits and newly created
+file bytes: authenticated, inherited ceiling, strict CPU, noCFG, noRomFS, noPTM.
+Two larger foreground batches exceeded the 45-second call limit. Partial roots/logs
+remain; no uncompleted case is counted as passing. Those setup limits are recorded
+in dsp-checkpoint/setup-notes.txt. Final native suites had no failing tests.
 
-Six paired final capture files match exactly: thread/CPU/quota state, GPU words,
-serialized uploads, GSP page, full IPC and complete VRAM. The raw state images also
-match the alternative at this common stop, except its differently reported metadata.
-This is not an independent CPU oracle. Original code.bin, raw RomFS and all 603
-AOT archive members match their private backups. Full IVFC verification was not
-repeated; the raw SHA matches the previously verified image. Registry 111043 blocks
-and 545111 words remain STATIC inventory, not frame counts or progress percentages.
-No Windows/macOS build. No game screenshot is presented from synthetic test data.
+All 80 final capture files match GCC to Clang. Full before/after IPC/input, GPU words,
+uploads, GSP/HID pages/epochs, mapped HID, VRAM and captured CPU/thread/time state
+are identical across DSP inspection. Independent Python replay reproduces all bytes
+and known masks in both staged banks. Logging-only alternate runners capture this;
+ordinary uninstrumented executables independently reach the same stop.
+Code.bin, raw RomFS, original ExHeader and all603 AOT members match their backups.
+Full IVFC verification was not repeated. Registry111043 blocks/545111 words is static
+inventory, not new execution counts or frames. No Windows/macOS build was performed.
 
-Canonical evidence: launch-checkpoint/. build_all.py/build-status.json and
-ctest-final-{gcc,clang,asan}.txt; validate_final.py/matrix-summary.json (10 cases);
-capture_final.py and final-capture-{gcc,clang}/ (6 files each); native-proof.json,
-comparison.json and identity-proof.json. Capture hosts link canonical libraries;
-they only add final logging, not production IPC changes. Binaries are excluded.
-publication_rebuild.py and publication-build.json record the GCC/Clang host rebuild
-and all45 retests after an equivalent zero-print expression was matched to upload.
-
-The separately tested alternative has 45 DIFFERENT suites and a 15-case matrix.
-Do not combine those counts or use them instead of final canonical validation.
-Its source/evidence and unused publication plans remain historical/private only.
-Current reconciliation and setup notes distinguish both implementations explicitly.
+Current private evidence: dsp-checkpoint/. build_other.py/build-results.json,
+ctest-first-gcc.txt/ctest-clang.log/ctest-asan.log, validate_matrix.py/matrix-results.json,
+make_trace.py/trace_support.inc/trace_dual_runner.cpp, capture.py/capture-gcc/clang,
+verify_capture.py/proof.json, identity.json, setup-notes.txt. All raw firmware/bank
+captures are PRIVATE. Public report: reports/recovery-host/DSP1-STAGING.md and
+DSP1-STAGING-PROOF.json. Prior hid-checkpoint/ and launch-checkpoint/ remain separately
+restored in scratch and in predecessor backups; they are not newly run proof.
 
 ## Next exact work
 
-Implement HID GetIPCHandles from the pinned service's actual shared-memory/event
-ownership contract. Inspect hid.cpp, its shared layout, constructor and sampling
-schedule before returning handles. Check handle-allocation rollback, lifetime,
-permissions and the observed mapping. Do not return dummy events or fabricated
-controller samples. Rerun unchanged game code, then observe when the original
-processor-1 worker actually executes. Preserve the title-header input and explicit
-diagnostic timing limitation; a created worker is not proof of executed gameplay.
+Implement the required special-segment source/policy and a DSP backend that genuinely
+performs the boot handshake, or a faithful native HLE replacement for that behavior.
+Do not simply acknowledge LoadComponent, assume a pipe base, or execute unknown SRAM
+as zero. Use the existing captured image rather than asking for another game upload.
+A parsed/staged image is not a completed DSP load. After justified implementation,
+run the unchanged original again in a NEW private archive and follow its actual next
+request. Keep special-data provenance, input sampling and timing limitations explicit.
 
-Reference pin: azahar-emu/azahar at 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
-Title layout: src/core/file_sys/ncch_container.h. Launch initialization:
-src/core/hle/kernel/resource_limit.cpp. SVC priority path: kernel/svc.cpp and
-kernel/errors.h. HID command identity: service/hid/hid_user.cpp. Kernel/service
-paths have prefix src/core/hle/. Keep pinned references, not mutable upstream.
+References: Azahar @86a9f9236ae42bb5a2b995dbc933d599d8ea07ac,
+src/audio_core/lle/lle.cpp blob388fe64ec1a5130a2c93a5dfa04ca84df109b567 (DSP1 layout,
+ordinary placement, special TODO, startup replies and pipe base);
+src/audio_core/hle/hle.cpp blob05ff9d74e1077595faba67a61a7ce4581a80d374;
+3dbrew DSP Binary https://www.3dbrew.org/wiki/DSP_Binary read October6,2026.
+Mutable search results were navigation only; implementation reads used the pin.
 
-## Canonical scratch and reproduction
+## Scratch and reproduction
 
-Root /mnt/data/lego_recovery/. Source repo/. Full builds build-gcc/, build-clang/;
-ROM-free sanitizers build-asan/. Code restored/code.bin; private AOT generated2/;
-raw RomFS game/prepared-romfs/romfs.bin; parts/manifest romfs-library-roundtrip/.
-New small prepared input: prepared-launch/exheader.bin and launch-manifest.json.
-Current evidence launch-checkpoint/. verified-launch.* roots are owned TEST state,
-not recovered NAND. Preserve unknown saves; validators remove only their own
-just-created byte-verified gamecoin when pairing compilers on the same path.
+Root /mnt/data/lego_recovery/. Source repo/; builds build-gcc/, build-clang/, build-asan/.
+Private AOT generated2/; code restored/code.bin; RomFS game/prepared-romfs/romfs.bin;
+parts/manifest romfs-library-roundtrip/; ExHeader prepared-launch/exheader.bin.
+Current evidence dsp-checkpoint/. Untouched pending source preserved-pending-hid-source/;
+pending archive restore pending-hid-restore/; newer main restore restored-main-10b48d2/.
+New dsp-original.*, dsp-capture.*, dsp-matrix.* directories are owned TEST state,
+not recovered console NAND. Never remove unknown saves or overwrite captures.
 
 ```sh
 cd /mnt/data/lego_recovery
 cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DLEGO_AOT_DIR=/mnt/data/lego_recovery/generated2
 cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/hid-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/dsp-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
 ./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle --cfg-profile reference-stereo --cpu-mode diagnostic-dual --block-limit 100000000 --exheader prepared-launch/exheader.bin
 ```
 
-Expected exit 3 at HID 0x000A0000, round 248, maximum30 and zero core1 instructions.
-Use clang++ for Clang; omit LEGO_AOT_DIR for ROM-free sanitizer tests.
+Expected exit3 and the pending DSP call shown above. Omitting ExHeader retains
+maximum80; omitting CPU mode requires also omitting ExHeader and retains the strict
+processor1 CreateThread stop. Use clang++ for Clang; omit LEGO_AOT_DIR for ROM-free
+sanitizers. Default one-million diagnostic instruction budget stops earlier.
 
 ## Durable recovery and every-turn mandate
 
-GitHub GTTeancum/Lego-Undercover-3DS-Recomp main. Library /LEGO-Chase-Recovery/.
-Restore the newest source/evidence archive; verify CHECKPOINT-MANIFEST.json and
-SOURCE-INDEX.json before use. The latter records exact Git paths/blobs/modes,
-including ignored tracked reports. Reconstruct the index, not invented remote history.
-The final downloadable receipt identifies the delivery commit and saved filenames.
+GitHub GTTeancum/Lego-Undercover-3DS-Recomp main; Library /LEGO-Chase-Recovery/.
+Always restore the newest exact source/index, not an older pending implementation.
+Check CHECKPOINT-MANIFEST.json with verify_checkpoint.py and restore SOURCE-INDEX.json
+modes/blobs including ignored tracked reports. Never force-push reconstructed history.
 
-The private checkpoint includes canonical source/evidence and prepared-launch/.
-It preserves the original CORE1-BUDGET-PENDING archive/handoff unchanged, plus the
-concurrent 4e6c9cd source snapshot and a separately labeled alternative-source
-archive. Extract historical material separately, NEVER over current repo/.
-The alternative source is alternate-reference-dual-repo/ locally; its evidence
-core1-live-checkpoint/ includes the original ExHeader recovery driver/receipt and
-private prefix. Its --cpu-mode reference-dual commands are NOT canonical commands.
-The original pending archive retains earlier private evidence/nested history.
-The concurrent commit's historical private traces were not recovered; new canonical
-captures were made here. Do not cite unrecovered traces as newly checked evidence.
+Original backups: code.bin; LEGO-Chase-current-AOT-599pages-2026-10-03.tgz;
+Prepared-RomFS/ two parts and manifest; Prepared-Launch/exheader.bin.
+RomFS parts402653184+366526464 bytes; use repo/tools/restore_romfs_parts.py, which
+refuses overwrite. Raw RomFS769179648 bytes, native view offset4096/size769175552.
+No original CCI extraction is necessary. SHA identities:
+code5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f;
+AOT2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9;
+RomFS6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf;
+ExHeaderd7641f0a3bb89697ca8f0751e88d31703b54aa185ac78f9e74e41169dfcdc004.
 
-Large inputs have separate existing Library backups: code.bin;
-LEGO-Chase-current-AOT-599pages-2026-10-03.tgz (unpacks generated2/);
-Prepared-RomFS/ two uncompressed parts plus romfs-parts.json. Part sizes 402653184
-and 366526464. Restore via repo/tools/restore_romfs_parts.py, which refuses overwrite.
-Raw RomFS size769179648, native view offset4096/length769175552. Preserve tables.
-RomFS SHA 6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
-Code SHA 5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
-AOT SHA 2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
-CCI SHA 3ae683620ada99a6ec80e90db70dd5a18f7c761e6d40d4a7befb82ec83d90525.
-Prepared launch destination: /LEGO-Chase-Recovery/Prepared-Launch/exheader.bin.
+The exact old HID-HANDLES-PENDING archive/MD were newly saved to Library during this
+turn. The 10b48d2 source/evidence archive was already there. Preserve both, separately;
+their original history need not be recursively duplicated in each new backup. The
+new checkpoint includes complete current source, new raw evidence, prepared launch,
+source index, manifests, patch and explicit predecessor hashes/locations. Large game
+inputs, private AOT, raw RomFS, .git, native executables and build products are excluded.
+Raw program/bank captures and ExHeader must never enter public GitHub.
 
-No code.bin, private AOT, raw RomFS/parts, CCI/7z, .git or compiled binaries/build
-products are embedded in this source/evidence archive. Private captures/ExHeader
-must stay OUT of public GitHub. Scratch may reset; Library/GitHub/checkpoints are
-recovery paths, not permanent scratch. Actions artifacts expire after 30 days.
-Never invent publication, CI, persistence, hardware parity, screenshots or gameplay.
-Post an updated downloadable MD and recoverable checkpoint every work turn.
-
-## Hosted confirmation
-
-GitHub Actions run 37478931314 on implementation 274806a passed both GCC and Clang
-jobs. These are ROM-free hosted suites, separate from full local original-game runs
-and the locally completed Clang ASan/UBSan suites.
+Scratch may reset; attachments/Library/GitHub are recovery routes, not permanent
+scratch. No unobserved publication/CI/round-trip is a success. Append actual delivery
+receipts after publication and verify saved files when possible. Post the updated
+Markdown and source/evidence checkpoint at the end of EVERY work turn.

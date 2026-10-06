@@ -70,12 +70,13 @@ void EventFailureResume(){
  CHECK(clean.r.display_periods()==1&&interrupted.r.display_periods()==1);
  CHECK(std::equal(a->shared_memory()->bytes().begin(),a->shared_memory()->bytes().end(),b->shared_memory()->bytes().begin()));
 }
+// GetIPCHandles is now implemented; retain this stop check on unsupported EnableAccelerometer.
 void StopsAndHid(){
  Fixture f;f.r.live_state().r[15]=0x100800;const auto before=f.r.live_state();
  CHECK(f.r.Run(100,10).reason==RunnerStopReason::MissingBlock&&f.r.live_state().r==before.r&&f.k.now_ns()==0);
  f.k.threads()[1]->processor_id=2;CHECK(f.r.Run().reason==RunnerStopReason::UnsupportedCpuExecution);
  Fixture h;Handle hid=0;CHECK(h.r.ipc().ConnectToService(h.k,"hid:USER",&hid)==0);
- const auto cb=h.k.current_thread()->tls_address+kIpcCommandBufferOffset;IpcCommandBuffer q{0x000A0000};
+ const auto cb=h.k.current_thread()->tls_address+kIpcCommandBufferOffset;IpcCommandBuffer q{0x00110000};
  for(unsigned n=0;n<q.size();++n)CHECK(h.m.Write32(cb+4*n,q[n]));
  const auto count=h.k.handles().OpenHandleCount();CHECK(!h.r.ipc().SendSyncRequest(h.k,h.m,hid));
  for(unsigned n=0;n<q.size();++n){std::uint32_t w=0;CHECK(h.m.Read32(cb+4*n,&w)&&w==q[n]);}

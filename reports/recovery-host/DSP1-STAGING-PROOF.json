@@ -1,0 +1,67 @@
+{
+  "paired_capture_files": 80,
+  "same_guest_before_after": true,
+  "component_sha256": "7ea3c44a1c57514bebbebce8a7995f7f3a290170ea3b6c145749ad9358672c97",
+  "component_bytes": 49716,
+  "segments": [
+    {
+      "index": 0,
+      "type": 0,
+      "source_offset": 768,
+      "target_words": 0,
+      "bytes": 7770,
+      "sha256": "d7d5e518116e4f0c5105463badffe690d29e095fdfddd8d0fbeb43ae19d07a2a"
+    },
+    {
+      "index": 1,
+      "type": 0,
+      "source_offset": 8538,
+      "target_words": 10496,
+      "bytes": 35922,
+      "sha256": "fcbd344df7fb2517fe5d3425c602394088a07bb8774e1229bd2c3f4d69c0b664"
+    },
+    {
+      "index": 2,
+      "type": 2,
+      "source_offset": 44460,
+      "target_words": 15404,
+      "bytes": 3088,
+      "sha256": "255c0f3a54cec59ecbacc0a15414361158fccb74bef393b16e6337ad1dec0fc3"
+    },
+    {
+      "index": 3,
+      "type": 2,
+      "source_offset": 47548,
+      "target_words": 19456,
+      "bytes": 2132,
+      "sha256": "de88da7e6f397e5567539bf59bd8c4836e1b5d4be4e01af940c3a28b4100383b"
+    },
+    {
+      "index": 4,
+      "type": 2,
+      "source_offset": 49680,
+      "target_words": 49816,
+      "bytes": 36,
+      "sha256": "b78a56ae27c5782ab143d0df9452de6244ae95961621ecc1af7cc8ba03aa4e83"
+    }
+  ],
+  "staged_program_bytes": 43692,
+  "staged_data_bytes": 5256,
+  "special_target_words": 61225,
+  "special_bytes": 532,
+  "special_known": false,
+  "guest_load_completed": false,
+  "dsp_executed": false,
+  "core1_instructions": 0,
+  "vrambank_nonzero_bytes": 0,
+  "native_stop": "DSP LoadComponent still pending at dispatch round 252",
+  "launch_header_authenticated": true,
+  "application_cpu_maximum": 30,
+  "tests": {
+    "gcc": 50,
+    "clang": 50,
+    "clang_asan_ubsan_romfree": 50
+  },
+  "completed_paired_scenarios": 6,
+  "scope": "Host image staging only; no successful DSP load, boot, audio or rendered frame"
+}

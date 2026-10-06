@@ -7,6 +7,7 @@
 #include "services/ptm_service.h"
 #include "services/y2r_user_service.h"
 #include "services/hid_user_service.h"
+#include "services/dsp_discovery_service.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -41,6 +42,7 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
     gsp_=gsp;
     ipc_.RegisterService("gsp::Gpu",std::move(gsp));
     ipc_.RegisterService("hid:USER",std::make_shared<HidUserService>());
+    ipc_.RegisterService("dsp::DSP",std::make_shared<DspDiscoveryService>());
     ipc_.RegisterService("y2r:u", std::make_shared<Y2rUserService>());
     ipc_.RegisterService("ptm:u", std::make_shared<PtmService>(ptm_step_mode));
     ipc_.RegisterService("ndm:u", std::make_shared<NdmService>());
