@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 import subprocess
 import tarfile
@@ -13,6 +14,20 @@ import xml.etree.ElementTree as ET
 
 def git(*args: str) -> bytes:
     return subprocess.check_output(["git", *args])
+
+
+def expected_test_names() -> set[str]:
+    # This repository registers its ROM-free suites in one literal foreach list.
+    # Fail closed if that structure changes; do not merely accept any test count.
+    loops = re.findall(r"foreach\(test_name\s+([^)]+)\)", Path("CMakeLists.txt").read_text())
+    if len(loops) != 1:
+        raise ValueError("Expected one literal CTest suite list")
+    names = loops[0].split()
+    if not names or len(names) != len(set(names)) or any(
+        re.fullmatch(r"ctr_[a-z0-9_]+", name) is None for name in names
+    ):
+        raise ValueError("Invalid or duplicate CTest suite name")
+    return set(names)
 
 
 def main() -> None:
@@ -40,14 +55,15 @@ def main() -> None:
 
     variants = ("gcc-release", "clang-release", "clang-sanitizers")
     totals = {}
+    expected = expected_test_names()
     for variant in variants:
         folder = Path("evidence") / f"lcd-evidence-{variant}"
         if (folder / "source-commit.txt").read_text().strip() != commit:
             raise ValueError(f"Stale evidence: {variant}")
         root = ET.parse(folder / "ctest.xml").getroot()
         cases = root.findall(".//testcase")
-        if len(cases) != 37:
-            raise ValueError(f"Expected 37 test cases, received {len(cases)}: {variant}")
+        if len(cases) != len(expected) or {case.get("name") for case in cases} != expected:
+            raise ValueError(f"CTest suite inventory mismatch: {variant}")
         for case in cases:
             if any(case.find(tag) is not None for tag in ("failure", "error", "skipped")):
                 raise ValueError(f"Nonpassing case in {variant}: {case.attrib}")
@@ -64,16 +80,16 @@ def main() -> None:
         "source_commit": commit, "source_tree": tree,
         "workflow_run": os.environ.get("GITHUB_RUN_ID"),
         "test_counts": totals, "source_files": len(source_index),
-        "scope": "ROM-free hosted verification ONLY; original game not rerun",
-        "private_evidence_predecessor": "LEGO-Chase-source-checkpoint-da5c9a9.tgz",
+        "scope": "ROM-free hosted verification ONLY; no original-game run in this workflow",
+        "private_evidence_predecessor": "See canonical handoff for separate private evidence",
     }
     handoff = Path("docs/recovery/CURRENT-REBUILD.md").read_text() + (
         "\n\n## Hosted package receipt\n\n"
         f"Packaged source commit: `{commit}`. Exact tree: `{tree}`.\n"
-        f"Workflow run: `{receipt['workflow_run']}`. All three hosted variants passed 37 suites.\n"
+        f"Workflow run: `{receipt['workflow_run']}`. All three hosted variants passed {len(expected)} suites.\n"
         f"Archive: `{archive_name}`. Handoff: `{handoff_name}`.\n"
         "This package contains public source and new hosted test logs, NOT private game-run captures.\n"
-        "Retain the private da5c9a9 predecessor and the separate code/AOT/RomFS backups.\n"
+        "Retain the separate private evidence and code/AOT/RomFS backups identified above.\n"
         "No local archive round-trip or full original-game run is asserted by this receipt.\n"
     )
     members[handoff_name] = (handoff.encode(), 0o644)

@@ -5,6 +5,7 @@
 #include "services/cfg_service.h"
 #include "services/gsp_gpu_service.h"
 #include "services/ptm_service.h"
+#include "services/y2r_user_service.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -33,6 +34,7 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
         throw std::invalid_argument("invalid GPU VRAM mode");
     gsp_=gsp;
     ipc_.RegisterService("gsp::Gpu",std::move(gsp));
+    ipc_.RegisterService("y2r:u", std::make_shared<Y2rUserService>());
     ipc_.RegisterService("ptm:u", std::make_shared<PtmService>(ptm_step_mode));
     ipc_.RegisterService("ndm:u", std::make_shared<NdmService>());
     auto fs = std::make_shared<FsUserService>(0x00040000000AD500ULL);
