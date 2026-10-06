@@ -319,13 +319,21 @@ MMIORegion::MMIORegion(MemoryInterfaceUnit& miu, ICU& icu, Apbp& apbp_from_cpu, 
     impl->cells[0x20A].get = std::bind(&ICU::GetEnable, &icu, 2);
     impl->cells[0x20C].set = std::bind(&ICU::SetEnableVectored, &icu, _1);
     impl->cells[0x20C].get = std::bind(&ICU::GetEnableVectored, &icu);
-    // impl->cells[0x20E]; // polarity for each interrupt?
-    // impl->cells[0x210]; // source type for each interrupt?
+    impl->cells[0x20E] = Cell(std::bind(&ICU::SetTriggerMode, &icu, _1),
+                              std::bind(&ICU::GetTriggerMode, &icu));
+    impl->cells[0x210] = Cell(std::bind(&ICU::SetPolarity, &icu, _1),
+                              std::bind(&ICU::GetPolarity, &icu));
+    impl->cells[0x252] = Cell(std::bind(&ICU::SetMasterDisable, &icu, _1),
+                              std::bind(&ICU::GetMasterDisable, &icu));
     for (unsigned i = 0; i < 16; ++i) {
-        impl->cells[0x212 + i * 4] = Cell::BitFieldCell({
-            BitFieldSlot::RefSlot(0, 2, icu.vector_high[i]),
-            BitFieldSlot::RefSlot(15, 1, icu.vector_context_switch[i]),
-        });
+        impl->cells[0x212 + i * 4] = Cell(
+            [&icu,i](u16 value) {
+                icu.vector_high[i] = value & 3;
+                icu.vector_context_switch[i] = (value >> 15) & 1;
+            },
+            [&icu,i]() -> u16 {
+                return (icu.vector_high[i] & 3) | ((icu.vector_context_switch[i] & 1) << 15);
+            });
         impl->cells[0x214 + i * 4] = Cell::RefCell(icu.vector_low[i]);
     }
 

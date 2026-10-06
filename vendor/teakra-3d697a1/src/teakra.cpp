@@ -20,7 +20,7 @@ struct Teakra::Impl {
     CoreTiming core_timing;
     SharedMemory shared_memory;
     MemoryInterfaceUnit miu;
-    ICU icu;
+    ICU icu{core_timing};
     Apbp apbp_from_cpu, apbp_from_dsp;
     std::array<Timer, 2> timer{{{core_timing}, {core_timing}}};
     Ahbm ahbm;
@@ -53,6 +53,7 @@ struct Teakra::Impl {
     void Reset() {
         std::memset(shared_memory.raw, 0, DspMemorySize);
         miu.Reset();
+        icu.Reset();
         apbp_from_cpu.Reset();
         apbp_from_dsp.Reset();
         timer[0].Reset();

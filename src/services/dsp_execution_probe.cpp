@@ -1,5 +1,6 @@
 #include "services/dsp_execution_probe.h"
 #include "services/dsp_boot_handshake.h"
+#include "services/dsp_ram.h"
 #include "teakra/teakra.h"
 #include "teakra/impl/register.h"
 #include <algorithm>
@@ -10,12 +11,33 @@
 
 namespace lego::ctr {
 struct DspExecutionProbe::Impl final : DspBootMailbox {
-    std::vector<std::uint8_t> memory = std::vector<std::uint8_t>(0x80000,0);
-    std::vector<std::uint8_t> source = std::vector<std::uint8_t>(0x80000,0);
+    std::shared_ptr<DspRam> ram=std::make_shared<DspRam>();
+    std::vector<std::uint8_t>& memory=ram->bytes;
+    std::vector<std::uint8_t>& source=ram->provenance;
     Teakra::Teakra dsp{{memory.data()}};
     DspBootHandshake handshake;
     DspProbeSummary state{};
     std::array<DspProbeReply,256> history{};
+    bool live{},live_data_signaled{},live_semaphore_signaled{};
+    std::uint16_t live_pending{};
+    std::uint64_t live_notification_count{};
+    void Emit(unsigned bit) {
+        if(bit>=10 || live_notification_count==std::numeric_limits<std::uint64_t>::max())
+            throw std::runtime_error("DSP live interrupt accounting overflow");
+        live_pending|=static_cast<std::uint16_t>(1U<<bit);++live_notification_count;
+    }
+    void PipeEvent(bool from_data) {
+        if(from_data)live_data_signaled=true;
+        else {if(!(dsp.GetSemaphore()&0x8000))return;live_semaphore_signaled=true;}
+        if(!live_data_signaled || !live_semaphore_signaled)return;
+        live_data_signaled=live_semaphore_signaled=false;
+        if(!dsp.RecvDataIsReady(2))throw std::runtime_error("DSP pipe notification lacks a mailbox word");
+        const auto slot=dsp.RecvData(2);
+        if(slot>=16)throw std::runtime_error("DSP pipe notification slot outside descriptor table");
+        if(slot&1)return; // CPU-to-DSP direction is not a received-data event.
+        if(slot==0)throw std::runtime_error("DSP debug-pipe draining is not implemented");
+        Emit(2+slot/2);
+    }
 
     Impl(const Dsp1Image& image,DspProbeReset reset):handshake(image.receive_startup_replies) {
         dsp.Reset(); // Pinned register/peripheral construction; raw zero isn't provenance.
@@ -30,16 +52,18 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
         };
         load(image.program,0);load(image.data,kDsp1BankBytes);
         state.known_bytes=static_cast<std::uint32_t>(std::count_if(source.begin(),source.end(),[](auto s){return s!=0;}));
+        ram->known_bytes=state.known_bytes;
         dsp.SetMemoryAccessCallback([this](std::uint32_t address,bool write) {
             if(address>memory.size()-2) {
                 Fault(DspProbeFault::AddressRange,"DSP backing access outside SRAM",address);
                 throw std::runtime_error("DSP backing range");
             }
             if(write) {
-                for(unsigned i=0;i<2;++i) {
-                    if(!source[address+i])++state.known_bytes;
-                    source[address+i]=static_cast<std::uint8_t>(DspByteSource::FirmwareWrite);
+                if(!ram->Mark(address,2,static_cast<std::uint8_t>(DspByteSource::FirmwareWrite))) {
+                    Fault(DspProbeFault::Backend,"DSP SRAM epoch limit or sealed storage");
+                    throw std::runtime_error("DSP SRAM write failed");
                 }
+                state.known_bytes=ram->known_bytes;
                 ++state.written_words; // raw 16-bit store follows, with no allocation/throw.
             } else {
                 if(!source[address] || !source[address+1]) {
@@ -65,7 +89,7 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
     }
     void Fault(DspProbeFault kind,const char* text) noexcept {
         if(state.state==DspProbeState::Fault)return;
-        state.state=DspProbeState::Fault;state.fault=kind;
+        state.state=DspProbeState::Fault;state.fault=kind;ram->sealed=true;
         std::snprintf(state.error.data(),state.error.size(),"%s",text);
     }
     void Fault(DspProbeFault kind,const char* text,std::uint32_t address) noexcept {
@@ -141,7 +165,56 @@ DspProbeState DspExecutionProbe::Advance(std::uint32_t budget) noexcept {
     s.pc_after=p.dsp.GetRegisterState().pc;
     return s.state;
 }
-const DspProbeSummary& DspExecutionProbe::summary() const noexcept{return impl_->state;}
+std::uint16_t DspExecutionProbe::TakeLiveInterrupts() noexcept {
+    const auto bits=impl_->live_pending;impl_->live_pending=0;return bits;
+}
+std::uint64_t DspExecutionProbe::live_notifications() const noexcept {return impl_->live_notification_count;}
+std::shared_ptr<DeviceMemory> DspExecutionProbe::data_backing() const noexcept {return impl_->ram;}
+bool DspExecutionProbe::SetSemaphore(std::uint16_t bits) noexcept {
+    if (!impl_->live || impl_->state.state != DspProbeState::ProtocolComplete) return false;
+    try { impl_->dsp.SetSemaphore(bits); return true; }
+    catch (const std::exception& e) { impl_->Fault(DspProbeFault::Backend, e.what()); }
+    catch (...) { impl_->Fault(DspProbeFault::Backend, "DSP semaphore exception"); }
+    return false;
+}
+bool DspExecutionProbe::CanSend(std::uint8_t index) const noexcept {
+    return index<3 && impl_->state.state==DspProbeState::ProtocolComplete && impl_->dsp.SendDataIsEmpty(index);
+}
+bool DspExecutionProbe::Send(std::uint8_t index,std::uint16_t word) noexcept {
+    if(!CanSend(index))return false;
+    try{impl_->dsp.SendData(index,word);return true;}
+    catch(const std::exception& e){impl_->Fault(DspProbeFault::Backend,e.what());}
+    catch(...){impl_->Fault(DspProbeFault::Backend,"DSP send exception");}
+    return false;
+}
+bool DspExecutionProbe::ContinueLive(std::uint32_t steps) noexcept {
+    auto& p=*impl_;auto& s=p.state;
+    if(s.state!=DspProbeState::ProtocolComplete || steps>kMaxStepsPerCall)return false;
+    try {
+        if(!p.live) {
+            // Notifications are generated only by future firmware peripheral writes.
+            // A pipe IRQ requires BOTH the actual reg2 word and semaphore bit0x8000.
+            p.dsp.SetRecvDataHandler(0,[ptr=&p]{ptr->Emit(0);});
+            p.dsp.SetRecvDataHandler(1,[ptr=&p]{ptr->Emit(1);});
+            p.dsp.SetRecvDataHandler(2,[ptr=&p]{ptr->PipeEvent(true);});
+            p.dsp.SetSemaphoreHandler([ptr=&p]{ptr->PipeEvent(false);});
+            p.live=true;
+        }
+        for(std::uint32_t i=0;i<steps;++i) {
+            if(s.attempted_steps==std::numeric_limits<std::uint64_t>::max()) {
+                p.Fault(DspProbeFault::Backend,"DSP live step counter exhausted");break;
+            }
+            s.pc_before=p.dsp.GetRegisterState().pc;++s.attempted_steps;
+            p.dsp.Run(1);++s.completed_steps;s.pc_after=p.dsp.GetRegisterState().pc;
+        }
+    } catch(const std::exception& e){p.Fault(DspProbeFault::Backend,e.what());}
+      catch(...){p.Fault(DspProbeFault::Backend,"DSP live execution exception");}
+    s.pc_after=p.dsp.GetRegisterState().pc;
+    return s.state!=DspProbeState::Fault;
+}
+const DspProbeSummary& DspExecutionProbe::summary() const noexcept{
+    impl_->state.known_bytes=impl_->ram->known_bytes;return impl_->state;
+}
 std::span<const std::uint8_t> DspExecutionProbe::memory() const noexcept{return impl_->memory;}
 std::span<const std::uint8_t> DspExecutionProbe::provenance() const noexcept{return impl_->source;}
 std::span<const DspProbeReply> DspExecutionProbe::replies() const noexcept{return std::span(impl_->history).first(impl_->state.reply_count);}

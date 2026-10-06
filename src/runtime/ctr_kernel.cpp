@@ -486,16 +486,13 @@ Result Kernel::CreateEvent(Handle* out_handle, std::uint32_t reset_type) noexcep
                            std::make_shared<EventObject>(static_cast<ResetType>(reset_type)));
 }
 
-Result Kernel::SignalEvent(Handle handle) noexcept {
+std::optional<Result> Kernel::SignalEvent(Handle handle) noexcept {
+    event_signal_error_=nullptr;
     const auto event = std::dynamic_pointer_cast<EventObject>(handles_.Get(handle));
     if (!event) {
         return kResultInvalidHandle;
     }
-    event->Signal();
-    TryWakeWaitingThreads();
-    if (event->reset_type() == ResetType::Pulse) {
-        event->Clear();
-    }
+    if (!SignalEventObject(*event)) return std::nullopt;
     return kResultSuccess;
 }
 

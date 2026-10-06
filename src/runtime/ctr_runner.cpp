@@ -29,6 +29,8 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_),
       display_mode_(display_mode), display_clock_(kernel.now_ns()),
       cpu_mode_(cpu_mode),diagnostic_origin_(kernel.now_ns()) {
+    if(dsp_probe.live && (!dsp_probe.enabled || cpu_mode!=CpuExecutionMode::DiagnosticDual))
+        throw std::invalid_argument("live DSP requires enabled executor and diagnostic-dual clock");
     if(!kernel_.ConfigureCpuExecution(cpu_mode))
         throw std::invalid_argument("CPU mode must be configured before thread creation/resource setup");
     if (display_mode!=DisplayClockMode::Disabled && display_mode!=DisplayClockMode::ReferenceIdle)

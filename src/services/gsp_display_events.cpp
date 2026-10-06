@@ -74,7 +74,7 @@ bool GspGpuService::CommitDisplayPeriod(Kernel& kernel,const DisplayPeriodPlan& 
         if(step.queue) {
             (void)shared_->memory->Write(step.relay_base+1,{&step.count,1});
             (void)shared_->memory->Write(step.slot_offset,{&step.interrupt,1});
-            kernel.SignalEventObject(*step.event);
+            if (!kernel.SignalEventObject(*step.event)) return false;
         } else if(step.missed)Store(*shared_->memory,step.missed_offset,step.missed_value);
         // Reference signals the relay event before latching dirty framebuffer info.
         // CPU execution resumes only after this synchronous device event finishes.

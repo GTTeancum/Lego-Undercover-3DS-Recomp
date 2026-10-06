@@ -144,10 +144,20 @@ private:
     bool wait_reports_index_{};
 };
 
+// Service notification runs after ordinary waiter processing, matching the pinned
+// kernel contract. It must not throw or run guest CPU instructions. A returned
+// error is an explicit host stop; a signal may already have woken a waiter.
+class EventSignalTarget {
+public:
+    virtual ~EventSignalTarget() = default;
+    virtual const char* OnSignal() noexcept = 0;
+};
+
 class EventObject final : public WaitObject {
 public:
-    explicit EventObject(ResetType reset_type) noexcept
-        : WaitObject(Type::Event), reset_type_(reset_type) {}
+    explicit EventObject(ResetType reset_type,
+                         std::shared_ptr<EventSignalTarget> target = {}) noexcept
+        : WaitObject(Type::Event), reset_type_(reset_type), signal_target_(std::move(target)) {}
 
     [[nodiscard]] bool ShouldWait(const ThreadObject&) const noexcept override {
         return !signaled_;
@@ -162,10 +172,14 @@ public:
     void Clear() noexcept { signaled_ = false; }
     [[nodiscard]] bool signaled() const noexcept { return signaled_; }
     [[nodiscard]] ResetType reset_type() const noexcept { return reset_type_; }
+    const char* NotifySignal() noexcept {
+        return signal_target_ ? signal_target_->OnSignal() : nullptr;
+    }
 
 private:
     ResetType reset_type_;
     bool signaled_{};
+    const std::shared_ptr<EventSignalTarget> signal_target_;
 };
 
 class MutexObject final : public WaitObject {
@@ -379,10 +393,12 @@ public:
     Result CloseHandle(Handle handle) noexcept;
 
     Result CreateEvent(Handle* out_handle, std::uint32_t reset_type) noexcept;
-    Result SignalEvent(Handle handle) noexcept;
+    // nullopt: notifier failure, not an invented guest Result.
+    std::optional<Result> SignalEvent(Handle handle) noexcept;
     // Service holds a real EventObject reference even after the client handle
     // closes. Use the same wake/pulse semantics without allocating a fake handle.
-    void SignalEventObject(EventObject& event) noexcept;
+    bool SignalEventObject(EventObject& event) noexcept;
+    const char* event_signal_error() const noexcept { return event_signal_error_; }
     Result ClearEvent(Handle handle) noexcept;
 
     Result CreateMutex(Handle* out_handle, bool initial_locked) noexcept;
@@ -433,6 +449,7 @@ private:
     std::uint64_t diagnostic_tick_{};
     std::array<std::weak_ptr<ThreadObject>,2> diagnostic_core_threads_{};
     std::shared_ptr<ThreadObject> current_thread_;
+    const char* event_signal_error_{};
     HandleTable handles_;
 
     struct ArbiterWait {

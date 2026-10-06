@@ -34,6 +34,7 @@ const char* StopName(ctr::RunnerStopReason reason) {
     case R::OtherExit: return "OtherExit";
     case R::UnsupportedDisplayEvent: return "UnsupportedDisplayEvent";
     case R::UnsupportedCpuExecution: return "UnsupportedCpuExecution";
+    case R::UnsupportedDspEvent: return "UnsupportedDspEvent";
     }
     return "Unknown";
 }
@@ -82,7 +83,7 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
@@ -108,9 +109,10 @@ int main(int argc,char** argv) {
                 cpu_mode=ctr::CpuExecutionMode::DiagnosticDual;
             }
             else if (option=="--dsp-executor") {
-                if(dsp_executor_selected || std::string_view(argv[i+1])!="guarded-teakra")
-                    throw std::runtime_error("select DSP executor guarded-teakra once, or omit it");
+                if(dsp_executor_selected || (std::string_view(argv[i+1])!="guarded-teakra" && std::string_view(argv[i+1])!="live-teakra"))
+                    throw std::runtime_error("select DSP executor guarded-teakra or live-teakra once, or omit it");
                 dsp_executor_selected=true;dsp_probe.enabled=true;
+                dsp_probe.live=std::string_view(argv[i+1])=="live-teakra";
             }
             else if (option=="--dsp-reset-profile") {
                 if(dsp_reset_selected || std::string_view(argv[i+1])!="reference-zero-data")
@@ -178,8 +180,10 @@ int main(int argc,char** argv) {
             }
             else throw std::runtime_error("unknown option");
         }
+        if(dsp_probe.live && cpu_mode!=ctr::CpuExecutionMode::DiagnosticDual)
+            throw std::runtime_error("live-teakra requires --cpu-mode diagnostic-dual");
         if((dsp_reset_selected || dsp_steps_selected) && !dsp_probe.enabled)
-            throw std::runtime_error("DSP reset/step options require --dsp-executor guarded-teakra");
+            throw std::runtime_error("DSP reset/step options require --dsp-executor guarded-teakra or live-teakra");
         if (!dsp_special_path.empty()) dsp_config=lego::host::ReadDspSpecialBlock(dsp_special_path);
         std::optional<lego::host::LaunchPolicy> launch;
         if(!exheader_path.empty()) {
@@ -245,10 +249,14 @@ int main(int argc,char** argv) {
         if(cpu_mode==ctr::CpuExecutionMode::DiagnosticDual)
             std::cout<<"cpu_model=diagnostic_dual issue=one_recorded_A32_per_core_per_tick order=core0_then_core1 hardware_cycles=false\n";
         if(dsp_probe.enabled)
-            std::cout<<"dsp_executor=guarded_teakra host_probe_only=true data_reset="
+            std::cout<<"dsp_executor="<<(dsp_probe.live?"live_teakra host_probe_only=false data_reset=":"guarded_teakra host_probe_only=true data_reset=")
                      <<(dsp_probe.reset==ctr::DspProbeReset::ReferenceZeroData?"explicit_reference_zero":"known_image_only")
                      <<" program_gaps=unknown step_limit="<<dsp_probe.steps<<'\n';
         const auto result=runner.Run(block_limit,event_limit);
+        if(const auto* device=runner.dsp_diagnostics().live_device())
+            std::cout<<"dsp_live_loaded=1 data_base=0x1ff40000 scheduled_slices="<<device->slices()
+                     <<" next_deadline_ns="<<device->next_deadline_ns().value_or(0)<<'\n';
+        if(runner.dsp_error())std::cout<<"dsp_live_error="<<runner.dsp_error()<<'\n';
         if(const auto* probe=runner.dsp_diagnostics().execution_probe()) {
             const auto& p=probe->summary();
             std::cout<<"dsp_probe_completed_steps="<<p.completed_steps<<" attempted_steps="<<p.attempted_steps

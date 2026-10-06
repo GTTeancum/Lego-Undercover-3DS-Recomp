@@ -237,7 +237,7 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
         (void)shared_->memory->Write(relay+12+next,id);
         // Executed PICA irq_request, byte transfer, or fill justifies P3D, PPF, or PSC.
         // Explicit synchronous host policy: no simulated GPU delay or vblank.
-        kernel.SignalEventObject(*owner->event);
+        return kernel.SignalEventObject(*owner->event);
     };
 
     std::uint32_t header = original;
@@ -261,7 +261,8 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                 shared_->register_words=plans[n]->registers;
                 shared_->pica_uploads=plans[n]->uploads;
                 shared_->last_pica_result=plans[n]->result;
-                for(std::uint32_t i=0;i<plans[n]->result.irqs;++i)publish_irq(5);
+                for(std::uint32_t i=0;i<plans[n]->result.irqs;++i)
+                    if(!publish_irq(5))return stop(kernel.event_signal_error());
             }
             if (fills[n]) {
                 for (unsigned channel_id=0;channel_id<2;++channel_id) {
@@ -274,7 +275,8 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                         return stop("MemoryFill internal commit invariant failed after dequeue; no PSC delivered for failed channel");
                     // Pinned ordering: actual bytes, selected PSC, then trigger/finish.
                     // Woken guest threads cannot run until this synchronous handler returns.
-                    if (channel.interrupt>=0) publish_irq(static_cast<std::uint8_t>(channel.interrupt));
+                    if (channel.interrupt>=0 && !publish_irq(static_cast<std::uint8_t>(channel.interrupt)))
+                        return stop(kernel.event_signal_error());
                     shared_->register_words[reg+3]=(shared_->register_words[reg+3]&~1U)|2U;
                 }
             }
@@ -288,7 +290,7 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                 if (!written)
                     return stop("DisplayTransfer internal commit invariant failed after dequeue; no PPF delivered");
                 shared_->register_words[0x306]&=~1U;
-                publish_irq(4); // Real bytes are committed first. No vblank or frame is implied.
+                if(!publish_irq(4))return stop(kernel.event_signal_error()); // Real bytes are committed first. No vblank or frame is implied.
             }
             if (stop_after[n]) {
                 header = (header & ~0x00FF0000U) | (kStatusStopped << 16);

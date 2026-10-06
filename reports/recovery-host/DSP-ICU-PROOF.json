@@ -1,0 +1,401 @@
+{
+  "known": {
+    "paired_capture_files": 84,
+    "unchanged_guest_capture_fields": [
+      "hid.bin",
+      "gpu.bin",
+      "dsp-component.bin",
+      "hid-epochs.bin",
+      "vram.bin",
+      "ipc.bin",
+      "uploads.bin",
+      "mapped-hid.bin",
+      "state.json",
+      "gsp.bin",
+      "gsp-epochs.bin"
+    ],
+    "summary": {
+      "completed_steps": 962,
+      "attempted_steps": 963,
+      "read_words": 1319,
+      "written_words": 304,
+      "known_bytes": 50068,
+      "state": 2,
+      "fault": 1,
+      "has_fault_address": true,
+      "fault_address": 264896,
+      "pc_before": 10522,
+      "pc_after": 10524,
+      "has_pipe_base": false,
+      "pipe_base": 0,
+      "replies": []
+    },
+    "changed_dsp_sram_bytes": 210,
+    "distinct_firmware_written_bytes": 588,
+    "sram_sha256": "b01f74d9b688501cf59a6d15aeeac803c2e0b1e4a985f688c842b6891509e6f4",
+    "provenance_sha256": "193213ad4665ea06ca724afdb6461aad7165e5f4e5083785f0128f5421406a45",
+    "vram_zero": true,
+    "scope": "Isolated synchronous DSP probe; guest LoadComponent remains pending. No independent DSP CPU oracle."
+  },
+  "reference": {
+    "paired_capture_files": 84,
+    "unchanged_guest_capture_fields": [
+      "hid.bin",
+      "gpu.bin",
+      "dsp-component.bin",
+      "hid-epochs.bin",
+      "vram.bin",
+      "ipc.bin",
+      "uploads.bin",
+      "mapped-hid.bin",
+      "state.json",
+      "gsp.bin",
+      "gsp-epochs.bin"
+    ],
+    "summary": {
+      "completed_steps": 3796,
+      "attempted_steps": 3796,
+      "read_words": 5706,
+      "written_words": 1374,
+      "known_bytes": 305836,
+      "state": 1,
+      "fault": 0,
+      "has_fault_address": false,
+      "fault_address": 0,
+      "pc_before": 23287,
+      "pc_after": 23288,
+      "has_pipe_base": true,
+      "pipe_base": 3230,
+      "replies": [
+        [
+          0,
+          1,
+          3212
+        ],
+        [
+          1,
+          1,
+          3261
+        ],
+        [
+          2,
+          1,
+          3314
+        ],
+        [
+          2,
+          3230,
+          3796
+        ]
+      ]
+    },
+    "changed_dsp_sram_bytes": 421,
+    "distinct_firmware_written_bytes": 1250,
+    "sram_sha256": "a32c47acf0e322301aa95f3c5555e215c564896f74c6dbe26f769662960628de",
+    "provenance_sha256": "2bc6e9998d24ef5e008d32d31899d91f2c0efea5968d587287ed0f72162e8d30",
+    "vram_zero": true,
+    "scope": "Isolated synchronous DSP probe; guest LoadComponent remains pending. No independent DSP CPU oracle."
+  },
+  "pipe_inspection": {
+    "pipe_base_word": 3230,
+    "table_bytes": 160,
+    "descriptors": [
+      {
+        "slot": 0,
+        "data_word_address": 3310,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 1,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 1,
+        "data_word_address": 3374,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 2,
+        "data_word_address": 3438,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 3,
+        "data_word_address": 3502,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 4,
+        "data_word_address": 3566,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 5,
+        "data_word_address": 3630,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 6,
+        "data_word_address": 3694,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 7,
+        "data_word_address": 3758,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 8,
+        "data_word_address": 3822,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 9,
+        "data_word_address": 3886,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 10,
+        "data_word_address": 3950,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 11,
+        "data_word_address": 4014,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 12,
+        "data_word_address": 4078,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 13,
+        "data_word_address": 4142,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 14,
+        "data_word_address": 4206,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      },
+      {
+        "slot": 15,
+        "data_word_address": 4270,
+        "capacity_bytes": 128,
+        "read_pointer": 0,
+        "write_pointer": 0,
+        "flags": 0,
+        "payload_sources": {
+          "2": 128
+        }
+      }
+    ],
+    "all_descriptor_bytes_firmware_written": true,
+    "live_pipe_io_implemented": false,
+    "scope": "Independent parsing of this firmware snapshot using the pinned LLE layout; not a general runtime pipe validator."
+  },
+  "mmio_trace": {
+    "successful_accesses": 153,
+    "icu_writes": {
+      "0x204": [],
+      "0x206": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "0x208": [
+        0,
+        16384,
+        16384,
+        16384,
+        16384,
+        16384
+      ],
+      "0x20a": [
+        0,
+        0,
+        1024,
+        1024,
+        1536,
+        1536,
+        34304,
+        34304
+      ],
+      "0x20c": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "0x20e": [
+        24576,
+        25600,
+        26112,
+        26112,
+        26112
+      ],
+      "0x210": [
+        24576,
+        25600,
+        26112,
+        26112,
+        26112
+      ],
+      "0x252": []
+    },
+    "scope": "Logging-only MMIO wrapper; final DSP SRAM, provenance and reply summary match the production backend."
+  },
+  "native_matrix": {
+    "known": {
+      "paired": true,
+      "exit": 3,
+      "arm_round": 252,
+      "gamecoin_sha256": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    },
+    "reference": {
+      "paired": true,
+      "exit": 3,
+      "arm_round": 252,
+      "gamecoin_sha256": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    },
+    "bounded": {
+      "paired": true,
+      "exit": 3,
+      "arm_round": 252,
+      "gamecoin_sha256": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    },
+    "disabled": {
+      "paired": true,
+      "exit": 3,
+      "arm_round": 252,
+      "gamecoin_sha256": "970a8b30f57b772c2c1c5686e634b9e4ab7055b43caec90e64076f81ed08b4b6"
+    }
+  },
+  "tests": {
+    "gcc": {
+      "passed": 54,
+      "failed": 0,
+      "scope": "ROM-free tests; full GCC and Clang targets also link the unchanged 599-page AOT library"
+    },
+    "clang": {
+      "passed": 54,
+      "failed": 0,
+      "scope": "ROM-free tests; full GCC and Clang targets also link the unchanged 599-page AOT library"
+    },
+    "asan": {
+      "passed": 54,
+      "failed": 0,
+      "scope": "ROM-free tests; full GCC and Clang targets also link the unchanged 599-page AOT library"
+    }
+  },
+  "identities": {
+    "code": {
+      "bytes": 2650112,
+      "sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f"
+    },
+    "aot_archive": {
+      "bytes": 3554944,
+      "sha256": "2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9"
+    },
+    "romfs": {
+      "bytes": 769179648,
+      "sha256": "6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf"
+    },
+    "exheader": {
+      "bytes": 2048,
+      "sha256": "d7641f0a3bb89697ca8f0751e88d31703b54aa185ac78f9e74e41169dfcdc004"
+    },
+    "aot_members_matched": 603
+  }
+}

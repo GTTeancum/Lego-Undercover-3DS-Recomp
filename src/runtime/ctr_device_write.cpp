@@ -8,7 +8,7 @@ bool GuestMemory::PrepareDeviceWrite(std::uint32_t address, std::uint32_t size) 
     const auto* region=FindRegion(address,size);
     // GPU physical linear-heap writes cannot target service-shared pages. General
     // GPU physical aliasing is not reconstructed by granting arbitrary VA access.
-    if (!region || region->shared || !IsWritable(address,size))
+    if (!region || !region->backing || region->shared || !IsWritable(address,size))
         return false;
     const auto canonical=region->EpochAddress(address);
     const auto last=(canonical+size-1U)&~7U;
@@ -25,7 +25,7 @@ bool GuestMemory::CommitDeviceWrite(std::uint32_t address,
     if (data.size()>std::numeric_limits<std::uint32_t>::max()) return false;
     const auto size=static_cast<std::uint32_t>(data.size());
     auto* region=FindRegion(address,size);
-    if (!region || region->shared || !IsWritable(address,size))
+    if (!region || !region->backing || region->shared || !IsWritable(address,size))
         return false;
     const auto canonical=region->EpochAddress(address);
     const auto first=canonical&~7U, last=(canonical+size-1U)&~7U;

@@ -35,6 +35,7 @@ enum class RunnerStopReason : std::uint8_t {
     OtherExit,
     UnsupportedDisplayEvent,
     UnsupportedCpuExecution,
+    UnsupportedDspEvent,
 };
 
 struct RunnerResult {
@@ -75,6 +76,7 @@ public:
     [[nodiscard]] std::uint64_t quota_transitions() const noexcept{return quota_transitions_;}
     [[nodiscard]] const GspGpuService& gpu_diagnostics() const noexcept{return *gsp_;}
     [[nodiscard]] const DspDiscoveryService& dsp_diagnostics() const noexcept {return *dsp_;}
+    [[nodiscard]] const char* dsp_error() const noexcept{return dsp_error_;}
     [[nodiscard]] const char* cpu_error() const noexcept{return cpu_error_;}
     [[nodiscard]] std::uint64_t display_periods() const noexcept { return display_clock_.periods_delivered(); }
     [[nodiscard]] std::optional<std::uint64_t> next_display_deadline() const noexcept { return display_clock_.next_deadline_ns(); }
@@ -113,6 +115,7 @@ private:
     bool diagnostic_tick_work_{};
     std::optional<std::uint64_t> pending_issue_deadline_;
     const char* cpu_error_{};
+    const char* dsp_error_{};
 };
 
 }  // namespace lego::ctr

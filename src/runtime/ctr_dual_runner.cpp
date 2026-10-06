@@ -1,17 +1,19 @@
 #include "runtime/ctr_runner.h"
 #include "runtime/ctr_recorded_step.h"
 #include "services/gsp_gpu_service.h"
+#include "services/dsp_discovery_service.h"
 #include <algorithm>
 #include <limits>
 
 namespace lego::ctr {
-// Complete all timed events through target. Timeouts precede quota and display
-// events at ties. No guest code executes between events at the same timestamp.
+// Complete all timed events through target. Ties use timeouts, quota, DSP, then
+// display. No ARM code executes between events at the same timestamp.
 // Display state is preflighted before time is advanced to its event.
 bool NativeRunner::AdvanceDiagnosticTime(std::uint64_t target,std::uint32_t limit) noexcept {
     if(target<kernel_.now_ns()){cpu_error_="diagnostic clock rollback";return false;}
     for(;;) {
         const auto timer=kernel_.NextWakeDeadline();
+        const auto dsp=dsp_->next_deadline_ns();
         const auto display=display_mode_==DisplayClockMode::Disabled
             ? std::optional<std::uint64_t>{}:display_clock_.next_deadline_ns();
         const auto quota_tick=kernel_.core1_quota().deadline();
@@ -20,7 +22,7 @@ bool NativeRunner::AdvanceDiagnosticTime(std::uint64_t target,std::uint32_t limi
             cpu_error_="diagnostic event deadline overflow";return false;
         }
         std::optional<std::uint64_t> next;
-        for(const auto t:{timer,quota,display})if(t && (!next || *t<*next))next=t;
+        for(const auto t:{timer,quota,display,dsp})if(t && (!next || *t<*next))next=t;
         if(!next || *next>target)break;
         const auto event_ns=std::max(*next,kernel_.now_ns());
         if(event_ns>target)break;
@@ -40,6 +42,11 @@ bool NativeRunner::AdvanceDiagnosticTime(std::uint64_t target,std::uint32_t limi
                 live_state_.exclusive_valid=false;
             ++quota_transitions_;
         }
+        if(dsp && *dsp<=event_ns) {
+            if(!dsp_->RunScheduled(kernel_,event_ns)){
+                dsp_error_=dsp_->live_error();return false;
+            }
+        }
         if(pdc) {
             if(!gsp_->CommitDisplayPeriod(kernel_,plan)||!display_clock_.Consume(event_ns)) {
                 cpu_error_="diagnostic display commit invariant";return false;
@@ -57,14 +64,15 @@ bool NativeRunner::AdvanceDiagnosticTime(std::uint64_t target,std::uint32_t limi
 
 RunnerResult NativeRunner::RunDiagnosticDual(std::uint32_t instruction_limit,
                                              std::uint32_t event_limit) noexcept {
-    display_error_=nullptr;cpu_error_=nullptr;idle_events_=0;
+    display_error_=nullptr;cpu_error_=nullptr;dsp_error_=nullptr;idle_events_=0;
     std::uint32_t rounds=0, since_service=0;
     const auto stop=[&](RunnerStopReason reason,const a32::ExecutionResult& e){return Stop(reason,e,rounds);};
     const auto stop_here=[&](RunnerStopReason reason){
         return stop(reason,{a32::ExitKind::Wait,live_state_.r[15],a32::FallbackReason::None,0});
     };
     const auto timing_stop=[&](){
-        return stop_here(display_error_?RunnerStopReason::UnsupportedDisplayEvent:
+        return stop_here(dsp_error_?RunnerStopReason::UnsupportedDspEvent:
+                         display_error_?RunnerStopReason::UnsupportedDisplayEvent:
                          idle_events_>=event_limit?RunnerStopReason::HostEventLimit:
                          RunnerStopReason::UnsupportedCpuExecution);
     };
@@ -92,9 +100,10 @@ RunnerResult NativeRunner::RunDiagnosticDual(std::uint32_t instruction_limit,
                 continue;
             }
             // Neither core issued. Advance only to an actual timer, enabled
-            // display event, or the quota window needed by a ready core-1 thread.
+            // display/DSP event, or the quota window needed by a ready core-1 thread.
             std::optional<std::uint64_t> next=kernel_.NextWakeDeadline();
             const auto consider=[&](std::optional<std::uint64_t> t){if(t&&(!next||*t<*next))next=t;};
+            consider(dsp_->next_deadline_ns());
             if(display_mode_!=DisplayClockMode::Disabled)consider(display_clock_.next_deadline_ns());
             bool core1_pending=false;
             for(const auto& t:kernel_.threads())if(t->processor_id==1 &&

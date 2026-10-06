@@ -86,7 +86,7 @@ void RealMailboxInstructions() {
     CHECK(std::equal(a->memory().begin(),a->memory().end(),b->memory().begin()));
 }
 void LimitsAndUnmodeledHardware() {
-    auto image=Image({0xD4B8,0x820E});auto p=Probe(image,DspProbeReset::ReferenceZeroData);
+    auto image=Image({0xD4B8,0x8254});auto p=Probe(image,DspProbeReset::ReferenceZeroData);
     CHECK(p->Advance(10)==DspProbeState::Fault);
     CHECK(p->summary().fault==DspProbeFault::Backend && p->summary().completed_steps==0);
     CHECK(std::string(p->summary().error.data()).find("unmodeled MMIO read")!=std::string::npos);

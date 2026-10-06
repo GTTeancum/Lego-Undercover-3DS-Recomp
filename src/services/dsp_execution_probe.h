@@ -1,5 +1,6 @@
 #pragma once
 #include "services/dsp1_image.h"
+#include "runtime/ctr_device_memory.h"
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -11,11 +12,12 @@ struct DspProbeOptions {
     bool enabled{};
     DspProbeReset reset{DspProbeReset::KnownOnly};
     std::uint32_t steps{100000};
+    bool live{}; // Explicit integration; probe-only remains default.
 };
 enum class DspProbeState { Paused, ProtocolComplete, Fault };
 enum class DspProbeFault { None, UnknownSram, AddressRange, Backend, ExternalMemory, Audio, MailboxLimit };
 // Provenance is per byte: allocation zero is never itself a valid source.
-enum class DspByteSource : std::uint8_t { Unknown, Image, ReferenceDataReset, FirmwareWrite };
+enum class DspByteSource : std::uint8_t { Unknown, Image, ReferenceDataReset, FirmwareWrite, HostWrite };
 struct DspProbeReply {
     std::uint8_t index{};
     std::uint16_t word{};
@@ -32,8 +34,9 @@ struct DspProbeSummary {
     std::array<char,240> error{};
     bool operator==(const DspProbeSummary&) const = default;
 };
-// Disposable, synchronous HOST-ONLY execution of verified firmware. It cannot
-// access ARM memory or commit IPC, interrupts, timers, sound or a loaded flag.
+// Guarded DSP execution. Advance is a synchronous host-only boot probe; only
+// DspLiveDevice connects its completed state to the explicit live runtime. The
+// executor itself never commits IPC, ARM interrupts, timers, sound or a loaded flag.
 // A fault can leave partial DSP instruction effects; it seals the probe against
 // further execution rather than claiming instruction rollback or successful load.
 class DspExecutionProbe final {
@@ -45,6 +48,17 @@ public:
     DspExecutionProbe(const DspExecutionProbe&)=delete;
     DspExecutionProbe& operator=(const DspExecutionProbe&)=delete;
     DspProbeState Advance(std::uint32_t steps) noexcept;
+    // Used only by DspLiveDevice AFTER verified protocol and pipe-table checks.
+    // Advance remains terminal at ProtocolComplete for historical probe callers.
+    bool ContinueLive(std::uint32_t steps) noexcept;
+    std::uint16_t TakeLiveInterrupts() noexcept;
+    [[nodiscard]] std::uint64_t live_notifications() const noexcept;
+    // ARM-to-DSP APBP semaphore, not DSP-to-ARM completion. Updates the SAME
+    // live peripheral and its ICU input without executing firmware or advancing time.
+    bool SetSemaphore(std::uint16_t bits) noexcept;
+    bool CanSend(std::uint8_t index) const noexcept;
+    bool Send(std::uint8_t index, std::uint16_t word) noexcept;
+    std::shared_ptr<DeviceMemory> data_backing() const noexcept;
     [[nodiscard]] const DspProbeSummary& summary() const noexcept;
     [[nodiscard]] std::span<const std::uint8_t> memory() const noexcept;
     [[nodiscard]] std::span<const std::uint8_t> provenance() const noexcept;

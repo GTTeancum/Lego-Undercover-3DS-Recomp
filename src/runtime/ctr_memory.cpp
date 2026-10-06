@@ -59,6 +59,26 @@ bool GuestMemory::MapSharedServicePage(std::uint32_t base,
     return true;
 }
 
+bool GuestMemory::MapDeviceMemory(std::uint32_t base, std::shared_ptr<DeviceMemory> object,
+                                  MemoryPermission permissions) {
+    if (!object || !object->size() || (base&0xFFFU) || (object->size()&0xFFFU) ||
+        !static_cast<unsigned>(permissions) || (static_cast<unsigned>(permissions)&~3U)) return false;
+    const auto end=std::uint64_t(base)+object->size();
+    if(end>0x100000000ULL)return false;
+    for(const auto& region:regions_)
+        if(base<std::uint64_t(region.base)+region.size && region.base<end)return false;
+    // vector growth occurs before publication and never touches the device bytes.
+    Region region{};region.base=base;region.size=object->size();region.permissions=permissions;
+    region.device=std::move(object);regions_.push_back(std::move(region));
+    std::sort(regions_.begin(),regions_.end(),[](const Region& a,const Region& b){return a.base<b.base;});
+    return true;
+}
+bool GuestMemory::UnmapDeviceMemory(std::uint32_t base, const DeviceMemory& object) noexcept {
+    for(auto it=regions_.begin();it!=regions_.end();++it)
+        if(it->base==base && it->device.get()==&object){regions_.erase(it);return true;}
+    return false;
+}
+
 GuestMemory::Region* GuestMemory::FindRegion(
     std::uint32_t address, std::uint32_t size) noexcept {
     const std::uint64_t end =
@@ -97,6 +117,11 @@ bool GuestMemory::CanAccess(std::uint32_t address, std::uint32_t size,
                             MemoryPermission permission) const noexcept {
     const Region* region = FindRegion(address, size);
     if (!region || !HasPermission(region->permissions, permission)) return false;
+    if(region->device) {
+        const auto offset=address-region->base;
+        if(HasPermission(permission,MemoryPermission::Read) && !region->device->CanRead(offset,size))return false;
+        if(HasPermission(permission,MemoryPermission::Write) && !region->device->CanWrite(offset,size))return false;
+    }
     if (region->backing && !region->user_alias) {
         // Source aliases are interval overlays, so a protected subrange does not
         // fragment the underlying allocation or accidentally protect neighbours.
@@ -135,6 +160,10 @@ bool GuestMemory::SpansAlias(std::uint32_t a,std::uint32_t a_size,
         const auto ao=std::uint64_t(a-ar->base), bo=std::uint64_t(b-br->base);
         return ao<bo+b_size && bo<ao+a_size;
     }
+    if(ar->device && ar->device==br->device) {
+        const auto ao=std::uint64_t(a-ar->base),bo=std::uint64_t(b-br->base);
+        return ao<bo+b_size && bo<ao+a_size;
+    }
     if (!ar->backing || ar->backing != br->backing) return false;
     const auto ao=std::uint64_t(ar->backing_offset)+(a-ar->base);
     const auto bo=std::uint64_t(br->backing_offset)+(b-br->base);
@@ -147,7 +176,7 @@ bool GuestMemory::LoadBytes(std::uint32_t address,
         return true;
     }
     Region* region = FindRegion(address, static_cast<std::uint32_t>(data.size()));
-    if (region == nullptr) {
+    if (region == nullptr || region->device) {
         return false;
     }
     const std::size_t offset = address - region->base;
@@ -161,7 +190,7 @@ bool GuestMemory::ZeroBytes(std::uint32_t address, std::uint32_t size) {
         return true;
     }
     Region* region = FindRegion(address, size);
-    if (region == nullptr) {
+    if (region == nullptr || region->device) {
         return false;
     }
     const std::size_t offset = address - region->base;
@@ -274,6 +303,7 @@ bool GuestMemory::Read8(std::uint32_t address, std::uint8_t* value) {
         !CanAccess(address, 1, MemoryPermission::Read)) {
         return false;
     }
+    if(region->device)return region->device->Read(address-region->base,{value,1});
     *value = region->Data()[address - region->base];
     return true;
 }
@@ -326,6 +356,12 @@ bool GuestMemory::ReadSized(std::uint32_t address, std::uint8_t size,
     }
     const std::size_t offset = address - region->base;
     std::uint64_t result = 0;
+    if(region->device) {
+        std::array<std::uint8_t,8> data{};
+        if(!region->device->Read(static_cast<std::uint32_t>(offset),std::span(data).first(size)))return false;
+        for(unsigned n=0;n<size;++n)result|=std::uint64_t(data[n])<<(8*n);
+        *value=result;return true;
+    }
     for (std::uint8_t index = 0; index < size; ++index) {
         result |= static_cast<std::uint64_t>(region->Data()[offset + index])
                   << (index * 8U);
@@ -345,9 +381,10 @@ bool GuestMemory::WriteSized(std::uint32_t address, std::uint8_t size,
         return false;
     }
     const std::size_t offset = address - region->base;
-    if (region->shared) {
+    if (region->shared || region->device) {
         std::array<std::uint8_t,8> data{};
         for (std::uint8_t n=0;n<size;++n) data[n]=static_cast<std::uint8_t>(value>>(n*8U));
+        if(region->device)return region->device->Write(static_cast<std::uint32_t>(offset),std::span(data).first(size));
         return region->shared->Write(static_cast<std::uint32_t>(offset),std::span(data).first(size));
     }
     for (std::uint8_t index = 0; index < size; ++index) {
@@ -382,6 +419,7 @@ bool GuestMemory::Write64(std::uint32_t address, std::uint64_t value,
 
 std::uint64_t GuestMemory::EpochFor(std::uint32_t address) const noexcept {
     const auto* region=FindRegion(address,1);
+    if (region && region->device) return region->device->Epoch(address-region->base);
     if (region && region->shared) return region->shared->Epoch(address-region->base);
     if (region && region->backing) address = region->EpochAddress(address);
     const std::uint32_t granule = address & ~7U;

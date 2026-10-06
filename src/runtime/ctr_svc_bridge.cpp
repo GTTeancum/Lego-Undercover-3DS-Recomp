@@ -203,9 +203,17 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
         return ResumeAfterSvc(exit.pc, state);
     }
 
-    case kSvcSignalEvent:
-        state.r[0] = kernel_.SignalEvent(state.r[0]);
+    case kSvcSignalEvent: {
+        const auto result = kernel_.SignalEvent(state.r[0]);
+        if (!result) {
+            // Ordinary event/waiter effects may already have happened. Do not
+            // claim rollback or return a fabricated successful SVC result.
+            if (ipc_) ipc_->RequestHostStop(kernel_.event_signal_error());
+            return exit;
+        }
+        state.r[0] = *result;
         return ResumeAfterSvc(exit.pc, state);
+    }
 
     case kSvcClearEvent:
         state.r[0] = kernel_.ClearEvent(state.r[0]);

@@ -10,6 +10,7 @@
 #include "runtime/ctr_kernel.h"
 #include "runtime/ctr_clock.h"
 #include "runtime/ctr_shared_memory.h"
+#include "runtime/ctr_device_memory.h"
 
 namespace lego::ctr {
 namespace a32 = oot3d::recomp::a32;
@@ -89,6 +90,10 @@ public:
     bool MapSharedServicePage(std::uint32_t base,
                               std::shared_ptr<ServiceSharedMemoryObject> object,
                               MemoryPermission permissions);
+    // No copy of device bytes. Exactly one retained object per mapping.
+    bool MapDeviceMemory(std::uint32_t base, std::shared_ptr<DeviceMemory> object,
+                         MemoryPermission permissions);
+    bool UnmapDeviceMemory(std::uint32_t base, const DeviceMemory& object) noexcept;
     bool IsMapped(std::uint32_t address, std::uint32_t size = 1) const noexcept;
     bool IsReadable(std::uint32_t address, std::uint32_t size = 1) const noexcept;
     bool IsWritable(std::uint32_t address, std::uint32_t size = 1) const noexcept;
@@ -161,6 +166,7 @@ private:
         std::shared_ptr<ServiceSharedMemoryObject> shared;
         std::uint32_t backing_offset{};
         bool user_alias{};
+        std::shared_ptr<DeviceMemory> device;
         [[nodiscard]] std::span<const std::uint8_t> Data() const noexcept {
             return shared ? shared->bytes() : std::span<const std::uint8_t>(backing->bytes).subspan(backing_offset, size);
         }

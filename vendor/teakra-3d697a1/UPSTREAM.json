@@ -198,6 +198,32 @@
   "patches": [
     "SRAM bounds and access observer",
     "assertions throw instead of abort",
-    "unknown MMIO/no-op handlers reject instead of silently store/zero"
-  ]
+    "unknown MMIO/no-op handlers reject instead of silently store/zero",
+    "Logical ICU mode/polarity/manual pipeline/pending/ack/master-enable behavior from GBATEK 3.03, with explicit diagnostic pin/tick assumptions",
+    "ICU vector read masks and reset defaults; pending core notification reset and unsupported vectored-arbitration guard"
+  ],
+  "local_icu_reference": {
+    "author": "Martin Korth",
+    "work": "GBATEK extracted from no$gba 3.03",
+    "url": "https://pcy.be/tmp/img/gbatek.pdf",
+    "printed_pages": [
+      345,
+      363,
+      364
+    ],
+    "pdf_zero_based_pages": [
+      370,
+      388,
+      389
+    ],
+    "accessed": "2026-10-06",
+    "limitations": "DSi Teak logical reference, not measured 3DS pin/cycle timing. Peripheral callbacks remain pulses; unconnected SIO is held inactive. Full concurrent vector arbitration is unsupported."
+  },
+  "icu_checkpoint_patched_sha256": {
+    "src/icu.h": "9ddae114954ed20a5ef94eeadaa9a765cb127c9acfa2cf53157f5fd5b7c159cd",
+    "src/mmio.cpp": "1456fa43d9824ccff726eb747cb172d81f491672e949f9117b4e206e2fcbf453",
+    "src/teakra.cpp": "23996ec2af02a3e8cd96ab6cc1806be04615613912d9d1f3ae61667dfe7d3bed",
+    "src/interpreter.h": "12c75300810db8445b2e08252f8ffe052f14646eb58c7b2c27a321a3fe5eacbc",
+    "src/processor.cpp": "63a19d73691fed5453938b7f11a015bcf735577b4e8a4b66f640dad69f6cfccc"
+  }
 }

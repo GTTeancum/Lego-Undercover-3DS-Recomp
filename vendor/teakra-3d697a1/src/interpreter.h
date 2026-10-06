@@ -145,10 +145,24 @@ public:
         }
     }
 
+    // Local lifecycle guard: Processor::Reset also clears queued notifications,
+    // not only architected registers. This is not an opcode semantic change.
+    void ResetInterruptState() noexcept {
+        for (auto& pending : interrupt_pending) pending = false;
+        vinterrupt_pending = false;
+        vinterrupt_address = 0;
+        vinterrupt_context_switch = false;
+        idle = false;
+    }
     void SignalInterrupt(u32 i) {
+        if (i >= interrupt_pending.size()) throw std::out_of_range("Teakra core interrupt index");
         interrupt_pending[i] = true;
     }
     void SignalVectoredInterrupt(u32 address, bool context_switch) {
+        // One pinned slot is not a queue. Fail closed instead of replacing an
+        // unresolved vector, including one already latched into architected ipv.
+        if (vinterrupt_pending.load() || regs.ipv)
+            throw std::runtime_error("Teakra pending vectored arbitration unsupported");
         vinterrupt_address = address;
         vinterrupt_pending = true;
         vinterrupt_context_switch = context_switch;

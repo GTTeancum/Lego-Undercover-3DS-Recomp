@@ -1,10 +1,84 @@
 #include "services/dsp_discovery_service.h"
 #include <new>
+#include <algorithm>
 
 namespace lego::ctr {
-Result DspDiscoveryService::Handle(IpcRouter& router,Kernel&,GuestMemory& memory,
+Result DspDiscoveryService::Handle(IpcRouter& router,Kernel& kernel,GuestMemory& memory,
                                    ThreadObject&,IpcCommandBuffer& q) {
     if (!CanHandle(q)) return kResultNotFound;
+    if(q[0]==IpcMakeHeader(0x7,1,0)) {
+        if(!probe_->SetSemaphore(static_cast<std::uint16_t>(q[1]))) {
+            router.RequestHostStop("DSP semaphore update failed; live target faulted or inactive");
+            return kResultSuccess;
+        }
+        q.fill(0);q[0]=IpcMakeHeader(0x7,1,0);return kResultSuccess;
+    }
+    if(q[0]==IpcMakeHeader(0xD,2,2)) {
+        const auto address=q[4];
+        if (std::uint64_t(address)+4>0x100000000ULL || !memory.IsReadable(address,4))
+            return kResultInvalidPointer;
+        std::array<std::uint8_t,4> input{};
+        for (unsigned i=0;i<4;++i) if(!memory.Read8(address+i,&input[i])) return kResultInvalidPointer;
+        // Pinned DSP service normalizes audio-message bytes 2/3 in its local
+        // translated buffer. Do not alter the caller's source bytes.
+        input[2]=input[3]=0;
+        const auto result=live_->WritePipe(2,input);
+        if(result!=DspPipeResult::Complete) {
+            router.RequestHostStop(result==DspPipeResult::WouldBlock ?
+                "DSP audio startup pipe/mailbox would block; request retained" :
+                result==DspPipeResult::Fault ? "DSP audio startup write failed; device may have partial effects" :
+                "DSP audio startup descriptor is invalid; request retained");
+            return kResultSuccess;
+        }
+        q.fill(0);q[0]=IpcMakeHeader(0xD,1,0);return kResultSuccess;
+    }
+    if(q[0]==IpcMakeHeader(0x17,1,0)) {
+        // Pinned Pop<u16>: ignore upper half. This presets what a later event
+        // signal sends; it does NOT directly signal either APBP direction.
+        try {
+            auto target=semaphore_;
+            if (!target) { target=std::make_shared<SemaphoreTarget>();target->probe=probe_; }
+            target->preset=static_cast<std::uint16_t>(q[1]);semaphore_=std::move(target);
+            q.fill(0);q[0]=IpcMakeHeader(0x17,1,0);
+        } catch (const std::bad_alloc&) {
+            router.RequestHostStop("DSP semaphore preset allocation failed; request retained");
+        }
+        return kResultSuccess;
+    }
+    if(q[0]==IpcMakeHeader(0x16,0,0)) {
+        // Lazy object creation avoids inventing a usable event for a failed load.
+        // Repeated exports retain identity; first-export failure publishes nothing.
+        try {
+            auto target=semaphore_;
+            auto event=semaphore_event_;
+            if (!event) {
+                if (!target) { target=std::make_shared<SemaphoreTarget>();target->probe=probe_; }
+                event=std::make_shared<EventObject>(ResetType::OneShot,target);
+            }
+            ::lego::ctr::Handle handle=0;
+            const auto result=kernel.handles().Create(&handle,event);
+            if (result!=kResultSuccess) return result;
+            semaphore_=std::move(target);semaphore_event_=std::move(event);
+            q.fill(0);q[0]=IpcMakeHeader(0x16,1,2);q[2]=IpcCopyHandleDesc();q[3]=handle;
+        } catch (const std::bad_alloc&) {
+            router.RequestHostStop("DSP semaphore event allocation failed; request retained");
+        }
+        return kResultSuccess;
+    }
+    if(q[0]==IpcMakeHeader(0x15,2,2)) {
+        const auto event=q[4]?std::dynamic_pointer_cast<EventObject>(kernel.handles().Get(q[4])):nullptr;
+        if(q[4] && !event)return kResultInvalidHandle; // bounded host validation, not null-unregister
+        if(event && std::count_if(interrupts_.begin(),interrupts_.end(),[](const auto& e){return bool(e);})>=6) {
+            router.RequestHostStop("DSP interrupt registration capacity reached; request retained");
+            return kResultSuccess;
+        }
+        const auto index=q[1]<2?q[1]:2+q[2];interrupts_[index]=event;
+        q.fill(0);q[0]=IpcMakeHeader(0x15,1,0);q[1]=0;return kResultSuccess;
+    }
+    if(live_) {
+        router.RequestHostStop("DSP reload while live is unsupported; current device retained");
+        return kResultSuccess;
+    }
     const auto bytes=q[1], address=q[5];
     if (std::uint64_t(address)+bytes>0x100000000ULL || !memory.IsReadable(address,bytes)) {
         router.RequestHostStop("DSP component input is unreadable; LoadComponent remains pending");
@@ -43,8 +117,22 @@ Result DspDiscoveryService::Handle(IpcRouter& router,Kernel&,GuestMemory& memory
                 router.RequestHostStop(error);return kResultSuccess;
             }
             probe->Advance(probe_options_.steps);
-            probe_=std::move(probe); // HOST-ONLY diagnostics, never a loaded device.
+            probe_=std::move(probe); // Retain boot state; only the explicit live path below publishes it.
             const auto& s=probe_->summary();
+            if(probe_options_.live && s.state==DspProbeState::ProtocolComplete) {
+                const char* error=nullptr;
+                auto device=DspLiveDevice::Prepare(probe_,kernel.now_ns(),error);
+                if(!device){router.RequestHostStop(error);return kResultSuccess;}
+                if(!device->Attach(memory)){
+                    router.RequestHostStop("DSP data mapping unavailable; load remains pending");return kResultSuccess;
+                }
+                // No fallible allocation follows the map. Existing router response
+                // preflight protects the reply before boot or memory publication.
+                live_=std::move(device);
+                const auto descriptor=q[4],pointer=q[5];q.fill(0);
+                q[0]=IpcMakeHeader(0x11,2,2);q[1]=0;q[2]=1;q[3]=descriptor;q[4]=pointer;
+                return kResultSuccess;
+            }
             router.RequestHostStop(s.state==DspProbeState::Fault ? s.error.data() :
                 s.state==DspProbeState::ProtocolComplete ?
                 "DSP probe handshake complete; live execution and pipes still unimplemented" :
@@ -59,6 +147,6 @@ Result DspDiscoveryService::Handle(IpcRouter& router,Kernel&,GuestMemory& memory
     } catch (const std::bad_alloc&) {
         router.RequestHostStop("host allocation failed during DSP inspection");
     }
-    return kResultSuccess; // Router stops BEFORE committing any guest reply.
+    return kResultSuccess; // Failed/incomplete load paths stop before committing a guest reply.
 }
 } // namespace lego::ctr

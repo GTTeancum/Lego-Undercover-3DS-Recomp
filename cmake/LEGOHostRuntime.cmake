@@ -13,6 +13,7 @@ function(lego_add_ctr_runtime target_name)
         "${LEGO_RECOMP_ROOT}/src/services/dsp_special_config.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/dsp_boot_handshake.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/dsp_execution_probe.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/dsp_live_device.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/dsp_discovery_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_dual_core.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_dual_runner.cpp"
