@@ -1,0 +1,132 @@
+name: DSP semaphore candidate verification
+on:
+  push:
+    branches: [work/dsp-semaphore-import]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      candidate: ${{ steps.restore.outputs.candidate }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: importer
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          ref: 50b2942120f47d221cf66e662961165cf031bd20
+          path: candidate
+      - name: Verify exact public patch and create candidate only
+        id: restore
+        working-directory: candidate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, lzma, os, pathlib, subprocess
+          parent='50b2942120f47d221cf66e662961165cf031bd20'
+          target='6934e92465d0ee41cab127cfbbae6c16b7e17e4c'
+          def git(*args):
+              return subprocess.check_output(['git',*args],text=True).strip()
+          assert git('rev-parse','HEAD') == parent
+          assert git('rev-parse','HEAD^{tree}') == 'c958adbde76565fe614eb97fdad922895a5f1d91'
+          chunks=pathlib.Path('../importer/checkpoint-import/semaphore')
+          packed=b''.join((chunks/f'part{i:03d}').read_bytes() for i in range(4))
+          assert len(packed)==46172
+          assert hashlib.sha256(packed).hexdigest()=='0fa7472cfc3ee2332571876ad0998d69709a3e9510deae95f635366ccec9d053'
+          patch=lzma.decompress(packed,memlimit=128*1024*1024)
+          assert len(patch)==189360
+          assert hashlib.sha256(patch).hexdigest()=='6ec7a6d031c0896bb456cea5723cfdd003dbcc677274c92ac77aac5e8b95f749'
+          subprocess.run(['git','apply','--check','--index','-'],input=patch,check=True)
+          subprocess.run(['git','apply','--index','-'],input=patch,check=True)
+          assert git('write-tree') == target
+          assert len(git('ls-files').splitlines()) == 453
+          git('config','user.name','LEGO Recomp checkpoint')
+          git('config','user.email','noreply@github.com')
+          git('commit','-m','Connect DSP semaphore notifications and observed audio-startup pipe\n\nPreserve pending ICU and live DSP integration. Export a real retained event,\nroute signals to the same firmware peripheral, store the preset mask, and\nmove the original four-byte startup message through the firmware-created pipe.\n\nOriginal ARM startup now starts its first scheduled DSP slice and stops on\nunmodeled MMIO 0x2A0. The message remains queued, not consumed; no complete\nslice, audio output, rendered frame or gameplay is fabricated.\n\nFull local GCC/Clang 599-page builds and all 58 suites passed; 58 ROM-free\nClang sanitizer suites passed. Five original-startup pairs and 226 paired\ncapture files match. Candidate awaits independent hosted tests.')
+          sha=git('rev-parse','HEAD')
+          assert git('rev-parse','HEAD^')==parent
+          assert git('rev-parse','HEAD^{tree}')==target
+          branch='work/dsp-semaphore-candidate-'+os.environ['GITHUB_RUN_ID']
+          git('push','origin','HEAD:refs/heads/'+branch)
+          receipt={'commit':sha,'tree':target,'parent':parent,'branch':branch,'source_files':453,'scope':'Public source only; main unchanged'}
+          pathlib.Path('../candidate-receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('candidate='+sha+'\n')
+          print(json.dumps(receipt,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: semaphore-candidate-receipt
+          path: candidate-receipt.json
+          retention-days: 30
+          if-no-files-found: error
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gcc
+            compiler: g++
+            sanitize: false
+          - name: clang
+            compiler: clang++
+            sanitize: false
+          - name: sanitizers
+            compiler: clang++
+            sanitize: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.candidate }}
+          persist-credentials: false
+      - name: Configure ROM-free tests
+        shell: bash
+        run: |
+          args=(-S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.compiler }})
+          if [[ '${{ matrix.sanitize }}' == 'true' ]]; then
+            args+=('-DCMAKE_CXX_FLAGS_RELEASE=-O1 -g' '-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer' '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined')
+          fi
+          cmake "${args[@]}" 2>&1 | tee configure.log
+      - name: Build
+        run: cmake --build build --parallel 2 2>&1 | tee build.log
+      - name: Test and verify exact suite set
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1
+        shell: bash
+        run: |
+          ctest --test-dir build --output-on-failure --output-junit junit.xml 2>&1 | tee test.log
+          ctest --test-dir build --show-only=json-v1 > configured-tests.json
+          python3 - <<'PY'
+          import json, pathlib, subprocess, xml.etree.ElementTree as ET
+          expected={x['name'] for x in json.load(open('configured-tests.json'))['tests']}
+          cases=list(ET.parse('build/junit.xml').getroot().iter('testcase'))
+          assert len(expected)==58 and len(cases)==58
+          assert {x.attrib['name'] for x in cases}==expected
+          assert all(x.find('failure') is None and x.find('error') is None and x.find('skipped') is None for x in cases)
+          assert all(x.attrib.get('status','run')=='run' for x in cases)
+          receipt={'commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),'passed':58,'tests':sorted(expected),'scope':'ROM-free; no private game data'}
+          assert receipt['tree']=='6934e92465d0ee41cab127cfbbae6c16b7e17e4c'
+          pathlib.Path('test-receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semaphore-candidate-${{ matrix.name }}
+          path: |
+            configure.log
+            build.log
+            test.log
+            configured-tests.json
+            build/junit.xml
+            test-receipt.json
+          retention-days: 30
+          if-no-files-found: error
