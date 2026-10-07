@@ -1,0 +1,58 @@
+{
+  "paired_capture_files": 333,
+  "boot_complete_calls": 32768,
+  "reply_poll_boundaries": [
+    [
+      0,
+      1,
+      16384
+    ],
+    [
+      1,
+      1,
+      16384
+    ],
+    [
+      2,
+      1,
+      16384
+    ],
+    [
+      2,
+      3230,
+      32768
+    ]
+  ],
+  "completed_live_slices": 2,
+  "startup_pipe_before": [
+    0,
+    4
+  ],
+  "startup_pipe_after": [
+    4,
+    4
+  ],
+  "response_bytes": 32,
+  "response_first_word": 15,
+  "response_sha256": "4cb606067ddd1281cd0f379eb999f1c0904a427848b9547c23d72123f8f134bc",
+  "response_firmware_provenance": true,
+  "main_thread_actual_wake": true,
+  "retained_original_event": true,
+  "next_request": [
+    1048768,
+    2,
+    0,
+    2
+  ],
+  "next_static": [
+    32770,
+    268432800
+  ],
+  "rejected_call_and_output_unchanged": true,
+  "actual_fifo_pairs": 10,
+  "pairs_emitted_during_boot": 2,
+  "tagged_underrun_pairs": 0,
+  "zero_vram": true,
+  "core1_instructions": 0,
+  "independent_cpu_oracle": false
+}

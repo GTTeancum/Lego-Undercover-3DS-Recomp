@@ -1,0 +1,35 @@
+exheader_sha256=d7641f0a3bb89697ca8f0751e88d31703b54aa185ac78f9e74e41169dfcdc004 launch_mode=multi launch_maximum=30 recovered_title_header=true hardware_cycles=false
+code_sha256=5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f
+registry_pages=599 blocks=111043 instruction_words_verified=545111
+romfs_sha256=6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf raw_bytes=769179648 view_offset=4096 view_bytes=769175552
+shared_extdata_root=/mnt/data/lego_recovery/dispatch-pair.x88jrkoq
+ptm_step_source=explicit_empty_history total_steps=0 sensor_input=none
+gpu_vram_source=pinned_hle_zero_initialization bytes=6291456 cpu_mapping=none
+cfg_profile=pinned_hle_stereo_default block=00050005 bytes=32 recovered_calibration=false
+dsp_special_profile=explicit_empty_system_config block=00070000 read=missing fallback=documented_zero recovered_calibration=false
+rtc_epoch_ms_since_1900=3155673600000 guest_time_source=kernel_ns
+display_clock=diagnostic_cpu_periodic frame_ticks=4481136 clock_hz=268111856 presentation=none
+cpu_model=diagnostic_dual issue=one_recorded_A32_per_core_per_tick order=core0_then_core1 hardware_cycles=false
+dsp_executor=live_teakra host_probe_only=false data_reset=explicit_reference_zero program_gaps=unknown step_limit=100000
+dsp_boot_mode=reference-slice mailbox_poll_calls=16384 hardware_timing=unverified
+dsp_transmit_profile=reference-stereo irq=bounded_control_fifo_empty hardware_format=unverified
+dsp_audio_mode=capture frames=10 underflow=stop playback=none capacity=4096
+dsp_live_loaded=1 data_base=0x1ff40000 scheduled_slices=2 next_deadline_ns=18752595
+dsp_probe_completed_steps=65536 attempted_steps=65536 read_words=88192 written_words=33231 known_bytes=305836 replies=4 pc_before=0x5b7a pc_after=0x5b7b
+dsp_probe_reply=0:1 after_steps=16384
+dsp_probe_reply=1:1 after_steps=16384
+dsp_probe_reply=2:1 after_steps=16384
+dsp_probe_reply=2:3230 after_steps=32768
+cpu_ticks=4995105 core0_instructions=2287464 core1_instructions=0 quota_transitions=0
+display_periods=1 guest_now_ns=18630676
+app_cpu_time_current=30 maximum=30 core0_only=0 core1_enforcement=diagnostic_windows
+shared_clock_counter=1 snapshot_ms_since_1900=3155673600000 snapshot_tick=0 guest_now_ns=18630676
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=261
+r0=0x000e002b r1=0x00008002 r2=0x1ff82000 r3=0x0ffff5a0
+r4=0x1ff82080 r5=0x1ff82180 r6=0x00000000 r7=0x0ffff618
+r8=0x00000000 r9=0x00000000 r10=0x00000000 r11=0x00000000
+r12=0x00000000 r13=0x0ffff548 r14=0x0012b21c r15=0x0025947c
+cpsr=0x20000010 fpscr=0x23000018 tls=0x1ff82000
+last_ipc_session=dsp::DSP requested_service= request_header=0x001000c0
+ipc_words= 001000c0 00000002 00000000 00000002 00000000 00000000 00000000 00000000
+ipc_static_buffer0= 00008002 0ffff5a0

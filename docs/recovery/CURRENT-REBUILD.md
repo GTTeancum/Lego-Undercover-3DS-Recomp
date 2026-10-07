@@ -1,213 +1,210 @@
 # LEGO Chase Begins — canonical continuation handoff
 
-October 6, 2026. Continue in assistant scratch, NOT the user's PC or Work.
-LEGO City Undercover: The Chase Begins (Nintendo 3DS USA). Headless native startup
-reconstruction, not playable. POST UPDATED DOWNLOADABLE MARKDOWN AND COMPLETE
-SOURCE/EVIDENCE AT THE END OF EVERY WORK TURN. No logo/title/main menu/rendered
-frame or audible game output exists. Only present meaningful genuine game visuals.
+October6,2026 (user-local date). Work in assistant scratch, NOT the user's PC or Work.
+LEGO City Undercover: The Chase Begins, Nintendo3DS USA. Headless native reconstruction,
+not playable. POST UPDATED DOWNLOADABLE MARKDOWN AND COMPLETE SOURCE/EVIDENCE EVERY WORK
+TURN. Only meaningful genuine game visuals. There is no rendered logo/title/menu/frame.
 
-## Source and preservation: use this checkpoint, not an older pending variant
+## Source and recovery
 
-This source extends published main b0ba35cbd462ce9f3e0a7345023cd8c1e03a86c0,
-whose exact baseline tree is6934e92465d0ee41cab127cfbbae6c16b7e17e4c. The current
-commit and tested tree, CI and backup receipts are appended AFTER real publication.
-Local Git is a reconstructed snapshot/index, not remote history. Read main before
-publishing and use its actual parent without force. Do not overwrite concurrent work.
+This checkpoint extends published4be383cba5c8b370e5ca45150a098618203ac410,
+base tree331f4e9a429b3ec7314a8000d89d94d67869204b. The final receipt appended after
+publication records its actual commit/tree and backup. Local Git is a reconstructed
+index/snapshot, NOT remote ancestry. Re-read main and use a correct fresh parent,
+force=false; never overwrite concurrently published work.
 
-The task arrived with DSP-SEMAPHORE-PENDING, tree e8bd052cc42832538522f08de3824355ea325e39.
-Its1120 manifest entries and455 source blobs were verified and restored separately.
-Newer main already contained equivalent semaphore work with a different notifier
-API. Its1059 manifest files and453 source blobs matched the published tree. This
-checkpoint preserves/extends that newer main; the two notifier designs were NOT
-silently merged. The old pending archive/MD were newly saved to Library as
-/LEGO-Chase-Recovery/Preserved-DSP-SEMAPHORE-PENDING.tgz and .md. Retain them separately.
+The task arrived with DSP-BTDMP-PENDING, treee4041841799f64d33d3e235153600c910e27f884,
+458 source files/743 manifest entries. It was verified and preserved separately.
+Newer main had a different explicit transmitter/IRQ/fallback policy, not just reports.
+Recovered main from hosted run37551868368, artifact11453495226:
+LEGO-source-4be383c-hosted.zip SHA256
+cf31b93fd4cc180dd4bdd1918aa50428df849199ced65fc824b0888ae7cf23ff.
+All479 inner manifest files and457 source blobs reconstructed the exact main tree.
+Current work uses that published source. The older pending variant was newly saved
+as /LEGO-Chase-Recovery/Preserved-DSP-BTDMP-PENDING.tgz and .md, not overwritten.
 
-No CCI extraction, user reupload, user-PC or Work operation was needed. Existing
-code/AOT archive were verified; generated2/ was re-extracted and prepared RomFS
-parts reassembled into a new file. Baseline GCC full build/all58 tests reproduced
-MMIO0x2A0 in the first scheduled DSP slice. That previous work is inherited, not new.
+Original code/AOT/parts were already mounted. Extracted unchanged generated2/ and
+reassembled prepared RomFS into a new file; restored prepared launch from the previous
+checkpoint. No original CCI extraction, user reupload, user-PC or Work access.
 
-## New result: actual reference transmitter output, NOT a visible game boot
+## Actual breakthrough: firmware consumes startup message and replies
 
-Two new explicit options:
---dsp-transmit-profile reference-stereo
---dsp-audio-mode capture
+NEW explicit option: --dsp-boot-mode reference-slice (requires live-teakra).
+The original firmware completes boot in actual16384-call polling batches. Ready
+words0:1,1:1,2:1 are consumed at16384; the distinct pipe-base word3230/0x0C9E at32768.
+These are firmware-generated values, not constants, replay or a fixed title delay.
+The same interpreter/SRAM/validated descriptors are then published as the live device.
 
-The original firmware now passes its transmitter control/setup writes, places16
-zero-valued words into the real FIFO and emits8 stereo frames from those16 words.
-Two scheduled DSP slices complete. The third stops on strict FIFO underrun:
+The first scheduled slice consumes the original four-byte startup message: slot5
+read0/write4 becomes read4/write4. The second writes32 bytes into slot4, write0->32,
+and emits real peripheral notifications. Captures prove the original main thread
+moves WaitSynchAny->Ready/pending_wake through its retained registered EventObject,
+then executes again. No host pointer edits, forced wake or fabricated reply bytes.
+
+Current ordinary stopping point:
 
 ```
-dsp_transmit_profile=reference-stereo irq=reference_fifo_empty hardware_format=unverified
-dsp_audio_mode=capture frames=8 underflow=stop playback=none capacity=4096
+dsp_boot_mode=reference-slice mailbox_poll_calls=16384 hardware_timing=unverified
+dsp_audio_mode=capture frames=10 underflow=stop playback=none capacity=4096
 dsp_live_loaded=1 data_base=0x1ff40000 scheduled_slices=2 next_deadline_ns=18752595
-dsp_live_error=BTDMP transmit underrun output is unmodeled
-DSP completed47273 attempted47274 written9726; PC0x4BAF
-cpu_ticks=5027793 core0_instructions=2287384 core1_instructions=0
-one display period; guest_now_ns=18752595
-stop=UnsupportedDspEvent pc=0x002594c4 thread=1 dispatch_rounds=259
+dsp_probe_completed_steps=65536 attempted_steps=65536 written_words=33231
+cpu_ticks=4995105 core0_instructions=2287464 core1_instructions=0
+guest_now_ns=18630676 display_periods=1 current/max_cpu=30/30
+stop=UnsupportedIpc pc=0x0025947c detail=0x32 thread=1 dispatch_rounds=261
+last_ipc_session=dsp::DSP request_header=0x001000c0
+ipc_words=001000c0 00000002 00000000 00000002 00000000 ...
+ipc_static_buffer0=00008002 0ffff5a0
 ```
 
-The original startup message remains queued: CPU-to-DSP audio slot5 read0/write4;
-DSP-to-CPU audio slot4 read0/write0. Both the game's audio event and retained DSP
-semaphore event remain unsignaled. No startup reply, completed message consumption,
-audio mixing, music, playback, HID sample, draw, visible logo/menu or gameplay is
-established. All6MiB VRAM remains zero. Do not show silent/blank outputs as progress art.
+This is ReadPipeIfPossible, channel2/peer0/length2. The command, CPU and destination
+(including captured neighbours) remain untouched. Slot4 is read0/write32; no read
+response has been supplied. Its32 bytes have firmware-write provenance; first word15,
+SHA2564cb606067ddd1281cd0f379eb999f1c0904a427848b9547c23d72123f8f134bc.
+No further interpretation or completed game audio initialization is claimed.
 
-Optional second diagnostic: --dsp-audio-mode capture-reference-silence.
-This preserves the pinned fallback for missing FIFO words, but EVERY absent channel
-is tagged separately from firmware output. Original run reaches capture capacity4096:
-8 genuine FIFO frames +4088 tagged underrun frames, all zero. Completed slices1024;
-ARM round274/time143659030ns/core0 instructions2289379/core1 instructions99. The
-DSP still loops at0x4BAF and the audio pipes/events have not progressed. The capacity
-fault is a guard, NOT the functional startup blocker. Do not raise the limit and
-claim progress, mark fallback silence as firmware stores, or pretend99 worker
-instructions means gameplay. The strict-capture path still has0 core1 instructions.
+Ten captured stereo pairs are zero startup FIFO output, NOT music or sound effects.
+Two pairs occur during synchronous boot, eight afterward. Every channel has actual
+FIFO provenance; there are zero tagged underrun replacements on this new path.
+The original core1 worker still executes ZERO instructions before its eligible window.
+VRAM remains allzero. No audible playback, HID samples, rendered game shader/frame,
+logo, title screen, main menu or gameplay exists. Do not post silent/blank captures.
 
-Without transmit profile, the earlier unconfigured0x2A0 stop remains. With profile
-but no capture consumer, output fails at the first callback. Known-only mode still
-faults on unknown SRAM at962 calls. Keep these branches distinct and explicit.
+## Why the old path stalled and exact fix
 
-## Bounded reference contract and uncertainties
+Previous immediate polling returned the pipe word after3796 Run(1) calls, before
+firmware callback setup. Logging-only traces show mailbox2's slot5 command arriving
+at DSP handler0x4DFC; its pipe callback is null and0x4E1D branches to0x4E2D. Firmware
+later installs callbacks through0x4E34. The earlier notification is already drained,
+leaving payload queued. A diagnostic delayed-delivery experiment changed this path,
+but that artificial delay was NOT used as production behavior.
 
-MMIO0x2A0 is transmit control. Only reset5 and observed0xF are accepted under the
-explicit reference profile; clock0 or0x1004 and disabled companion preset4,0x21,0,0,0
-are bounded. Reads use documented companion masks. Transmit enable is bit15.
-Other format/mode values and active format replacement fail closed. Companion fields
-are not fully decoded hardware functions. This is NOT arbitrary MMIO storage.
+Pinned Azahar RunTeakraSlice executes16384 calls whenever the expected mailbox is
+not ready; it polls only after the full slice. ReferenceSlice follows that cadence
+and retains unfinished slice state across host budgets. Budget exhaustion does not
+poll early. A post-reply fault within the slice prevents successful completion. The
+existing real ready/pipe controller, table validation and mapping still gate live load.
+Actual FIFO output during boot is retained only through the explicitly selected
+bounded consumer; missing consumer faults, never silently discards output.
 
-Teakra notes and GBATEK leave control IRQ fields uncertain. An early prototype used
-a speculative bit8 gate; it was removed before final tests. Final reference profile
-retains the pinned interpreter's FIFO-empty interrupt after a genuine pop empties
-its queue. It does not decode an invented IRQ-enable bit. ICU routes port0/1 to11/12.
-Threshold/held-line/arbitrary-format behavior and actual 3DS timing remain unverified.
+Immediate mode remains default for historical comparison and still stalls/underruns.
+Known-only stops on unknown SRAM; no implicit zero memory added. reference-slice is
+an explicit pinned-loader timing policy, not verified hardware instruction latency.
+Boot is synchronous/uncharged to ARM time, as before. Live scheduling and diagnostic
+ARM one-recorded-instruction/core/tick are unchanged, not cycle-accurate hardware.
 
-Real16-word FIFO: signed16-bit values in FIFO order, not newly measured L/R wiring.
-Overrun fails, strict incomplete stereo output fails before partial pop. Optional
-underflow fills absent channel values with tagged reference silence, never firmware
-provenance. Empty fallback alone cannot raise an empty-transition interrupt. Flush
-bit2 is write-one; zero writes retain data; lowbits0..1 read/write. Reset clears
-hardware fields/queue/timer and retains explicit host policies/callbacks only.
+The newly reached original firmware writes transmit0x010F. GBATEK's bits8..11 IRQ
+nibble is zero=disabled/nonzero=enabled (alternate encodings remain uncertain). Only
+observed0x000F/0x010F plus disabled reset5 are supported. FIFO-empty notifications
+are now gated by0x010F. Toggling the field cannot drain/reset FIFO or inject IRQ;
+empty fallback does not generate one. Reference threshold/4096-call output period,
+channel order, held-line and alternate-format behavior remain unverified. No generic
+register storage, increased capture capacity or replacement waveform unblocks startup.
 
-Inherited external-clock reference is4096 interpreter ticks per output, not a newly
-measured sample divider. Tick/Skip respect every observable output/underrun/deadline.
-Capture stores samples, two-bit FIFO source mask and interpreter attempt count in a
-fixed4096-frame buffer. Overflow never silently drops samples. No host playback or
-unbounded file/thread output is added. Callback failures can leave FIFO/IRQ effects;
-the inherited probe seals the device rather than retrying or faking rollback.
+## Tests and evidence
 
-Captured output is connected to the SAME live interpreter/SRAM and firmware-created
-pipes. The original load handshake, special532-byte configuration policy, known-byte
-tracking, memory mapping, semaphore service, CPU scheduling, GPU and all game/AOT
-bytes are retained. No game opcode, task pointer, pipe read pointer, wait result or
-GPU completion was patched to force progress. No software-rendered frame exists.
+Full GCC/Clang native executables link599 unchanged private AOT page units. All61
+CTest suites pass with both compilers and all61 ROM-free Clang ASan/UBSan suites pass
+with leak checks/halt-on-error. JUnit/configured names match without skips/duplicates.
+No old suite removed. New ctr_dsp_boot_slice_test covers exact boundaries, partial
+budgets, chunk equivalence, distinct reg2 words, terminal faults, actual boot output,
+missing consumer and mode guards. BTDMP tests cover all65536 control and sample words,
+gating transitions, untouched FIFO and no false write/flush/underflow interrupt.
 
-## Validation and current evidence
+Six ordinary startup pairs match stdout/stderr/exit/new test-file bytes: reference,
+immediate, known-only, bounded100, missing sink and guarded probe. Six pre-input CLI
+rejection pairs match. All333 capture files match across compilers. Independent parsing
+checks descriptors/provenance, actual consumption/response/wake, same DATA mapping,
+untouched next IPC/output and unchanged GPU1842 words/uploads/GSP page/epochs/HID/LCD/
+6MiB VRAM. Changed DSP bytes across scheduled slices carry firmware-write provenance.
+This is not a complete ARM-space dump or independent DSP/ARM CPU oracle.
 
-Full GCC and Clang builds link all599 unchanged AOT page units. All60 configured
-CTest suites pass under both compilers and under ROM-free Clang ASan/UBSan. The
-prior58 suites remain. New suites test every16-bit sample word, nonzero/signed FIFO
-values, exact deadlines and skip equivalence, reset/disable/flush, overrun/underflow,
-malformed setups, genuine synthetic DSP instructions, tag provenance, capture limits,
-continuation, missing consumers and option constraints. Synthetic tests are not
-original-firmware output or independent DSP CPU oracles.
+Original code, raw RomFS, ExHeader and all603 AOT backup members retain identities.
+No full IVFC recheck, Windows/macOS build or playback test. Initial changed-source
+CTest failed obsolete BTDMP assumptions; corrected explicit tests pass. Finite builds
+needed resumptions. Setup/prototype/initial logs are preserved and not counted as final.
+Hosted CI results are appended only after actual completion.
 
-Five complete original-startup pairs and11 CLI rejection pairs match between
-compilers. Strict and fallback diagnostic captures have173/211 matching files.
-Independent parsing verifies actual captured sample tags, live descriptors, queued
-message, unsignaled events and blank VRAM. In the first three slice attempts,
-captured ARM CPU/time/IPC/GPU/HID bytes stay unchanged across DSP execution; all
-changed DSP SRAM bytes carry firmware-write provenance. No full ARM-space dump.
-Code, whole raw RomFS, ExHeader and all603 AOT members were reverified. Full IVFC
-block verification was not repeated. No Windows/macOS or audio playback test.
-
-Work/evidence: /mnt/data/lego_recovery/dsp-btdmp-checkpoint/.
-Important: tests.json and JUnit/logs; validation-normal.json (5 complete cases),
-cli-proof.json (11); capture-strict-capture/ and capture-reference-silence/;
-proof.json/verify_final.py; run_validation.py; make_captures.py plus self-contained
-inherited_trace_support.inc; references.json/setup-notes.txt. Logging-only trace
-main/runner link the same production libraries. Raw traces/disassembly stay PRIVATE.
-Early control/bit8 prototypes, compile errors and one interrupted combined matrix
-remain distinct from corrected final output. The unfinished case-unconfigured/
-directory is not counted; unconfigured-complete is the finished replacement.
-The standalone probe_transmitter.cpp supplied the observed startup inputs directly;
-its logs are a separate experiment, NOT original ARM startup proof.
+Current work/evidence: /mnt/data/lego_recovery/dsp-dispatch-checkpoint/.
+Final: proof.json/verify.py, identity.json, tests.json, junit-final-*.xml and logs,
+matrix/ (six paired receipts), matrix-summary.json, cli/ and cli-proof.json.
+make_captures.py/trace_support.inc regenerate logging-only scheduler objects from
+current production source; capture-reference-gcc/clang each have333 files. Ordinary
+production CLI binaries independently reproduce the same next request.
+Early trace_driver.cpp/make_trace.py, immediate/delayed traces and batch prototypes
+are separate diagnostic experiments against pre-fix source. Their exact generated
+source is retained. Do not treat them as the final original ARM path or copy their
+manual message delivery into production. Raw disassembly/SRAM/component stay private.
 
 ## Next exact work
 
-Trace the original DSP firmware's task/interrupt/pipe dispatch after transmitter
-initialization. Its self-loop0x4BAF restores interrupt enable before looping. The
-reference FIFO-empty IRQ does execute additional firmware writes, but no pipe reply
-or refill follows. Investigate pending APBP command/semaphore ordering and firmware
-task wake behavior against the pin, without forcing IRQs, changing pointers or
-hardcoding a response. An explicit silence policy proves output underrun alone is
-not the remaining startup problem. Do not treat capture capacity as the next feature.
+Implement observed DSP ReadPipeIfPossible channel2, peer0, length2, static output
+descriptor0x8002 at TLS+0x100, pointer0x0FFFF5A0. Inspect the pinned service's actual
+reply header/static-buffer contract, length semantics and preflight requirements.
+Use the real live device ReadPipe data/pointer/mailbox methods. Validate writable
+output, buffer size, address overflow and aliases before consuming any pipe bytes.
+Do not substitute a fixed15 or guessed address list, prematurely change pointers,
+or force another event. Follow the next actual request after testing unchanged code.
+HID sampling, live external AHB/FCRAM, broader DSP lifecycle/playback and rendering
+remain separate unimplemented areas. No additional original-game upload is needed.
 
-Preserve strict/unconfigured and reference comparisons and all current guards.
-Inspect the real mailbox/ICU/core flags using logging-only code before changing
-semantics. Current private probe_logged.cpp / inspect_wait.py and disassembler
-sources are available; prototype logs predate the final reference-IRQ correction.
-Create NEW logs when rerunning. Keep HID sampling, FCRAM/AHB, audio mixing/playback,
-DSP unload/reload and GPU drawing limitations explicit. No additional upload needed.
+References: Azahar86a9f9236ae42bb5a2b995dbc933d599d8ea07ac, src/audio_core/lle/lle.cpp
+blob388fe64ec1a5130a2c93a5dfa04ca84df109b567 (slice size/boot readiness/pipe base).
+MIT Teakra pin3d697a18df504f4677b65129d9ab14c7c597e3eb is retained. Local patch hashes
+are in vendor/teakra-3d697a1/UPSTREAM.json. GBATEK no$gba3.03 BTDMP printed365-367,
+PDF390-392 zero-based: https://pcy.be/tmp/img/gbatek.pdf. Parsed text was available;
+screenshot attempts failed. No page-image inspection or new3DS hardware measurement.
 
-Primary refs: wwylele/teakra@3d697a18df504f4677b65129d9ab14c7c597e3eb,
-btdmp.cpp blob20a1f09458cff63ef5d1ce3d19b64763b57bcb1a;
-btdmp.md blob7daf7f8054e3513993c4edcf6863576fc1574c3d;
-Martin Korth GBATEK no$gba3.03 printed365–367 (PDF390–392 zero-based).
-Parsed text was accessible; requested web screenshots failed cache retrieval.
-No new hardware measurement or image/table screenshot validation is claimed.
-Current vendor patch hashes/reference assumptions are in UPSTREAM.json.
+## Scratch and repeatable launch
 
-## Rebuild and reproduce
-
-Root /mnt/data/lego_recovery/. Current source repo/. Builds build-gcc/, build-clang/,
-build-asan/. Private AOT generated2/; code restored/code.bin; raw RomFS
- game/prepared-romfs/romfs.bin; ExHeader prepared-launch/exheader.bin.
-Existing raw parts/manifest romfs-library-roundtrip/. Historical source variants:
-restored-semaphore-pending/ and restored-main-b0ba35c/. Never extract them over repo/.
+Root /mnt/data/lego_recovery/. Current repo/. Builds build-gcc/,build-clang/,build-asan/.
+AOT generated2/; code restored/code.bin; RomFS game/prepared-romfs/romfs.bin;
+ExHeader prepared-launch/exheader.bin; raw parts/manifest romfs-library-roundtrip/.
+Older source restored-main-4be383c/ and preserved-btdmp-pending/ stay separate.
 
 ```sh
 cd /mnt/data/lego_recovery
 cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DLEGO_AOT_DIR=/mnt/data/lego_recovery/generated2
 cmake --build build-gcc --parallel 3
 ctest --test-dir build-gcc --output-on-failure
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/btdmp-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/pipe-read-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
-./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle --cfg-profile reference-stereo --cpu-mode diagnostic-dual --block-limit 100000000 --exheader prepared-launch/exheader.bin --dsp-special-profile empty-config --dsp-executor live-teakra --dsp-reset-profile reference-zero-data --dsp-transmit-profile reference-stereo --dsp-audio-mode capture
+./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle --cfg-profile reference-stereo --cpu-mode diagnostic-dual --block-limit 100000000 --exheader prepared-launch/exheader.bin --dsp-special-profile empty-config --dsp-executor live-teakra --dsp-reset-profile reference-zero-data --dsp-transmit-profile reference-stereo --dsp-audio-mode capture --dsp-boot-mode reference-slice
 ```
 
-Expected exit3, strict underrun after2 complete slices, original ARM round259.
-Replace ONLY capture with capture-reference-silence for the tagged comparison.
-Never silently enable/drop the explicit CPU/VRAM/PTM/CFG/DSP/reference policies.
-For Clang use clang++; for sanitizers omit AOT, use Debug plus
--fsanitize=address,undefined -fno-omit-frame-pointer; leak checks and halt-on-error.
-Capture drivers refuse existing output directories. New paired roots contain only
-owned test gamecoin data, not recovered NAND. Delete only your own just-created,
-byte/hash-verified20-byte coin when matching compiler fresh runs; preserve unknown saves.
+Expected exit3, pending0x001000C0 round261, not an audio/visual completed boot.
+Omit only boot-mode/value for immediate-polling comparison. Known-only omits reset;
+probe requires omitting live-only boot/transmitter/audio modes. Keep all policies
+explicit. For Clang use clang++; sanitizer build omits AOT, uses Debug-O1 plus
+-fsanitize=address,undefined -fno-omit-frame-pointer and leak checks/halt-on-error.
+Build/test recipes are build.py/test_all.py; bounded build invocations collect their
+process groups. Matrix script takes index ranges0..6 and refuses existing case paths.
+Captures also require new folders. Newly created dispatch-* roots are owned TEST
+state, not recovered NAND. Delete only your own hash-verified new20-byte gamecoin
+when pairing compilers. Never overwrite unknown saves or evidence.
 
 ## Durable recovery and mandatory delivery
 
-GitHub GTTeancum/Lego-Undercover-3DS-Recomp main; Library /LEGO-Chase-Recovery/.
-The new archive contains ALL indexed current source plus current private evidence,
-prepared launch, source index, manifest/verifier and an exact patch from b0ba35c.
-Verify CHECKPOINT-MANIFEST.json before extraction and reconstruct SOURCE-INDEX.json
-modes/blobs including ignored tracked reports. Do not invent Git history or force
-an older snapshot onto main. The appended receipt names actual publication/backup.
+GitHub GTTeancum/Lego-Undercover-3DS-Recomp; Library /LEGO-Chase-Recovery/.
+Verify CHECKPOINT-MANIFEST.json and SOURCE-INDEX.json modes/blobs before use. Restore
+all indexed files including ignored tracked reports; do not reconstruct fake ancestry.
+The full patch applies to exact parent4be383c. Publication/backup identities are in
+the appended receipt. Current archive is complete source, current private evidence,
+prepared launch, parts manifest, source/member manifests, verifier and exact patch.
+Older source archives remain separate references, not recursively copied.
 
-Separate private backups: code.bin; LEGO-Chase-current-AOT-599pages-2026-10-03.tgz
-(unpacks generated2/); Prepared-RomFS/ two raw parts+manifest; Prepared-Launch/exheader.bin.
-Parts402653184+366526464 bytes; reassemble with tools/restore_romfs_parts.py, refusing
-existing output. Raw769179648 bytes; native view offset4096/size769175552. Preserve
-integrity tables. No original CCI extraction is required.
+Original inputs remain separately backed up: code.bin; LEGO-Chase-current-AOT-599pages-
+2026-10-03.tgz (unpacks generated2/); Prepared-RomFS/two raw parts+romfs-parts.json;
+Prepared-Launch/exheader.bin. Part sizes402653184+366526464. Reassemble with
+repo/tools/restore_romfs_parts.py, refusing overwrite. Raw RomFS769179648 bytes,
+native view offset4096/length769175552; preserve integrity tables. No CCI extraction.
 Code SHA5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
 AOT SHA2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
 RomFS SHA6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
 ExHeader SHAd7641f0a3bb89697ca8f0751e88d31703b54aa185ac78f9e74e41169dfcdc004.
-DSP49716-byte SHA7ea3c44a1c57514bebbebce8a7995f7f3a290170ea3b6c145749ad9358672c97.
+DSP SHA7ea3c44a1c57514bebbebce8a7995f7f3a290170ea3b6c145749ad9358672c97.
 
-Raw DSP/SRAM/ExHeader/disassembly and captures must NEVER enter public GitHub.
-Original code/AOT/raw RomFS/CCI, .git, native binaries/build objects and font files
-are excluded from the new source/evidence archive. Prior checkpoints remain separate,
-not recursively copied. Scratch may reset; attachments/Library/GitHub are recovery
-routes, not permanent scratch. Append actual CI/publication/round-trip receipts only
-after success. POST UPDATED DOWNLOADABLE MARKDOWN AND SOURCE/EVIDENCE EVERY WORK TURN.
+Raw firmware/SRAM/ExHeader/audio/disassembly NEVER go to public GitHub. No code.bin,
+AOT, raw RomFS/CCI, .git, native binaries/build products or font files are in the
+source/evidence archive. Scratch may reset; Library/attachments/GitHub are recovery
+routes, not permanent scratch. Append only verified publication/CI/round-trip receipts.
+POST UPDATED DOWNLOADABLE MARKDOWN AND SOURCE/EVIDENCE AT THE END OF EVERY WORK TURN.
