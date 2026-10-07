@@ -83,7 +83,7 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-transmit-profile reference-stereo]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-transmit-profile reference-stereo] [--dsp-boot-mode reference-slice]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
@@ -113,6 +113,11 @@ int main(int argc,char** argv) {
                     throw std::runtime_error("select DSP executor guarded-teakra or live-teakra once, or omit it");
                 dsp_executor_selected=true;dsp_probe.enabled=true;
                 dsp_probe.live=std::string_view(argv[i+1])=="live-teakra";
+            }
+            else if (option=="--dsp-boot-mode") {
+                if(dsp_probe.boot_mode!=ctr::DspBootMode::Immediate || std::string_view(argv[i+1])!="reference-slice")
+                    throw std::runtime_error("invalid or repeated DSP boot polling mode");
+                dsp_probe.boot_mode=ctr::DspBootMode::ReferenceSlice;
             }
             else if (option=="--dsp-transmit-profile") {
                 if(dsp_probe.reference_transmit || std::string_view(argv[i+1])!="reference-stereo")
@@ -213,6 +218,8 @@ int main(int argc,char** argv) {
                      <<" launch_mode=multi launch_maximum="<<launch->maximum_cpu
                      <<" recovered_title_header=true hardware_cycles=false\n";
         }
+        if(dsp_probe.boot_mode!=ctr::DspBootMode::Immediate && (!dsp_probe.enabled || !dsp_probe.live))
+            throw std::runtime_error("DSP reference-slice boot requires live-teakra");
         std::ifstream input(argv[1],std::ios::binary|std::ios::ate);
         if (!input || input.tellg()!=std::streamoff(ctr::kPreparedCodeBytes))
             throw std::runtime_error("code.bin missing or wrong size");
@@ -266,7 +273,8 @@ int main(int argc,char** argv) {
                      <<(dsp_probe.reset==ctr::DspProbeReset::ReferenceZeroData?"explicit_reference_zero":"known_image_only")
                      <<" program_gaps=unknown step_limit="<<dsp_probe.steps<<'\n';
         const auto result=runner.Run(block_limit,event_limit);
-        if(dsp_probe.reference_transmit) std::cout << "dsp_transmit_profile=reference-stereo irq=reference_fifo_empty hardware_format=unverified\n";
+        if(dsp_probe.boot_mode==ctr::DspBootMode::ReferenceSlice) std::cout << "dsp_boot_mode=reference-slice mailbox_poll_calls=16384 hardware_timing=unverified\n";
+        if(dsp_probe.reference_transmit) std::cout << "dsp_transmit_profile=reference-stereo irq=bounded_control_fifo_empty hardware_format=unverified\n";
         if(dsp_probe.capture_audio && runner.dsp_diagnostics().execution_probe())
             std::cout << "dsp_audio_mode=capture frames=" << runner.dsp_diagnostics().execution_probe()->captured_audio().size()
                       << " underflow=" << (dsp_probe.reference_audio_silence?"explicit_reference_silence":"stop")

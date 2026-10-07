@@ -201,7 +201,8 @@
     "unknown MMIO/no-op handlers reject instead of silently store/zero",
     "Logical ICU mode/polarity/manual pipeline/pending/ack/master-enable behavior from GBATEK 3.03, with explicit diagnostic pin/tick assumptions",
     "ICU vector read masks and reset defaults; pending core notification reset and unsupported vectored-arbitration guard",
-    "Opt-in bounded BTDMP reference TX preset, pinned FIFO-empty source, strict/tagged underrun handling and bounded audio consumer; fixed skipped-output deadlines and port1 IRQ routing"
+    "Opt-in bounded BTDMP reference TX preset, pinned FIFO-empty source, strict/tagged underrun handling and bounded audio consumer; fixed skipped-output deadlines and port1 IRQ routing",
+    "Bounded observed BTDMP control 0x000F/0x010F transmit IRQ gating from GBATEK IRQ nibble; no register-write interrupt or generic format acceptance"
   ],
   "local_icu_reference": {
     "author": "Martin Korth",
@@ -245,11 +246,11 @@
       392
     ],
     "accessed": "2026-10-06",
-    "limitations": "Parsed reference text was available; web page screenshots failed cache retrieval. No new hardware measurements. Control IRQ bit interpretations disagree/are incomplete. Exact reference-stereo preset retains upstream FIFO-empty IRQ instead of speculative bit decoding. External period4096 and FIFO order remain reference assumptions. Other control words/modes fail closed."
+    "limitations": "GBATEK parsed text specifies IRQ nibble bits8..11 zero=off, nonzero=on with uncertainty. Only observed controls0x000F/0x010F are supported. FIFO-empty threshold remains pinned reference behavior, not measured held-line hardware. Screenshots failed; no page-image validation or new 3DS hardware measurement. External period4096 and FIFO channel order remain diagnostic assumptions."
   },
   "btdmp_checkpoint_patched_sha256": {
-    "src/btdmp.h": "fb56c56f394fd6a716238a90c1bb355a337048ad706cd0310eb0b64f53752c61",
-    "src/btdmp.cpp": "c40cdb69a344177b42ffc4625c9f85ac06eebadc39db5e63f311cda6eac76c44",
+    "src/btdmp.h": "e09f22b46d99a6b117fe9b40240b24ef14a70388543b4e6819ee298799da95f5",
+    "src/btdmp.cpp": "1a44493c16a90c286b916dac8b67ece2dddf16153490223ab422f0f4a5c4b3f1",
     "src/mmio.cpp": "af7c4a872fb117b7512901a1ed917ccb50858098c4d9d5581cf0e0e09fcc1dd1",
     "src/teakra.cpp": "155df938a8b88140d05b42a198a2d36c5cd51eabf9de3dd62079b7240c5fd512",
     "include/teakra/teakra.h": "861143d485f26f7828b7676b142113d8c2ac92ca978d5135374d046daef5d0b9"

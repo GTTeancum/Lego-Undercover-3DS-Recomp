@@ -11,7 +11,7 @@ using Teakra::Btdmp;using Teakra::CoreTiming;
 int failures{};
 #define CHECK(x) do { if(!(x)){++failures;std::cerr<<"FAIL "<<__LINE__<<": " #x "\n";} }while(0)
 template<class F> bool Throws(F&& f){try{f();}catch(const std::exception&){return true;}return false;}
-void Configure(Btdmp& p){p.SetReferenceTransmitProfile(true);p.SetTransmitControl(15);p.SetTransmitClockConfig(0x1004);for(unsigned i=0;i<5;++i)p.SetTransmitReferenceSetup(i,i==0?4:i==1?0x21:0);}
+void Configure(Btdmp& p){p.SetReferenceTransmitProfile(true);p.SetTransmitControl(0x10F);p.SetTransmitClockConfig(0x1004);for(unsigned i=0;i<5;++i)p.SetTransmitReferenceSetup(i,i==0?4:i==1?0x21:0);}
 struct Frame {std::array<std::int16_t,2> samples;unsigned mask;bool operator==(const Frame&)const=default;};
 struct F {
  CoreTiming clock; Btdmp p{clock};std::vector<Frame> frames;unsigned irqs{};
@@ -24,7 +24,7 @@ void SetupAndReset(){
  CHECK(Throws([&]{f.p.SetTransmitControl(15);}));
  CHECK(f.p.GetTransmitControl()==5);
  f.p.SetReferenceTransmitProfile(true);
- for(unsigned v : {0U,1U,0x10FU,0x20FU,0xFFFFU}){CHECK(Throws([&]{f.p.SetTransmitControl(v);}));CHECK(f.p.GetTransmitControl()==5);}
+ for(unsigned v : {0U,1U,0x20FU,0xFFFFU}){CHECK(Throws([&]{f.p.SetTransmitControl(v);}));CHECK(f.p.GetTransmitControl()==5);}
  CHECK(Throws([&]{f.p.SetTransmitEnable(0x8000);}));CHECK(!f.p.GetTransmitEnable());
  f.p.SetTransmitControl(15);f.p.SetTransmitClockConfig(0x1004);
  for(unsigned i=0;i<5;++i){CHECK(Throws([&]{f.p.SetTransmitReferenceSetup(i,0xFFFF);}));f.p.SetTransmitReferenceSetup(i,i==0?4:i==1?0x21:0);}
@@ -71,15 +71,38 @@ void SkipAndAllPixelWords(){
  CHECK(Throws([&]{a.p.Skip(5);}));CHECK(a.p.GetMaxSkip()==4);
  CHECK(a.clock.Skip(4)==4);CHECK(Throws([&]{a.Tick(1);}));CHECK(a.frames==b.frames);
 }
+void ExplicitIrqGating(){
+ F f;Configure(f.p);f.p.SetTransmitControl(15);f.p.SetTransmitPeriod(1);
+ f.p.Send(0x1234);f.p.Send(0x5678);f.p.SetTransmitEnable(0x8000);f.Tick(1);
+ CHECK(f.frames.size()==1&&f.irqs==0&&f.p.GetTransmitEmpty());
+ // Firmware may toggle only the supported IRQ field while running. The write
+ // itself neither drains the FIFO, resets its deadline, nor manufactures IRQ.
+ f.p.Send(0xABCD);f.p.Send(0xEF01);f.p.SetTransmitControl(0x10F);
+ CHECK(f.irqs==0&&!f.p.GetTransmitEmpty()&&f.p.GetTransmitPeriod()==1);
+ f.Tick(1);CHECK(f.frames.size()==2&&f.irqs==1);
+ f.p.SetTransmitControl(15);f.p.Send(1);f.p.Send(2);f.Tick(1);
+ CHECK(f.frames.size()==3&&f.irqs==1);
+ f.p.SetTransmitControl(0x10F);f.p.Send(3);f.p.SetTransmitFlush(4);
+ CHECK(f.irqs==1&&f.p.GetTransmitEmpty());
+ f.p.SetAudioCaptureCallback([&](auto samples,auto mask){f.frames.push_back({samples,mask});},true);
+ f.Tick(1);CHECK(f.frames.back().mask==0&&f.irqs==1);
+ F words;words.p.SetReferenceTransmitProfile(true);
+ for(unsigned v=0;v<65536;++v){
+  const auto old=words.p.GetTransmitControl();
+  const bool rejected=Throws([&]{words.p.SetTransmitControl(v);});
+  CHECK(rejected==(v!=5&&v!=15&&v!=0x10F));
+  CHECK(words.p.GetTransmitControl()==(rejected?old:v));
+ }
+}
 void MmioAndPortIsolation(){
  std::vector<std::uint8_t> raw(0x80000,0);::Teakra::Teakra dsp{{raw.data()}};dsp.Reset();
  CHECK(Throws([&]{dsp.MMIOWrite(0x2A0,15);}));dsp.SetReferenceTransmitProfile(true);
  for(unsigned port=0;port<2;++port){auto x=port*0x80;dsp.MMIOWrite(0x2A0+x,15);dsp.MMIOWrite(0x2A2+x,0x1004);for(unsigned i=0;i<5;++i)dsp.MMIOWrite(0x2A4+x+2*i,i==0?4:i==1?0x21:0);
  CHECK(dsp.MMIORead(0x2A6+x)==1&&dsp.MMIORead(0x2A0+x)==15);}
  unsigned callbacks{};dsp.SetAudioCaptureCallback([&](auto samples,auto mask){CHECK(samples[0]==0x1234&&samples[1]==0x5678&&mask==3);++callbacks;},false);
- dsp.MMIOWrite(0x2C6,0x1234);dsp.MMIOWrite(0x2C6,0x5678);dsp.MMIOWrite(0x2BE,0x8000);
+ dsp.MMIOWrite(0x2A0,0x10F);dsp.MMIOWrite(0x2C6,0x1234);dsp.MMIOWrite(0x2C6,0x5678);dsp.MMIOWrite(0x2BE,0x8000);
  dsp.Run(4096);CHECK(callbacks==1);CHECK((dsp.MMIORead(0x200)&(1U<<11))!=0);CHECK((dsp.MMIORead(0x200)&(1U<<12))==0);
  dsp.Reset();CHECK(dsp.MMIORead(0x2BE)==0&&dsp.MMIORead(0x33E)==0&&dsp.MMIORead(0x2C2)==0x10);
 }
 }
-int main(){try{SetupAndReset();FifoAndNoSilentConsumption();SkipAndAllPixelWords();MmioAndPortIsolation();}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}if(failures)return 1;std::cout<<"PASS: explicit reference TX preset, FIFO output, strict underrun, tagged fallback, exact deadlines, reset and IRQ source\n";return 0;}
+int main(){try{SetupAndReset();FifoAndNoSilentConsumption();SkipAndAllPixelWords();ExplicitIrqGating();MmioAndPortIsolation();}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}if(failures)return 1;std::cout<<"PASS: explicit reference TX preset, FIFO output, strict underrun, tagged fallback, exact deadlines, reset and IRQ source\n";return 0;}

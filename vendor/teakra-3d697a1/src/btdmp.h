@@ -18,16 +18,16 @@ public:
     void Reset();
 
     // Explicit bounded reference profile, NOT a fully decoded hardware format.
-    // Teakra's notes and GBATEK leave control IRQ bits uncertain; preserve the
-    // pinned implementation's FIFO-empty interrupt for this one observed preset.
-    // Do not infer a speculative bit-8 enable or support arbitrary control modes.
+    // GBATEK documents the IRQ nibble as zero=off/nonzero=on, but alternate
+    // encodings are uncertain. Support ONLY the now-observed 0x000F/0x010F
+    // pair. The FIFO-empty trigger threshold remains a pinned reference model.
     void SetReferenceTransmitProfile(bool enabled) {
         if (transmit_enable) throw std::logic_error("cannot replace active BTDMP profile");
         reference_transmit_profile = enabled;
     }
     void SetTransmitControl(u16 value) {
         if (!reference_transmit_profile) throw std::runtime_error("BTDMP transmit profile is unconfigured");
-        if (value != 0x0005 && value != 0x000F)
+        if (value != 0x0005 && value != 0x000F && value != 0x010F)
             throw std::runtime_error("BTDMP unsupported transmit control mode");
         if (transmit_enable && value == 0x0005)
             throw std::runtime_error("BTDMP active transmit format change unsupported");
@@ -77,7 +77,7 @@ public:
 
     void SetTransmitEnable(u16 value) {
         const u16 enable = value & 0x8000;
-        if (enable && (!reference_transmit_profile || transmit_control != 0x000F ||
+        if (enable && (!reference_transmit_profile || (transmit_control != 0x000F && transmit_control != 0x010F) ||
                        transmit_clock_config != 0x1004 || transmit_setup_written != 0x1F))
             throw std::runtime_error("BTDMP transmit requires complete reference stereo setup");
         transmit_enable = enable;

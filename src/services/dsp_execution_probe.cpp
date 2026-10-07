@@ -16,6 +16,8 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
     std::vector<std::uint8_t>& source=ram->provenance;
     Teakra::Teakra dsp{{memory.data()}};
     DspBootHandshake handshake;
+    const DspBootMode boot_mode;
+    std::uint32_t boot_remaining{};
     DspProbeSummary state{};
     std::array<DspProbeReply,256> history{};
     bool live{},live_data_signaled{},live_semaphore_signaled{};
@@ -42,7 +44,7 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
         Emit(2+slot/2);
     }
 
-    Impl(const Dsp1Image& image,DspProbeReset reset,bool capture,bool reference_silence,bool reference_transmit):handshake(image.receive_startup_replies),capture_audio(capture) {
+    Impl(const Dsp1Image& image,DspProbeReset reset,bool capture,bool reference_silence,bool reference_transmit,DspBootMode mode):handshake(image.receive_startup_replies),boot_mode(mode),capture_audio(capture) {
         dsp.SetReferenceTransmitProfile(reference_transmit);
         dsp.Reset(); // Pinned register/peripheral construction; raw zero isn't provenance.
         if(reset==DspProbeReset::ReferenceZeroData)
@@ -87,7 +89,7 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
             [external](auto a)->std::uint16_t{external(a);return 0;},[external](auto a,auto){external(a);},
             [external](auto a)->std::uint32_t{external(a);return 0;},[external](auto a,auto){external(a);}});
         dsp.SetAudioCaptureCallback([this](auto samples,auto fifo_mask) {
-            if (!live || !capture_audio) {
+            if ((!live && boot_mode!=DspBootMode::ReferenceSlice) || !capture_audio) {
                 Fault(DspProbeFault::Audio,"DSP audio output requires explicit bounded capture");
                 throw std::runtime_error("DSP audio output has no selected consumer");
             }
@@ -135,8 +137,11 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
 DspExecutionProbe::DspExecutionProbe(std::unique_ptr<Impl> p):impl_(std::move(p)){}
 DspExecutionProbe::~DspExecutionProbe()=default;
 std::unique_ptr<DspExecutionProbe> DspExecutionProbe::Create(const Dsp1Image& image,
-                                                           DspProbeReset reset,const char*& error,bool capture_audio,bool reference_silence,bool reference_transmit) noexcept {
+                                                           DspProbeReset reset,const char*& error,bool capture_audio,bool reference_silence,bool reference_transmit,DspBootMode boot_mode) noexcept {
     error=nullptr;
+    if(boot_mode!=DspBootMode::Immediate && boot_mode!=DspBootMode::ReferenceSlice) {
+        error="invalid DSP boot polling mode";return {};
+    }
     if(reference_silence && !capture_audio) { error="reference silence requires audio capture";return {}; }
     if(reset!=DspProbeReset::KnownOnly && reset!=DspProbeReset::ReferenceZeroData) {
         error="invalid DSP probe reset policy";return {};
@@ -153,7 +158,7 @@ std::unique_ptr<DspExecutionProbe> DspExecutionProbe::Create(const Dsp1Image& im
         }
     }
     try {
-        return std::unique_ptr<DspExecutionProbe>(new DspExecutionProbe(std::make_unique<Impl>(image,reset,capture_audio,reference_silence,reference_transmit)));
+        return std::unique_ptr<DspExecutionProbe>(new DspExecutionProbe(std::make_unique<Impl>(image,reset,capture_audio,reference_silence,reference_transmit,boot_mode)));
     }catch(const std::bad_alloc&){error="host allocation failed creating DSP execution probe";}
      catch(...){error="DSP interpreter construction failed";}
     return {};
@@ -163,15 +168,23 @@ DspProbeState DspExecutionProbe::Advance(std::uint32_t budget) noexcept {
     if(!budget || s.state!=DspProbeState::Paused)return s.state;
     const auto limit=std::min(budget,kMaxStepsPerCall);
     try {
-        for(std::uint32_t i=0;i<limit && p.Poll();++i) {
+        for(std::uint32_t i=0;i<limit;++i) {
+            if(!p.boot_remaining) {
+                if(!p.Poll())break;
+                // The reference checks mailbox readiness only between complete
+                // executor slices. Returning the fourth word mid-slice can expose
+                // an uninitialized firmware callback to the next ARM message.
+                // Partial host budgets preserve this boundary; never add a guessed delay.
+                p.boot_remaining=p.boot_mode==DspBootMode::ReferenceSlice?kReferenceBootSlice:1;
+            }
             if(s.attempted_steps==std::numeric_limits<std::uint64_t>::max()) {
                 p.Fault(DspProbeFault::Backend,"DSP step counter exhausted");break;
             }
             s.pc_before=p.dsp.GetRegisterState().pc;++s.attempted_steps;
-            p.dsp.Run(1);++s.completed_steps;
+            p.dsp.Run(1);++s.completed_steps;--p.boot_remaining;
             s.pc_after=p.dsp.GetRegisterState().pc;
         }
-        if(s.state==DspProbeState::Paused)p.Poll();
+        if(s.state==DspProbeState::Paused && !p.boot_remaining)p.Poll();
     }catch(const std::exception& error){p.Fault(DspProbeFault::Backend,error.what());}
      catch(...){p.Fault(DspProbeFault::Backend,"unclassified DSP interpreter exception");}
     s.pc_after=p.dsp.GetRegisterState().pc;

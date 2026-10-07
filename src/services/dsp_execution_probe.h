@@ -7,6 +7,7 @@
 #include <span>
 
 namespace lego::ctr {
+enum class DspBootMode { Immediate, ReferenceSlice };
 enum class DspProbeReset { KnownOnly, ReferenceZeroData };
 struct DspProbeOptions {
     bool enabled{};
@@ -14,8 +15,9 @@ struct DspProbeOptions {
     std::uint32_t steps{100000};
     bool live{}; // Explicit integration; probe-only remains default.
     bool capture_audio{}; // Explicit bounded host capture; no playback or silent discard.
-    bool reference_transmit{}; // Opt-in documented preset + pinned FIFO-empty IRQ policy.
+    bool reference_transmit{}; // Opt-in bounded preset/IRQ gate + reference FIFO-empty source.
     bool reference_audio_silence{}; // Missing FIFO words tagged separately, opt-in only.
+    DspBootMode boot_mode{DspBootMode::Immediate}; // Explicit pinned-loader polling cadence.
 };
 enum class DspProbeState { Paused, ProtocolComplete, Fault };
 enum class DspProbeFault { None, UnknownSram, AddressRange, Backend, ExternalMemory, Audio, MailboxLimit };
@@ -51,8 +53,10 @@ struct DspCapturedAudioFrame {
 class DspExecutionProbe final {
 public:
     static constexpr std::uint32_t kMaxStepsPerCall = 100000;
+    static constexpr std::uint32_t kReferenceBootSlice = 16384; // Pinned LLE RunTeakraSlice, not a title-specific delay.
     static std::unique_ptr<DspExecutionProbe> Create(const Dsp1Image&, DspProbeReset,
-                                                    const char*& error, bool capture_audio=false, bool reference_silence=false, bool reference_transmit=false) noexcept;
+                                                    const char*& error, bool capture_audio=false, bool reference_silence=false, bool reference_transmit=false,
+                                                    DspBootMode boot_mode=DspBootMode::Immediate) noexcept;
     static constexpr std::size_t kAudioCaptureCapacity = 4096; // Host bound, not hardware FIFO.
     [[nodiscard]] std::span<const DspCapturedAudioFrame> captured_audio() const noexcept;
     ~DspExecutionProbe();
