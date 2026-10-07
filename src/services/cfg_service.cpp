@@ -21,8 +21,10 @@ constexpr auto kStereoBytes = [] {
 }();
 }
 
-CfgService::CfgService(CfgProfile profile, CfgSoundMode sound_mode)
-    : profile_(profile), sound_mode_(sound_mode) {
+CfgService::CfgService(CfgProfile profile, CfgSoundMode sound_mode, CfgLanguage language)
+    : profile_(profile), sound_mode_(sound_mode), language_(language) {
+    if (language != CfgLanguage::Unconfigured && static_cast<std::uint8_t>(language) > 11U)
+        throw std::invalid_argument("unsupported CFG language");
     if (sound_mode != CfgSoundMode::Unconfigured && sound_mode != CfgSoundMode::Mono &&
         sound_mode != CfgSoundMode::Stereo && sound_mode != CfgSoundMode::Surround)
         throw std::invalid_argument("unsupported CFG sound mode");
@@ -38,6 +40,8 @@ bool CfgService::CanHandle(const IpcCommandBuffer& q) const noexcept {
     // Size mismatches and other blocks remain host stops, not fabricated Results
     // or reference error-path zero output. No guest-controlled allocation size.
     if (q[0] != IpcMakeHeader(1, 2, 2)) return false;
+    if (q[2] == kCfgLanguageBlock)
+        return language_ != CfgLanguage::Unconfigured && q[1] == 1U && q[3] == 0x1CU;
     if (q[2] == kCfgSoundBlock)
         return sound_mode_ != CfgSoundMode::Unconfigured && q[1] == 1U && q[3] == 0x1CU;
     return profile_ == CfgProfile::ReferenceStereo && q[1] == kCfgStereoBytes &&
@@ -49,9 +53,11 @@ Result CfgService::Handle(IpcRouter& router, Kernel&, GuestMemory& memory,
     if (!CanHandle(q)) return kResultNotFound;
     const auto address = q[4];
     const auto size = q[1]; // CanHandle bounds this to exactly 1 or 32.
-    const std::array<std::uint8_t, 1> sound{static_cast<std::uint8_t>(sound_mode_)};
-    const std::span<const std::uint8_t> bytes = q[2] == kCfgSoundBlock
-        ? std::span<const std::uint8_t>(sound) : std::span<const std::uint8_t>(kStereoBytes);
+    const bool single_byte = q[2] == kCfgSoundBlock || q[2] == kCfgLanguageBlock;
+    const std::array<std::uint8_t, 1> value{q[2] == kCfgLanguageBlock
+        ? static_cast<std::uint8_t>(language_) : static_cast<std::uint8_t>(sound_mode_)};
+    const std::span<const std::uint8_t> bytes = single_byte
+        ? std::span<const std::uint8_t>(value) : std::span<const std::uint8_t>(kStereoBytes);
     if (std::uint64_t(address) + size > 0x100000000ULL ||
         !memory.IsWritable(address, size))
         return kResultInvalidPointer;

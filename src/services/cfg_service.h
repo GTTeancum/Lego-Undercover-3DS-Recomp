@@ -7,6 +7,15 @@ enum class CfgProfile { Unconfigured, ReferenceStereo };
 // User-selected host sound preference, independent of the camera profile.
 // Values match the pinned CFG SoundOutputMode enum; omitted stays unsupported.
 enum class CfgSoundMode : std::uint8_t { Mono = 0, Stereo = 1, Surround = 2, Unconfigured = 0xFF };
+// Explicit host language selection. The numeric byte is the pinned CFG
+// SystemLanguage value, not a claim that a particular title contains that locale.
+// Omitting the setting must retain the unimplemented-block stop.
+enum class CfgLanguage : std::uint8_t {
+    Japanese = 0, English = 1, French = 2, German = 3, Italian = 4, Spanish = 5,
+    ChineseSimplified = 6, Korean = 7, Dutch = 8, Portuguese = 9, Russian = 10,
+    ChineseTraditional = 11, Unconfigured = 0xFF
+};
+inline constexpr std::uint32_t kCfgLanguageBlock = 0x000A0002U;
 inline constexpr std::uint32_t kCfgSoundBlock = 0x00070001U;
 inline constexpr std::uint32_t kCfgStereoBlock = 0x00050005U;
 inline constexpr std::uint32_t kCfgStereoBytes = 32U;
@@ -17,7 +26,9 @@ inline constexpr std::uint32_t kCfgStereoBytes = 32U;
 class CfgService final : public IpcService {
 public:
     explicit CfgService(CfgProfile profile = CfgProfile::Unconfigured,
-                        CfgSoundMode sound_mode = CfgSoundMode::Unconfigured);
+                        CfgSoundMode sound_mode = CfgSoundMode::Unconfigured,
+                        CfgLanguage language = CfgLanguage::Unconfigured);
+    [[nodiscard]] CfgLanguage language() const noexcept { return language_; }
     [[nodiscard]] CfgSoundMode sound_mode() const noexcept { return sound_mode_; }
     [[nodiscard]] CfgProfile profile() const noexcept { return profile_; }
     [[nodiscard]] static const std::array<std::uint8_t, kCfgStereoBytes>&
@@ -28,5 +39,6 @@ public:
 private:
     const CfgProfile profile_;
     const CfgSoundMode sound_mode_;
+    const CfgLanguage language_;
 };
 } // namespace lego::ctr

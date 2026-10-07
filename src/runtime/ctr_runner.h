@@ -59,7 +59,8 @@ public:
                  CpuExecutionMode cpu_mode = CpuExecutionMode::Strict,
                  DspSpecialConfig dsp_config = {},
                  DspProbeOptions dsp_probe = {},
-                 CfgSoundMode cfg_sound_mode = CfgSoundMode::Unconfigured);
+                 CfgSoundMode cfg_sound_mode = CfgSoundMode::Unconfigured,
+                 CfgLanguage cfg_language = CfgLanguage::Unconfigured);
 
     bool InitializeMainThread(std::uint32_t entry_point = kTextBase,
                               std::uint32_t stack_top = kMainStackTop) noexcept;

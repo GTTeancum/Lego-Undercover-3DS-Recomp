@@ -3,216 +3,212 @@
 October 7, 2026. Continue in assistant scratch, NOT the user's PC or Work.
 LEGO City Undercover: The Chase Begins, Nintendo 3DS USA. Native/headless startup
 reconstruction, NOT playable. POST UPDATED DOWNLOADABLE MARKDOWN AND A COMPLETE
-SOURCE/EVIDENCE CHECKPOINT AT THE END OF EVERY WORK TURN. Only show meaningful genuine
-game output. No rendered logo, title screen, main menu or useful screenshot exists.
+SOURCE/EVIDENCE CHECKPOINT EVERY WORK TURN. Only show meaningful genuine game output;
+there is no rendered logo, title screen, main menu or worthwhile screenshot.
 
-## Canonical source and preservation
+## Current source and recovery
 
-This checkpoint extends published `0799795e30b277ad1a6cc7c05ac624c3110171eb`, exact
-baseline tree `a8888c11916da750bef68d10c3a67eecd3cca3e4`. The appended delivery receipt
-identifies final publication, exact tested tree, hosted tests and backup locations.
-Local Git is a reconstructed index/snapshot, NOT upstream history. Re-read remote
-main before publishing, reconcile concurrent changes, and never force-push a snapshot.
+This checkpoint extends main `9fc4085f346d49dbb1c3f549362a049b08505147`, exact base tree
+`e4b64d3897ed83ea99ab4fde2176879ef32ea89b`. Publication/hosted results and the exact new
+tree are in the appended downloadable receipt. Local Git is a reconstructed snapshot,
+NOT remote history. Re-read main, reconcile concurrent work, and never force-push it.
 
-The attached SOUND-SWIZZLE-PENDING variant was verified first: 1,757 manifest files,
-471 indexed source blobs, tree836c9e7fcc37c512b3860a1827e84cfad22428da. It is preserved
-unchanged separately in scratch and Library as Preserved-SOUND-SWIZZLE-PENDING.tgz/.md.
-Its source was NOT overlaid on the newer canonical implementation. The newer Library
-archive 0799795 verified 878 manifest entries/471 source blobs and the exact tree.
-Its archive SHA256 is d4fca7d264bf245bb458c0c3f2d2d0c122fb776a8114305e35c6a4a93decef11.
-The old alternate archive SHA256 is 75f642afc56c86cee10cf1b07b9969e6d01c247787852f83ed40cb6eca021a5f.
+The attached SOUND-SWIZZLE-PENDING archive passed 1,757 manifest and 471 source checks.
+Newer main/Library already had procedural LUT uploads and the finite-prefix audio
+file sink. That canonical 9fc4085 archive passed 1,078 manifest and 476 source checks,
+matching its complete published tree before edits. Archive SHA256:
+`a25d4a1cee9d1387a075b2174744d2ca97e14b7efef9bab0917779e2ebd37955`.
+The older alternate remains unchanged in attachments and Library as
+`Preserved-SOUND-SWIZZLE-PENDING.tgz/.md`; it was not overlaid onto newer source.
 
-Baseline full GCC build/all65 tests reproduced the uncommitted LUT request at round357.
-Original code/AOT archive and prepared RomFS parts were mounted; AOT was re-extracted
-and RomFS restored into a NEW file with hash checking. Prepared ExHeader came from
-the canonical checkpoint. No CCI extraction, user reupload, user-PC or Work access.
+Existing code/AOT archive and prepared RomFS parts were mounted. Re-extracted original
+603 AOT members and reassembled verified RomFS; no CCI extraction, new user upload or
+user-PC access. Baseline full GCC build/all 67 tests and original language stop at
+round 569 were reproduced. The prior LUT/upload/audio-file implementation is inherited.
 
-## Actual original-game progress
+## Actual new progress and next stop
 
-The original 23,360-byte graphics initialization list at round357 now commits fully:
-5,683 register writes;83 swizzle words;512 procedural-table words;one requested P3D
-relay entry and the real queue advance. Four procedural banks receive128 words each.
-Independent packet replay matches all1,842 register words and all new LUT/swizzle
-words/known flags. The previous83-word staged prefix is now genuinely committed,
-not merely a disposable plan. This is GPU initialization, NOT shader execution/drawing.
+New independent option: `--cfg-language en` (all accepted spellings below).
+The original game performs three English language reads, returning byte 1 to its
+actual destinations with exact IPC replies. All 64 captured neighbours, guest time,
+thread count and handle count remain unchanged across each read. No console locale
+is inferred or claimed recovered. Camera/sound settings remain independent.
 
-The game continues into original file reads. The old bounded memory audio consumer
-fills at round492; that is a diagnostic capacity limit, not a missing game function.
-New explicit `--dsp-audio-file NEW_FILE` consumes every actual emitted frame to disk
-without increasing the memory prefix, changing emulated time or discarding samples.
-It requires explicit live capture/reference-transmitter/diagnostic-dual selections.
+Language-enabled execution revealed two missing compiled-code locations. First:
+`0x00249B80`, a five-instruction original leaf. Second: `0x0024D3D0`, an original
+callback-return continuation established by the preceding guest LR computation.
+The latter has two basic blocks. Three PRIVATE build-generated blocks (13 words)
+now cover these holes; no PC is skipped, return value invented or game word patched.
 
-With that file sink the exact next stop is:
+English full run with the supplementary build option:
 
 ```
-stop=UnsupportedIpc pc=0x0025947c detail=0x32 thread=7 dispatch_rounds=569
-last_ipc_session=cfg:u request_header=0x00010082
-ipc_words=00010082 00000001 000a0002 0000001c 0e01ff18 ...
-cpu_ticks=42554166 core0_instructions=12856209 core1_instructions=99
-quota_transitions=140 display_periods=9 guest_now_ns=158717957
-DSP scheduled_slices=1148 notification_wait_slices=1 completed/attempted=18857984
+stop=UnsupportedIpc pc=0x0025947c detail=0x32 thread=7 dispatch_rounds=592
+last_ipc_session=dsp::DSP request_header=0x00130082
+ipc_words=00130082 142f0d80 00000800 00000000 ffff8001 ...
+cpu_ticks=44119742 core0_instructions=14421785 core1_instructions=99
+quota_transitions=146 display_periods=9 guest_now_ns=164557222
+DSP scheduled_slices=1195 notification_wait_slices=1 completed/attempted=19628032
 ```
 
-This is CFG language block0x000A0002, one byte to0x0E01FF18. The request, CPU and
-output plus captured neighbours are untouched. Seven threads/37 handles exist.
-Do not claim a language value, completed audio initialization or gameplay.
+This is DSP FlushDataCache for 2,048 bytes at `0x142F0D80`, current-process pseudo-handle
+`0xFFFF8001`. It remains unsupported. Seven threads and 37 handles exist. French reaches
+this operation at round 594; Spanish at round 592. Omitted language still stops at
+round 569; omitted sound at 295; omitted camera at 235. Keep these branches distinct.
 
-Audio file:4,598 complete stereo records, all actual FIFO source mask3 and all-zero
-startup samples. Memory retains the first4,096 records as a diagnostic prefix.
-No fallback frames, music/effects or audible playback on the observed new path.
-VRAM is NOT wholly zero anymore: its ONLY nonzero bytes are an819,200-byte depth
-clear at offset0x419400, repeating little-endian0x00FFFFFF. This is not an image.
-No rendered frame/logo/menu, game-shader execution or HID samples have been demonstrated.
-Never present clear patterns or silent samples as worthwhile screenshots/audio.
+The final English audio file contains 4,786 complete stereo records, all actual FIFO
+mask 3 and all-zero startup samples. No fallback frames, music, effects or playback.
+VRAM is only the inherited depth clear: 819,200 bytes at offset `0x419400`, repeating
+little-endian `0x00FFFFFF`; all other bytes zero. This is NOT a rendered image.
+No HID sampling, executed game shader, logo/title/menu or gameplay is demonstrated.
 
-## Procedural lookup upload contract
+## Language and supplemental-code contracts
 
-Configuration register0xAF: cursor bits0..7, table selector bits8..11. Tables are:
-0 noise128;2 color-map128;3 alpha-map128;4 color256;5 color-difference256.
-Data ports0xB0..0xB7 consume raw parameters regardless of their register byte mask.
-The masked register mirror still updates independently. Table address is cursor
-modulo capacity; cursor increments/wraps at8bits, preserving selector and other bits.
-Explicit per-entry written flags distinguish uploaded zero from unknown storage.
-Reserved selectors stop the disposable plan, rather than inventing a table.
+CFG language block `0xA0002` is one byte, exact request `00010082 1 A0002 1C pointer`;
+reply `00010042 0 1C pointer` with other words zero. Only the explicit language option
+enables it. Pinned SystemLanguage values 0..11 map to:
+ja, en, fr, de, it, es, zh-cn, ko, nl, pt, ru, zh-tw.
+All are component/parse tested; original-game runs here cover en/fr/es, not every locale.
+Other config fields are not invented. Existing pointer/descriptor/permission/physical
+alias/write-preparation safeguards remain unchanged. Language cannot activate camera
+or sound defaults, and neither other setting can activate language.
 
-Whole-list and whole-queue failure atomicity remain: a valid upload prefix followed
-by a draw, chain, fog upload or unsupported queue packet does not alter live tables,
-registers, queues or interrupts. Existing default/immediate-attribute guards remain.
-No renderer or procedural-texture evaluator is implemented here.
+NEW BUILD INPUT: `-DLEGO_SUPPLEMENT_CODE_BIN=/mnt/data/lego_recovery/restored/code.bin`.
+It is intentionally separate from runtime language selection. Without it, even with
+a language selected, the original `MissingBlock 0x249B80` stop remains. Do not forget
+this option and report a regression. No dynamic missing-PC decoder is installed.
 
-## Diagnostic audio file contract
+`tools/generate_aot_supplement.py` authenticates complete code.bin, uses the existing
+LLVM frontend/classifier, and emits static PRIVATE C++ only for reviewed ranges in
+`config/observed_aot_supplements.json`. Generation requires Python, clang and llvm-objdump
+at build time. The executable itself has no new runtime package/network dependency.
+Every added raw word is checked again against authenticated code at launch. The
+original 599 page units/all 603 saved AOT files are byte-identical, still linked.
 
-The optional DspAudioSink receives each real DspCapturedAudioFrame synchronously.
-The original finite in-memory mode remains unchanged when no sink is selected.
-With a sink, the first4096 frames remain inspectable; emitted_audio_frames is the
-separate total. Every later accepted frame must be written by the sink. Failure
-seals the DSP with possible partial FIFO/external-file effects; no retry/rollback
-or replacement silence is claimed. Attaching a sink does not enable reference silence.
+`host/SupplementalRegistry` creates a sorted, owned block/shard index using existing
+immutable operation arrays. Additions must fit original shard bounds and occupy
+holes: overlaps, duplicates, unaligned/empty/out-of-range spans are rejected. Base
+shards/blocks are never mutated. Existing opcode execution, dispatch, reservation,
+missing-PC and Thumb guards remain. The wrapper is neither movable nor copyable;
+its base/extra static op arrays outlive the index. No function result is hardcoded.
 
---dsp-audio-file is exclusive-create only. Existing files and symlinks are refused,
-not overwritten. No parent directories are invented. Stdio is flushed each record;
-short writes, flush/close errors and the64MiB record-data guard are explicit failures.
-Partial output files are retained as evidence. This is not fsync/power-loss durability.
-The file is closed after runner.Run and close failure is reported. No background
-thread, host playback, mixer, sample-rate conversion or invented waveform is added.
+## Completed validation
 
-Format DSPAUD1:32-byte header, followed by16-byte little-endian records. Header is
-8-byte `DSPAUD1\0`,u32 version1,u32 record-size16,then16 zero bytes. Record:
-s16 channel0,s16 channel1,u8 FIFO-source mask,three zero bytes,u64 interpreter attempt.
-No measured sample rate/physical L-R wiring is asserted; this is deliberately NOT WAV.
-Both source-mask bits are retained, including any EXPLICIT reference-silence policy.
-The strict observed run uses mask3 throughout. Host I/O affects wall-clock speed,
-not guest cycle charges. Windows code path exists but has NOT been tested.
+Full GCC and Clang builds link 599 original AOT page units plus the private generated
+supplement. All 69 configured CTest suites pass with each compiler and under ROM-free
+Clang ASan/UBSan, with leak checks/halt-on-error and exact JUnit/configured name equality.
+The previous 67 suites are unchanged. The two new suites cover language isolation,
+all enum values, exact byte copyout, malformed requests, permissions, aliases, allocation
+failure, reservations, registry merge/overlap/ranges/lifetime and synthetic execution.
 
-## Validation and evidence
+Six ordinary compiler pairs match stdout/stderr/exit and owned gamecoin/audio files:
+en, fr, es, unset language, no sound, no camera. Seven invalid-option pairs reject
+before original code is opened; twelve valid CLI spellings parse on both compilers.
+All 28 final capture files match byte-for-byte. Independent Python verifies three
+language copyouts, final DSP request, exact depth-only VRAM and 4,786 tagged audio records.
+Logging builds match ordinary CLI after normalizing ONLY the owned-root path.
+This is not an independent ARM/DSP CPU oracle or a complete ARM address-space dump.
 
-Full GCC/Clang native builds link all599 unchanged private AOT page units. All67
-CTest suites pass on both compilers and under ROM-free Clang ASan/UBSan with leak
-checking/halt-on-error. Earlier65 suites remain. New tests cover all upload ports,
-masks/selectors, cursor/table wrap, raw nonzero values, known flags, continuation,
-whole-batch rollback, retained guards, exclusive output creation, exact tagged record
-encoding, real executor delivery beyond the prefix, strict underrun and terminal
-sink failure. Linux test wrappers inject partial fwrite, fflush and fclose failures.
+Generator checks cover invalid ranges and disassembly disagreement, plus every original
+supplemental word. A separate test executes the actual generated leaf against a synthetic
+X/Y buffer and confirms it returns X and advances the pointer exactly once without
+changing source bytes/flags. It is component evidence, not original gameplay. Both
+compiler-generated supplement source files are identical. Code, raw RomFS, ExHeader,
+and all 603 original AOT members retain their recorded hashes. No full IVFC recheck,
+Windows/macOS, playback, renderer, or measured hardware-timing validation occurred.
 
-All194 final capture files match GCC to Clang. Independent Python replays the full
-command list's register effects, LUT and swizzle state, queue/P3D append; checks the
-next request/output unchanged; and verifies the exact depth clear and complete
-4,598-record file against the retained prefix. This is NOT an independent CPU
-emulator or complete ARM-address-space dump. No Windows/macOS, hardware-timing,
-playback or renderer test. Original-input and ordinary-matrix receipts are included.
-Six ordinary startup compiler pairs and six invalid-option pairs match. Original code,
-whole raw RomFS, ExHeader and all603 AOT members were reverified unchanged. Full IVFC
-block validation was not repeated. Hosted results and exact delivery identities
-are appended only after verification.
+Current evidence: `language-checkpoint/` including `proof.json`, `identity.json`,
+`matrix-results.json`, `matrix-*/`, `capture-pair/`, `cli-results.json`, complete final
+build/configure/test logs and JUnit, compiler versions, generator checks, original-leaf
+fixture, and setup notes. All current-turn job results are collected before delivery.
+Intermediate language-only/missing-block runs remain separately labeled; do not use
+those earlier stops or counts as the final result.
 
-Current evidence /mnt/data/lego_recovery/lut-checkpoint/: proof.json and
-verify_captures.py; tests.json/configured-*.json/junit-final-*.xml/test-final-*.log;
-matrix.json and pair-*/verified.json; capture-pair/{gcc,clang}; run_pair.py,
-validate_all.py, make_capture.py/inherited_capture_support.inc; identity.json;
-build/configure logs; references.json; setup-notes.txt. Alternate capture sources
-only add logging, link production libraries and independently reproduce the normal
-CLI stopping point. Original firmware/list/SRAM/sample captures stay PRIVATE.
+Production changes: CFG enum/read/constructor option, runner constructor wiring,
+CLI parsing/diagnostics, supplemental registry header/declaration, reviewed address
+manifest, build-time generator/CMake, two tests, and source reports/handoff. No CPU
+or DSP opcode implementation, DSP live backend, GPU renderer, filesystem or scheduler
+algorithm changed. No original game/AOT word was modified. Private generation and
+capture output must stay OUT of public source publication.
 
-A combined retest tool call was interrupted during ASan after adding stdio fault
-tests; it is not a completed pass. The separately collected final ASan run passed
-all67. All initiated jobs are collected before delivery. Direct codeload DNS and
-streaming container sessions were unavailable; Library source recovery succeeded.
+## Exact next work
 
-## Next exact work
+Inspect pinned DSP FlushDataCache's process-handle and address/size contract and the
+host's actual memory/coherency model. Current request is above; do not merely invent
+a cache or assume a successful external bus transaction. A coherent cacheless model
+may need no byte movement, but validate that against current memory and process state.
+External DSP AHB/FCRAM access, broader DSP lifecycle, playback, input and rasterization
+remain separate unsupported areas. Follow the original next request after justified
+implementation; do not force a render, interrupt, cache completion or pointer change.
 
-Establish an explicit language profile/source for CFG block0xA0002 and implement
-its one-byte read with correct output descriptor/permission/alias preflights. Do
-not infer language from camera/sound settings or pretend to recover console NAND.
-Rerun unchanged code from new owned state and follow the actual next request.
-Keep the file sink selected to avoid mistaking old finite-capture capacity for a
-startup blocker. Do not increase caps, drop samples, force GPU completion or change
-game/firmware code to fabricate progress. Meaningful visuals remain the goal.
+All earlier opt-ins remain explicit. The language option is NOT the camera profile.
+The audio file sink is needed to avoid the old finite in-memory capacity stop. ARM
+one-recorded-instruction/core/tick, synchronous DSP boot/waits and scheduled slices
+remain diagnostic conventions, not measured hardware latency or physical parallelism.
+The title ExHeader verifies Multi/max30 only. Use singular `reference-slice`.
 
-All earlier profiles stay explicit: PTM empty history, reference VRAM/display,
-camera CFG, sound choice, verified ExHeader Multi/max30, diagnostic-dual CPU,
-special missing-config fallback, reference DATA reset/transmitter, reference-slice
-boot and capture. The singular `reference-slice` is canonical. ARM one recorded
-instruction/core/tick, synchronous DSP boot/waits and slice scheduling remain
-reference diagnostic conventions, not measured hardware latency or parallelism.
+Primary language reference: Azahar `86a9f9236ae42bb5a2b995dbc933d599d8ea07ac`,
+`src/core/hle/service/cfg/cfg.h` blob `4c5275a343d62005d305b55668fbede285607132`,
+`cfg_defaults.cpp` blob `424664396a50c369dd7401b97372b924e28def2e` (Global/UserRead,
+one-byte enum). Its default English is not silently enabled here. Supplement metadata
+uses the existing local LLVM recovery frontend and original bytes. No PDF analysis
+or new hardware measurement. Next DSP reference is the same pin's dsp_dsp.cpp.
 
-Primary PICA pin: azahar-emu/azahar@86a9f9236ae42bb5a2b995dbc933d599d8ea07ac.
-regs_texturing.h blobeb190faff9a4d3c4c042ca1457b90ade8340de1c;
-pica_core.h blob62b04956bbf4795e09437b5463ee28904b29a30a;
-pica_core.cpp blob910ebc2021d8b546a79309ddfd4e080049c43043.
-No new hardware measurement/PDF analysis. The sink is a host facility, not firmware.
+## Scratch and reproducible commands
 
-## Scratch and exact reproduction
-
-Root /mnt/data/lego_recovery/. Source repo/. Full build-gcc/,build-clang/; ROM-free
-build-asan/. Private AOT generated2/; code restored/code.bin; raw RomFS
- game/prepared-romfs/romfs.bin; ExHeader prepared-launch/exheader.bin; raw parts and
-manifest romfs-library-roundtrip/. Current evidence lut-checkpoint/.
-Canonical baseline restored-0799795/; alternate preserved-sound-pending/ remain
-separate. Never extract historical source over current repo/.
+Root `/mnt/data/lego_recovery/`; source `repo/`; builds `build-gcc/`, `build-clang/`,
+`build-asan/`; AOT `generated2/`; code `restored/code.bin`; RomFS
+`game/prepared-romfs/romfs.bin`; ExHeader `prepared-launch/exheader.bin`;
+raw parts/manifest `romfs-library-roundtrip/`; current work `language-checkpoint/`.
+Restored canonical predecessor `restored-9fc4085/`; incoming archive `incoming-9fc4085/`.
+Never extract predecessor source over current repo. Scratch can reset.
 
 ```sh
 cd /mnt/data/lego_recovery
-cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DLEGO_AOT_DIR=/mnt/data/lego_recovery/generated2
+cmake -S repo -B build-gcc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DLEGO_AOT_DIR=/mnt/data/lego_recovery/generated2 -DLEGO_SUPPLEMENT_CODE_BIN=/mnt/data/lego_recovery/restored/code.bin
 cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure
-NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/language-next.XXXXXX)"
+NEW_ROOT="$(mktemp -d /mnt/data/lego_recovery/cache-next.XXXXXX)"
 mkdir -p "$NEW_ROOT/00048000/F000000B/user"
-./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle --cfg-profile reference-stereo --cfg-sound-mode stereo --cpu-mode diagnostic-dual --block-limit 100000000 --exheader prepared-launch/exheader.bin --dsp-special-profile empty-config --dsp-executor live-teakra --dsp-reset-profile reference-zero-data --dsp-transmit-profile reference-stereo --dsp-audio-mode capture --dsp-boot-mode reference-slice --dsp-audio-file "$NEW_ROOT/audio.dspaud"
+./build-gcc/LEGOChaseNative restored/code.bin --shared-extdata-root "$NEW_ROOT" --ptm-step-mode empty --romfs game/prepared-romfs/romfs.bin --gpu-vram-mode reference-zero --display-clock-mode reference-idle --cfg-profile reference-stereo --cfg-sound-mode stereo --cfg-language en --cpu-mode diagnostic-dual --block-limit 100000000 --exheader prepared-launch/exheader.bin --dsp-special-profile empty-config --dsp-executor live-teakra --dsp-reset-profile reference-zero-data --dsp-transmit-profile reference-stereo --dsp-audio-mode capture --dsp-boot-mode reference-slice --dsp-audio-file "$NEW_ROOT/audio.dspaud"
 ```
 
-Expected exit3, CFG language request round569. Without ONLY file option/value the
-finite memory consumer stops at round492. Omitting sound stays at round295. Keep
-profiles distinct. Use clang++ for Clang; omit AOT for sanitizer builds, Debug-O1
-with -fsanitize=address,undefined -fno-omit-frame-pointer and matching linker flags.
-ASAN_OPTIONS=detect_leaks=1:halt_on_error=1; UBSAN_OPTIONS=halt_on_error=1.
+Expected exit 3: DSP FlushDataCache round 592 for English, not completed visual boot.
+Clang uses clang++. ROM-free sanitizers omit BOTH AOT and supplement input options;
+Debug -O1 with address/undefined instrumentation/frame pointers and matching linker
+flags, leak checks/halt-on-error. `build_final.py` records exact commands. Supplemental
+C++/JSON are under each build's `private-generated/` and can be regenerated. They
+must not be published or substituted for all original AOT inputs.
 
-Capture/pair drivers refuse existing output directories. New lut-owned.*,lut-first.*, 
-lut-stream-first.* and lut-baseline.* are owned test roots, not console NAND. Drivers
-only delete their own just-created hash-verified20-byte gamecoin/audio file to pair
-compilers on identical paths. Preserve unknown saves and evidence.
+Capture generation: `python language-checkpoint/make_capture.py gcc` (or clang).
+`validate_pairs.py` and capture code require NEW output directories. New
+`language-owned.*`/`language-paired.*` roots are owned TEST state, not recovered NAND.
+Drivers remove only their own just-created, copied/hash-verified gamecoin/audio files
+when pairing compilers on the same path. Never overwrite unknown saves or evidence.
 
-## Durable recovery and every-turn mandate
+## Durable recovery and mandatory delivery
 
-GitHub GTTeancum/Lego-Undercover-3DS-Recomp; Library /LEGO-Chase-Recovery/.
-Verify CHECKPOINT-MANIFEST.json before extraction, then SOURCE-INDEX.json exact
-paths/modes/Git blobs, including tracked ignored reports. Complete source/current
-private evidence, prepared launch, parts manifest, exact patch and verifier are in
-the new checkpoint. Historical archives stay separate, not recursively embedded.
-Restore source indexes as snapshots, never invent upstream ancestry or force-push.
+GitHub `GTTeancum/Lego-Undercover-3DS-Recomp`; Library `/LEGO-Chase-Recovery/`.
+The archive contains complete indexed source and current private evidence, small
+prepared launch input, parts manifest, source/member index/verifier, exact patch
+against 9fc4085 and actual publication/backup receipts. Verify the member manifest
+and exact Git source blobs/modes, including tracked ignored reports, before use.
+Never reconstruct fake upstream ancestry or force-push a snapshot. Earlier archives
+stay separate; current source does not require recursively unpacking their history.
 
-Separate original Library inputs:code.bin;LEGO-Chase-current-AOT-599pages-2026-10-03.tgz
-(unpacks generated2/);Prepared-RomFS/two raw parts+romfs-parts.json;
-Prepared-Launch/exheader.bin. Parts402653184+366526464 restore through
-repo/tools/restore_romfs_parts.py into a NEW file. Raw RomFS769179648 bytes,
-native view offset4096/size769175552. Preserve integrity tables. No CCI extraction.
-Code SHA5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f.
-AOT SHA2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9.
-RomFS SHA6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf.
-ExHeader SHAd7641f0a3bb89697ca8f0751e88d31703b54aa185ac78f9e74e41169dfcdc004.
+Separate Library inputs: `code.bin`; `LEGO-Chase-current-AOT-599pages-2026-10-03.tgz`
+(unpacks generated2/); `Prepared-RomFS/` two raw parts plus manifest;
+`Prepared-Launch/exheader.bin`. Parts 402653184+366526464 reassemble with
+`repo/tools/restore_romfs_parts.py` into a NEW file. Raw RomFS 769179648 bytes, native
+view offset4096/length769175552. Preserve integrity tables. No CCI extraction or
+extra game upload is required. Original SHA256 identities:
+code `5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f`;
+AOT `2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9`;
+RomFS `6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf`;
+ExHeader `d7641f0a3bb89697ca8f0751e88d31703b54aa185ac78f9e74e41169dfcdc004`.
 
-Raw original PICA lists, DSP/SRAM/sample captures and ExHeader NEVER enter public
-GitHub. No code.bin/private AOT/rawRomFS/CCI/.git/build binaries are embedded in the
-source/evidence archive. Scratch may reset; attachments/Library/GitHub are recovery
-routes, not permanent scratch. Record publication, CI and saved-file verification
-only after success. POST UPDATED DOWNLOADABLE MARKDOWN AND RECOVERABLE SOURCE/EVIDENCE
-AT THE END OF EVERY WORK TURN.
+Raw original code, generated opcode words, DSP/PICA/SRAM/audio/ExHeader captures
+NEVER enter public GitHub. Original code/AOT/rawRomFS/CCI, .git and compiled binaries
+are excluded from the source/evidence archive. Private metadata/captures remain
+private. Append only actually verified CI/publication/saved-file receipts. POST
+UPDATED DOWNLOADABLE MARKDOWN AND RECOVERABLE SOURCE/EVIDENCE EVERY WORK TURN.

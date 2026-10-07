@@ -5,6 +5,10 @@
 #include "host/dsp_audio_file.h"
 #include "services/dsp_discovery_service.h"
 #include "lego_aot_generated.h"
+#ifdef LEGO_HAVE_AOT_SUPPLEMENT
+#include "host/aot_supplement.h"
+#include "host/supplemental_registry.h"
+#endif
 #include <charconv>
 #include <fstream>
 #include <iomanip>
@@ -84,7 +88,7 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cfg-sound-mode mono|stereo|surround] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-audio-file NEW_FILE] [--dsp-transmit-profile reference-stereo] [--dsp-boot-mode reference-slice]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cfg-sound-mode mono|stereo|surround] [--cfg-language ja|en|fr|de|it|es|zh-cn|ko|nl|pt|ru|zh-tw] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-audio-file NEW_FILE] [--dsp-transmit-profile reference-stereo] [--dsp-boot-mode reference-slice]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
@@ -100,6 +104,8 @@ int main(int argc,char** argv) {
         auto cfg_profile=ctr::CfgProfile::Unconfigured;
         auto cfg_sound_mode=ctr::CfgSoundMode::Unconfigured;
         std::string_view cfg_sound_name;
+        auto cfg_language=ctr::CfgLanguage::Unconfigured;
+        std::string_view cfg_language_name;
         auto cpu_mode=ctr::CpuExecutionMode::Strict;
         auto ptm_step_mode = ctr::PtmStepMode::Unconfigured;
         std::uint32_t block_limit=1000000,event_limit=4096;
@@ -170,6 +176,19 @@ int main(int argc,char** argv) {
                 if (std::string_view(argv[i+1])!="reference-stereo")
                     throw std::runtime_error("CFG profile must be reference-stereo (or omit the option)");
                 cfg_profile=ctr::CfgProfile::ReferenceStereo;
+            }
+            else if (option=="--cfg-language") {
+                if (cfg_language != ctr::CfgLanguage::Unconfigured)
+                    throw std::runtime_error("select CFG language only once");
+                // Index order matches the pinned CFG SystemLanguage enum.
+                constexpr std::array<std::string_view, 12> names{
+                    "ja", "en", "fr", "de", "it", "es", "zh-cn", "ko", "nl", "pt", "ru", "zh-tw"
+                };
+                cfg_language_name=argv[i+1];
+                for (std::size_t n=0;n<names.size();++n)
+                    if (cfg_language_name==names[n]) cfg_language=static_cast<ctr::CfgLanguage>(n);
+                if (cfg_language==ctr::CfgLanguage::Unconfigured)
+                    throw std::runtime_error("CFG language must be ja, en, fr, de, it, es, zh-cn, ko, nl, pt, ru or zh-tw (or omit it)");
             }
             else if (option=="--cfg-sound-mode") {
                 if (cfg_sound_mode != ctr::CfgSoundMode::Unconfigured)
@@ -251,7 +270,15 @@ int main(int argc,char** argv) {
         const auto digest=lego::host::Sha256(code);
         if (digest!=kCodeHash) throw std::runtime_error("wrong code.bin SHA-256: "+digest);
         std::cout<<"code_sha256="<<digest<<'\n';
+#ifdef LEGO_HAVE_AOT_SUPPLEMENT
+        lego::host::SupplementalRegistry supplemented(oot3d::recomp::GetA32GeneratedRegistry(),
+                                                    lego::host::GetAotSupplementalBlocks());
+        const auto& registry=supplemented.registry();
+        std::cout<<"aot_supplement_blocks="<<lego::host::GetAotSupplementalBlocks().size()
+                 <<" source=verified_private_build_time original_pages_unchanged=true runtime_decode=false\n";
+#else
         const auto& registry=oot3d::recomp::GetA32GeneratedRegistry();
+#endif
         ValidateRegistry(registry,code);
         ctr::GuestMemory memory;
         if (!memory.LoadLegoCodeImage(code)) throw std::runtime_error("image mapping failed");
@@ -270,13 +297,16 @@ int main(int argc,char** argv) {
             audio_file=lego::host::DspAudioFile::Open(dsp_audio_path);
             dsp_probe.audio_sink=audio_file;
         }
-        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile,cpu_mode,dsp_config,dsp_probe,cfg_sound_mode);
+        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile,cpu_mode,dsp_config,dsp_probe,cfg_sound_mode,cfg_language);
         if (!shared_extdata_root.empty())
             std::cout << "shared_extdata_root=" << shared_extdata_root.generic_string() << '\n';
         if (ptm_step_mode == ctr::PtmStepMode::EmptyHistory)
             std::cout << "ptm_step_source=explicit_empty_history total_steps="<<0<<" sensor_input=none\n";
         if (vram_mode==ctr::GpuVramMode::ReferenceZero)
             std::cout << "gpu_vram_source=pinned_hle_zero_initialization bytes=6291456 cpu_mapping=none\n";
+        if (cfg_language!=ctr::CfgLanguage::Unconfigured)
+            std::cout<<"cfg_language="<<cfg_language_name<<" value="<<unsigned(cfg_language)
+                     <<" source=explicit_host_selection recovered_console_setting=false\n";
         if (cfg_sound_mode!=ctr::CfgSoundMode::Unconfigured)
             std::cout<<"cfg_sound_mode="<<cfg_sound_name<<" value="<<unsigned(cfg_sound_mode)
                      <<" source=explicit_host_preference recovered_console_setting=false playback=unchanged\n";

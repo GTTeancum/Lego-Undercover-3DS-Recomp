@@ -1,0 +1,20 @@
+{
+  "format": "lego_observed_aot_supplements_v1",
+  "blocks": [
+    {
+      "entry": "0x00249B80",
+      "end": "0x00249B94",
+      "evidence": "Original thread 7 indirect dispatch after CFG language reads reaches an unrecorded five-instruction leaf. End is exclusive. Generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x0024D3D0",
+      "end": "0x0024D3DC",
+      "evidence": "Observed thread 7 callback return. The original ADD LR,PC,#8 at 0x0024D3C0 establishes return 0x0024D3D0; recorded block ended at the indirect call. Conditional-branch block."
+    },
+    {
+      "entry": "0x0024D3DC",
+      "end": "0x0024D3F0",
+      "evidence": "Fallthrough of 0x0024D3D8, bounded by original unconditional branch to existing recorded block at 0x0024D3A8."
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "base_commit": "9fc4085f346d49dbb1c3f549362a049b08505147",
+  "scope": "Local full native GCC/Clang with build-time supplements; ROM-free sanitizers; not hardware or independent CPU oracle",
+  "tests": {
+    "gcc": {
+      "passed": 69,
+      "configured_names_equal": true,
+      "full_game_aot": true
+    },
+    "clang": {
+      "passed": 69,
+      "configured_names_equal": true,
+      "full_game_aot": true
+    },
+    "asan": {
+      "passed": 69,
+      "configured_names_equal": true,
+      "full_game_aot": false
+    }
+  },
+  "language_calls": [
+    {
+      "address": 235011864,
+      "time_ns": 158717957,
+      "handles": 37,
+      "threads": 7,
+      "thread": 7
+    },
+    {
+      "address": 235011856,
+      "time_ns": 162151811,
+      "handles": 37,
+      "threads": 7,
+      "thread": 7
+    },
+    {
+      "address": 235011688,
+      "time_ns": 162211011,
+      "handles": 37,
+      "threads": 7,
+      "thread": 7
+    }
+  ],
+  "vram": {
+    "sha256": "443f3a20720a0535f93ab184651deee779c73efae0790fb4ab406fb266c6c695",
+    "nonzero_bytes": 614400,
+    "only_depth_clear": true,
+    "rendered_frame": false
+  },
+  "audio": {
+    "frames": 4786,
+    "all_fifo_provenance": true,
+    "all_startup_silence": true,
+    "playback": false
+  },
+  "next_request": {
+    "name": "DSP FlushDataCache",
+    "words": [
+      1245314,
+      338627968,
+      2048,
+      0,
+      4294934529
+    ],
+    "final": {
+      "rounds": 592,
+      "thread": 7,
+      "time_ns": 164557222,
+      "threads": 7,
+      "handles": 37,
+      "pc": 2462844
+    }
+  },
+  "inputs": {
+    "original_hashes": {
+      "restored/code.bin": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f",
+      "game/prepared-romfs/romfs.bin": "6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf",
+      "prepared-launch/exheader.bin": "d7641f0a3bb89697ca8f0751e88d31703b54aa185ac78f9e74e41169dfcdc004",
+      "restored/LEGO-Chase-current-AOT-599pages-2026-10-03.tgz": "2dd483e571bdb8f83a2ec7f60374f7370e9e57e39351c06e77ea8de170f121a9"
+    },
+    "aot_regular_members": 603,
+    "supplemental_blocks": 3,
+    "supplemental_words": 13,
+    "full_ivfc_repeated": false
+  },
+  "ordinary_compiler_pairs": [
+    {
+      "case": "english",
+      "language": "en",
+      "exit": 3,
+      "equal": true
+    },
+    {
+      "case": "french",
+      "language": "fr",
+      "exit": 3,
+      "equal": true
+    },
+    {
+      "case": "spanish",
+      "language": "es",
+      "exit": 3,
+      "equal": true
+    },
+    {
+      "case": "unconfigured",
+      "language": null,
+      "exit": 3,
+      "equal": true
+    },
+    {
+      "case": "no-sound",
+      "language": "en",
+      "exit": 3,
+      "equal": true
+    },
+    {
+      "case": "no-camera",
+      "language": "en",
+      "exit": 3,
+      "equal": true
+    }
+  ],
+  "matching_capture_files": 28,
+  "invalid_cli_pairs": 7,
+  "valid_language_spellings": 12
+}
