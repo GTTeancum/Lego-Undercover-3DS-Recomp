@@ -1,0 +1,71 @@
+name: Exact DSP pipe-read candidate
+on:
+  push:
+    branches: [work/dsp-pipe-read-import]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.prepare.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: driver
+      - uses: actions/checkout@v6
+        with:
+          ref: 5e7b03ed29724a7647c2b86cfedf4e99cb9b70c7
+          path: candidate
+      - id: prepare
+        name: Verify exact patch and source before candidate publication
+        run: python driver/.github/prepare-pipe-read.py driver/.github/pipe-read-implementation.gz candidate
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pipe-read-candidate-receipt
+          path: receipt/
+          retention-days: 30
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: gcc
+            compiler: g++
+            sanitize: false
+          - label: clang
+            compiler: clang++
+            sanitize: false
+          - label: sanitizers
+            compiler: clang++
+            sanitize: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - name: Configure ROM-free runtime
+        shell: bash
+        run: |
+          extra=()
+          if [ '${{ matrix.sanitize }}' = true ]; then
+            extra+=('-DCMAKE_CXX_FLAGS=-O1 -fsanitize=address,undefined -fno-omit-frame-pointer' '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined')
+          fi
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} "${extra[@]}"
+      - name: Build
+        run: cmake --build build --parallel 3
+      - name: Test all ROM-free suites
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --output-on-failure --output-junit junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pipe-read-${{ matrix.label }}
+          path: |
+            build/junit.xml
+            build/Testing/Temporary/LastTest.log
+          retention-days: 30
