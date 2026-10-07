@@ -29,6 +29,14 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_),
       display_mode_(display_mode), display_clock_(kernel.now_ns()),
       cpu_mode_(cpu_mode),diagnostic_origin_(kernel.now_ns()) {
+    if(dsp_probe.reference_transmit && (!dsp_probe.enabled || !dsp_probe.live))
+        throw std::invalid_argument("reference DSP transmitter requires live-teakra");
+    if(dsp_probe.capture_audio && !dsp_probe.reference_transmit)
+        throw std::invalid_argument("DSP audio capture requires explicit reference transmit profile");
+    if(dsp_probe.reference_audio_silence && !dsp_probe.capture_audio)
+        throw std::invalid_argument("reference underflow silence requires explicit capture");
+    if(dsp_probe.capture_audio && (!dsp_probe.enabled || !dsp_probe.live))
+        throw std::invalid_argument("DSP audio capture requires a live executor");
     if(dsp_probe.live && (!dsp_probe.enabled || cpu_mode!=CpuExecutionMode::DiagnosticDual))
         throw std::invalid_argument("live DSP requires enabled executor and diagnostic-dual clock");
     if(!kernel_.ConfigureCpuExecution(cpu_mode))

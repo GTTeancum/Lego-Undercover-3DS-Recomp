@@ -112,7 +112,7 @@ Result DspDiscoveryService::Handle(IpcRouter& router,Kernel& kernel,GuestMemory&
         special_receipt_=receipt;
         if (probe_options_.enabled) {
             const char* error=nullptr;
-            auto probe=DspExecutionProbe::Create(*inspected_,probe_options_.reset,error);
+            auto probe=DspExecutionProbe::Create(*inspected_,probe_options_.reset,error,probe_options_.capture_audio,probe_options_.reference_audio_silence,probe_options_.reference_transmit);
             if (!probe) {
                 router.RequestHostStop(error);return kResultSuccess;
             }

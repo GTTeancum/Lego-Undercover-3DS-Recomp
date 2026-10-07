@@ -45,7 +45,7 @@ struct Teakra::Impl {
         apbp_from_cpu.SetSemaphoreHandler([this]() { icu.TriggerSingle(0xE); });
 
         btdmp[0].SetInterruptHandler([this]() { icu.TriggerSingle(0xB); });
-        btdmp[1].SetInterruptHandler([this]() { icu.TriggerSingle(0xB); });
+        btdmp[1].SetInterruptHandler([this]() { icu.TriggerSingle(0xC); });
 
         dma.SetInterruptHandler([this]() { icu.TriggerSingle(0xF); });
     }
@@ -204,3 +204,16 @@ std::uint16_t Teakra::DMAChan0GetDstHigh() {
 }
 
 } // namespace Teakra
+
+namespace Teakra {
+void Teakra::SetAudioCaptureCallback(std::function<void(std::array<std::int16_t,2>,std::uint8_t)> callback,
+                                     bool reference_silence) {
+    impl->btdmp[0].SetAudioCaptureCallback(std::move(callback),reference_silence);
+}
+}
+
+namespace Teakra {
+void Teakra::SetReferenceTransmitProfile(bool enabled) {
+    for (auto& port : impl->btdmp) port.SetReferenceTransmitProfile(enabled);
+}
+}

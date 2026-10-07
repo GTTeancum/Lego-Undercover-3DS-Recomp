@@ -83,14 +83,14 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-transmit-profile reference-stereo]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
         std::filesystem::path shared_extdata_root, romfs_path, exheader_path;
         ctr::DspSpecialConfig dsp_config;
         ctr::DspProbeOptions dsp_probe;
-        bool dsp_executor_selected=false,dsp_reset_selected=false,dsp_steps_selected=false;
+        bool dsp_executor_selected=false,dsp_reset_selected=false,dsp_steps_selected=false,dsp_audio_selected=false;
         std::filesystem::path dsp_special_path;
         bool dsp_special_selected=false;
         auto vram_mode=ctr::GpuVramMode::Unconfigured;
@@ -113,6 +113,17 @@ int main(int argc,char** argv) {
                     throw std::runtime_error("select DSP executor guarded-teakra or live-teakra once, or omit it");
                 dsp_executor_selected=true;dsp_probe.enabled=true;
                 dsp_probe.live=std::string_view(argv[i+1])=="live-teakra";
+            }
+            else if (option=="--dsp-transmit-profile") {
+                if(dsp_probe.reference_transmit || std::string_view(argv[i+1])!="reference-stereo")
+                    throw std::runtime_error("select DSP transmit profile reference-stereo once, or omit it");
+                dsp_probe.reference_transmit=true;
+            }
+            else if (option=="--dsp-audio-mode") {
+                if(dsp_audio_selected || (std::string_view(argv[i+1])!="capture" && std::string_view(argv[i+1])!="capture-reference-silence"))
+                    throw std::runtime_error("select DSP audio mode capture or capture-reference-silence once, or omit it");
+                dsp_audio_selected=true;dsp_probe.capture_audio=true;
+                dsp_probe.reference_audio_silence=std::string_view(argv[i+1])=="capture-reference-silence";
             }
             else if (option=="--dsp-reset-profile") {
                 if(dsp_reset_selected || std::string_view(argv[i+1])!="reference-zero-data")
@@ -180,6 +191,8 @@ int main(int argc,char** argv) {
             }
             else throw std::runtime_error("unknown option");
         }
+        if(dsp_audio_selected && !dsp_probe.live)
+            throw std::runtime_error("DSP audio capture requires --dsp-executor live-teakra");
         if(dsp_probe.live && cpu_mode!=ctr::CpuExecutionMode::DiagnosticDual)
             throw std::runtime_error("live-teakra requires --cpu-mode diagnostic-dual");
         if((dsp_reset_selected || dsp_steps_selected) && !dsp_probe.enabled)
@@ -253,6 +266,11 @@ int main(int argc,char** argv) {
                      <<(dsp_probe.reset==ctr::DspProbeReset::ReferenceZeroData?"explicit_reference_zero":"known_image_only")
                      <<" program_gaps=unknown step_limit="<<dsp_probe.steps<<'\n';
         const auto result=runner.Run(block_limit,event_limit);
+        if(dsp_probe.reference_transmit) std::cout << "dsp_transmit_profile=reference-stereo irq=reference_fifo_empty hardware_format=unverified\n";
+        if(dsp_probe.capture_audio && runner.dsp_diagnostics().execution_probe())
+            std::cout << "dsp_audio_mode=capture frames=" << runner.dsp_diagnostics().execution_probe()->captured_audio().size()
+                      << " underflow=" << (dsp_probe.reference_audio_silence?"explicit_reference_silence":"stop")
+                      << " playback=none capacity=" << ctr::DspExecutionProbe::kAudioCaptureCapacity << '\n';
         if(const auto* device=runner.dsp_diagnostics().live_device())
             std::cout<<"dsp_live_loaded=1 data_base=0x1ff40000 scheduled_slices="<<device->slices()
                      <<" next_deadline_ns="<<device->next_deadline_ns().value_or(0)<<'\n';

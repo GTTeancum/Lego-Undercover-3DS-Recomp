@@ -1,0 +1,75 @@
+{
+  "tested_parent": "b0ba35cbd462ce9f3e0a7345023cd8c1e03a86c0",
+  "tests": {
+    "gcc": {
+      "passed": true,
+      "count": 60
+    },
+    "clang": {
+      "passed": true,
+      "count": 60
+    },
+    "asan": {
+      "passed": true,
+      "count": 60
+    }
+  },
+  "original_modes": {
+    "strict-capture": {
+      "matching_files": 173,
+      "frames": 8,
+      "fifo_frames": 8,
+      "reference_underflow_frames": 0,
+      "nonzero_frames": 0,
+      "scheduled_slices": 2,
+      "cpu_issued": [
+        2287384,
+        0
+      ],
+      "guest_time_ns": 18752595,
+      "vram_all_zero": true,
+      "mailbox_response_pending": true
+    },
+    "reference-silence": {
+      "matching_files": 211,
+      "frames": 4096,
+      "fifo_frames": 8,
+      "reference_underflow_frames": 4088,
+      "nonzero_frames": 0,
+      "scheduled_slices": 1024,
+      "cpu_issued": [
+        2289379,
+        99
+      ],
+      "guest_time_ns": 143659030,
+      "vram_all_zero": true,
+      "mailbox_response_pending": true
+    }
+  },
+  "ordinary_compiler_pairs": 5,
+  "cli_guard_pairs": 11,
+  "source_identity": {
+    "code.bin": {
+      "bytes": 2650112,
+      "sha256": "5b14d798bd510957b98fae753c128fac25b683f78203170f5297274a1894132f"
+    },
+    "romfs.bin": {
+      "bytes": 769179648,
+      "sha256": "6e767bd3b308a72dae8d45ccd830f21306e79f6b19539b38da500e3779b709cf"
+    },
+    "exheader.bin": {
+      "bytes": 2048,
+      "sha256": "d7641f0a3bb89697ca8f0751e88d31703b54aa185ac78f9e74e41169dfcdc004"
+    },
+    "AOT_members": 603
+  },
+  "no_claim": [
+    "audible playback",
+    "music",
+    "completed audio-startup response",
+    "hardware accurate timing",
+    "rendered frame",
+    "main menu",
+    "gameplay"
+  ]
+}

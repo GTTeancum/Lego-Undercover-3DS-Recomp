@@ -13,6 +13,9 @@ struct DspProbeOptions {
     DspProbeReset reset{DspProbeReset::KnownOnly};
     std::uint32_t steps{100000};
     bool live{}; // Explicit integration; probe-only remains default.
+    bool capture_audio{}; // Explicit bounded host capture; no playback or silent discard.
+    bool reference_transmit{}; // Opt-in documented preset + pinned FIFO-empty IRQ policy.
+    bool reference_audio_silence{}; // Missing FIFO words tagged separately, opt-in only.
 };
 enum class DspProbeState { Paused, ProtocolComplete, Fault };
 enum class DspProbeFault { None, UnknownSram, AddressRange, Backend, ExternalMemory, Audio, MailboxLimit };
@@ -34,6 +37,12 @@ struct DspProbeSummary {
     std::array<char,240> error{};
     bool operator==(const DspProbeSummary&) const = default;
 };
+struct DspCapturedAudioFrame {
+    std::array<std::int16_t,2> samples{}; // FIFO order; not a newly measured L/R map.
+    std::uint8_t fifo_mask{};          // Bits 0/1: actual FIFO words, else reference underflow.
+    std::uint64_t during_run_call{};     // Interpreter attempt, not hardware time.
+    bool operator==(const DspCapturedAudioFrame&) const = default;
+};
 // Guarded DSP execution. Advance is a synchronous host-only boot probe; only
 // DspLiveDevice connects its completed state to the explicit live runtime. The
 // executor itself never commits IPC, ARM interrupts, timers, sound or a loaded flag.
@@ -43,7 +52,9 @@ class DspExecutionProbe final {
 public:
     static constexpr std::uint32_t kMaxStepsPerCall = 100000;
     static std::unique_ptr<DspExecutionProbe> Create(const Dsp1Image&, DspProbeReset,
-                                                    const char*& error) noexcept;
+                                                    const char*& error, bool capture_audio=false, bool reference_silence=false, bool reference_transmit=false) noexcept;
+    static constexpr std::size_t kAudioCaptureCapacity = 4096; // Host bound, not hardware FIFO.
+    [[nodiscard]] std::span<const DspCapturedAudioFrame> captured_audio() const noexcept;
     ~DspExecutionProbe();
     DspExecutionProbe(const DspExecutionProbe&)=delete;
     DspExecutionProbe& operator=(const DspExecutionProbe&)=delete;

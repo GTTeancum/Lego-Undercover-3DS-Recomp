@@ -200,7 +200,8 @@
     "assertions throw instead of abort",
     "unknown MMIO/no-op handlers reject instead of silently store/zero",
     "Logical ICU mode/polarity/manual pipeline/pending/ack/master-enable behavior from GBATEK 3.03, with explicit diagnostic pin/tick assumptions",
-    "ICU vector read masks and reset defaults; pending core notification reset and unsupported vectored-arbitration guard"
+    "ICU vector read masks and reset defaults; pending core notification reset and unsupported vectored-arbitration guard",
+    "Opt-in bounded BTDMP reference TX preset, pinned FIFO-empty source, strict/tagged underrun handling and bounded audio consumer; fixed skipped-output deadlines and port1 IRQ routing"
   ],
   "local_icu_reference": {
     "author": "Martin Korth",
@@ -225,5 +226,32 @@
     "src/teakra.cpp": "23996ec2af02a3e8cd96ab6cc1806be04615613912d9d1f3ae61667dfe7d3bed",
     "src/interpreter.h": "12c75300810db8445b2e08252f8ffe052f14646eb58c7b2c27a321a3fe5eacbc",
     "src/processor.cpp": "63a19d73691fed5453938b7f11a015bcf735577b4e8a4b66f640dad69f6cfccc"
+  },
+  "local_btdmp_reference": {
+    "upstream_commit": "3d697a18df504f4677b65129d9ab14c7c597e3eb",
+    "btdmp_cpp_blob": "20a1f09458cff63ef5d1ce3d19b64763b57bcb1a",
+    "btdmp_notes_blob": "7daf7f8054e3513993c4edcf6863576fc1574c3d",
+    "author": "Martin Korth",
+    "document": "GBATEK no$gba 3.03, DSi Teak BTDMP",
+    "url": "https://pcy.be/tmp/img/gbatek.pdf",
+    "printed_pages": [
+      365,
+      366,
+      367
+    ],
+    "pdf_zero_based_pages": [
+      390,
+      391,
+      392
+    ],
+    "accessed": "2026-10-06",
+    "limitations": "Parsed reference text was available; web page screenshots failed cache retrieval. No new hardware measurements. Control IRQ bit interpretations disagree/are incomplete. Exact reference-stereo preset retains upstream FIFO-empty IRQ instead of speculative bit decoding. External period4096 and FIFO order remain reference assumptions. Other control words/modes fail closed."
+  },
+  "btdmp_checkpoint_patched_sha256": {
+    "src/btdmp.h": "fb56c56f394fd6a716238a90c1bb355a337048ad706cd0310eb0b64f53752c61",
+    "src/btdmp.cpp": "c40cdb69a344177b42ffc4625c9f85ac06eebadc39db5e63f311cda6eac76c44",
+    "src/mmio.cpp": "af7c4a872fb117b7512901a1ed917ccb50858098c4d9d5581cf0e0e09fcc1dd1",
+    "src/teakra.cpp": "155df938a8b88140d05b42a198a2d36c5cd51eabf9de3dd62079b7240c5fd512",
+    "include/teakra/teakra.h": "861143d485f26f7828b7676b142113d8c2ac92ca978d5135374d046daef5d0b9"
   }
 }

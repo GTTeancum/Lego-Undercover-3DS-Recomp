@@ -89,6 +89,12 @@ public:
     void SetAHBMCallback(const AHBMCallback& callback);
 
     void SetAudioCallback(std::function<void(std::array<std::int16_t, 2>)> callback);
+    // fifo_mask identifies which output words came from real FIFO data. Missing
+    // bits may be zero only under the explicit reference-silence policy.
+    void SetReferenceTransmitProfile(bool enabled);
+
+    void SetAudioCaptureCallback(std::function<void(std::array<std::int16_t,2>,std::uint8_t)> callback,
+                                 bool reference_silence);
 
 private:
     struct Impl;

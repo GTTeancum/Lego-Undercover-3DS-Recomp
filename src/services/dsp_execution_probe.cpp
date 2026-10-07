@@ -19,6 +19,9 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
     DspProbeSummary state{};
     std::array<DspProbeReply,256> history{};
     bool live{},live_data_signaled{},live_semaphore_signaled{};
+    bool capture_audio{};
+    std::array<DspCapturedAudioFrame,kAudioCaptureCapacity> audio{};
+    std::size_t audio_count{};
     std::uint16_t live_pending{};
     std::uint64_t live_notification_count{};
     void Emit(unsigned bit) {
@@ -39,7 +42,8 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
         Emit(2+slot/2);
     }
 
-    Impl(const Dsp1Image& image,DspProbeReset reset):handshake(image.receive_startup_replies) {
+    Impl(const Dsp1Image& image,DspProbeReset reset,bool capture,bool reference_silence,bool reference_transmit):handshake(image.receive_startup_replies),capture_audio(capture) {
+        dsp.SetReferenceTransmitProfile(reference_transmit);
         dsp.Reset(); // Pinned register/peripheral construction; raw zero isn't provenance.
         if(reset==DspProbeReset::ReferenceZeroData)
             std::fill(source.begin()+kDsp1BankBytes,source.end(),
@@ -82,10 +86,17 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
             [external](auto a)->std::uint8_t{external(a);return 0;},[external](auto a,auto){external(a);},
             [external](auto a)->std::uint16_t{external(a);return 0;},[external](auto a,auto){external(a);},
             [external](auto a)->std::uint32_t{external(a);return 0;},[external](auto a,auto){external(a);}});
-        dsp.SetAudioCallback([this](auto) {
-            Fault(DspProbeFault::Audio,"DSP audio output requires a live device contract");
-            throw std::runtime_error("DSP audio output before live integration");
-        });
+        dsp.SetAudioCaptureCallback([this](auto samples,auto fifo_mask) {
+            if (!live || !capture_audio) {
+                Fault(DspProbeFault::Audio,"DSP audio output requires explicit bounded capture");
+                throw std::runtime_error("DSP audio output has no selected consumer");
+            }
+            if (audio_count == audio.size()) {
+                Fault(DspProbeFault::Audio,"DSP audio capture capacity exhausted; no samples silently dropped");
+                throw std::runtime_error("DSP audio capture full");
+            }
+            audio[audio_count++] = {samples,fifo_mask,state.attempted_steps};
+        },reference_silence);
     }
     void Fault(DspProbeFault kind,const char* text) noexcept {
         if(state.state==DspProbeState::Fault)return;
@@ -124,8 +135,9 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
 DspExecutionProbe::DspExecutionProbe(std::unique_ptr<Impl> p):impl_(std::move(p)){}
 DspExecutionProbe::~DspExecutionProbe()=default;
 std::unique_ptr<DspExecutionProbe> DspExecutionProbe::Create(const Dsp1Image& image,
-                                                           DspProbeReset reset,const char*& error) noexcept {
+                                                           DspProbeReset reset,const char*& error,bool capture_audio,bool reference_silence,bool reference_transmit) noexcept {
     error=nullptr;
+    if(reference_silence && !capture_audio) { error="reference silence requires audio capture";return {}; }
     if(reset!=DspProbeReset::KnownOnly && reset!=DspProbeReset::ReferenceZeroData) {
         error="invalid DSP probe reset policy";return {};
     }
@@ -141,7 +153,7 @@ std::unique_ptr<DspExecutionProbe> DspExecutionProbe::Create(const Dsp1Image& im
         }
     }
     try {
-        return std::unique_ptr<DspExecutionProbe>(new DspExecutionProbe(std::make_unique<Impl>(image,reset)));
+        return std::unique_ptr<DspExecutionProbe>(new DspExecutionProbe(std::make_unique<Impl>(image,reset,capture_audio,reference_silence,reference_transmit)));
     }catch(const std::bad_alloc&){error="host allocation failed creating DSP execution probe";}
      catch(...){error="DSP interpreter construction failed";}
     return {};
@@ -219,3 +231,9 @@ std::span<const std::uint8_t> DspExecutionProbe::memory() const noexcept{return 
 std::span<const std::uint8_t> DspExecutionProbe::provenance() const noexcept{return impl_->source;}
 std::span<const DspProbeReply> DspExecutionProbe::replies() const noexcept{return std::span(impl_->history).first(impl_->state.reply_count);}
 } // namespace lego::ctr
+
+namespace lego::ctr {
+std::span<const DspCapturedAudioFrame> DspExecutionProbe::captured_audio() const noexcept {
+    return std::span(impl_->audio).first(impl_->audio_count);
+}
+}
