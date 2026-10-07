@@ -42,6 +42,32 @@ struct Executor {
     bool Fail(const char* error) noexcept {p.result.error=error;return false;}
     std::uint32_t& Reg(std::uint32_t id) noexcept {return p.registers[0x400+id];}
     bool MirrorVs() noexcept {return !(Reg(0x244)&1U) && (Reg(0x229)&3U)==0;}
+    bool ProceduralWord(std::uint32_t raw) noexcept {
+        // Pinned TexturingRegs: index is bits 0..7, selector bits 8..11.
+        // LUT data ports consume the RAW command parameter even with mask=0;
+        // only their ordinary register mirror is byte-masked.
+        auto& config=Reg(0xAF);
+        const auto index=config&255U, type=(config>>8)&15U;
+        auto store=[&](auto& table) {
+            const auto entry=index%table.words.size();
+            table.words[entry]=raw;table.written.set(entry);
+        };
+        switch(type) {
+        case 0:store(p.uploads.procedural.noise);break;
+        case 2:store(p.uploads.procedural.color_map);break;
+        case 3:store(p.uploads.procedural.alpha_map);break;
+        case 4:store(p.uploads.procedural.color);break;
+        case 5:store(p.uploads.procedural.color_difference);break;
+        default:
+            // The pin has no table for reserved selectors. Stop the disposable
+            // plan rather than accepting an unmodeled upload or guessing a bank.
+            return Fail("PICA procedural LUT selector is unsupported");
+        }
+        // Index wraps at 8 bits independently of each table's modulo addressing.
+        // Preserve selector and all other bits, including partially masked config.
+        config=(config&~255U)|((index+1U)&255U);
+        ++p.result.procedural_words;return true;
+    }
     bool FloatWord(bool vs,std::uint32_t raw) noexcept {
         auto& shader=vs?p.uploads.vs:p.uploads.gs;
         auto& config=Reg(vs?0x2C0:0x290);
@@ -68,7 +94,7 @@ struct Executor {
         if(id==0x22E||id==0x22F) return Fail("PICA draw execution is unimplemented");
         if(id==0x23C||id==0x23D) return Fail("PICA command-list chaining is unimplemented");
         if(In(id,0x232,0x235))return Fail("PICA default/immediate attributes are unimplemented");
-        if(In(id,0xE8,0xEF)||In(id,0xB0,0xB7))return Fail("PICA fog/procedural lookup upload is unimplemented");
+        if(In(id,0xE8,0xEF))return Fail("PICA fog lookup upload is unimplemented");
         auto& word=Reg(id);const auto expanded=ByteMask(mask);
         word=(word&~expanded)|(value&expanded);
         p.uploads.registers_written.set(id);++p.result.writes;
@@ -113,6 +139,8 @@ struct Executor {
             shader.swizzle[offset]=value;shader.swizzle_written.set(offset);
             if(vs&&MirrorVs()) {p.uploads.gs.swizzle[offset]=value;p.uploads.gs.swizzle_written.set(offset);}
             ++offset;++p.result.swizzle_words;
+        } else if(In(id,0xB0,0xB7)) {
+            return ProceduralWord(value);
         } else if(In(id,0x1C8,0x1CF)) {
             auto& config=Reg(0x1C5);const auto type=(config>>8)&31U,index=config&255U;
             if(type>=24)return Fail("PICA lighting LUT type outside capacity");

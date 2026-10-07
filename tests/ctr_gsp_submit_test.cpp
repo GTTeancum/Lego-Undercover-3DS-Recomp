@@ -103,6 +103,21 @@ void AliasesAndOutputGuards(){
     f.Packet(0,kSource,8);f.Put();auto before=f.Page();CHECK(f.Call(&ro).kind==a32::ExitKind::Fallthrough&&f.cpu.r[0]==kResultInvalidPointer);
     CHECK(f.Page()==before&&!f.object->signaled());
 }
+void ProceduralUploadCommitAndBatchRollback(){
+    Fixture f;f.List({0x2ff,0x000f00af,0x12345678,0x000000b0,0x87654321,0x000f00b7,0x12345678,0x000f0010});
+    f.Put();CHECK(f.Call().kind==a32::ExitKind::Fallthrough);
+    const auto& u=f.module->pica_uploads().procedural;
+    CHECK(u.color_map.words[127]==0x12345678 && u.color_map.words[0]==0x87654321);
+    CHECK(u.color_map.written.count()==2 && u.noise.written.none());
+    CHECK(f.module->last_pica_result().procedural_words==2 && f.Word(f.queue())==1 && f.object->signaled());
+    CHECK(*f.module->register_word(0x4012bc)==0x201);
+    CHECK(f.kernel.WaitSynchronization1(f.event,0).result==0);
+    // An unsupported later packet must not commit a valid lookup prefix or its IRQ.
+    f.List({0x400,0x000f00af,0xdecafbad,0x000f00b0,0x12345678,0x000f0010});
+    f.Packet(1,kSource,24,0x7f);f.Word(f.queue(),0x200);f.Stop();
+    CHECK(f.module->pica_uploads().procedural.color.written.none());
+    CHECK(f.module->pica_uploads().procedural.color_map.words[127]==0x12345678);
+}
 void SignalRetainedObjectWakesActualWaiter(){
     for(auto reset:{0U,1U,2U}){Kernel k;Handle h=0;CHECK(k.CreateEvent(&h,reset)==0);auto e=std::dynamic_pointer_cast<EventObject>(k.handles().Get(h));
         CHECK(k.WaitSynchronization1(h,-1).blocked);CHECK(k.CloseHandle(h)==0);k.SignalEventObject(*e);
@@ -110,5 +125,5 @@ void SignalRetainedObjectWakesActualWaiter(){
         CHECK(k.now_ns()==0);CHECK(e->signaled()==(reset==1));}
 }
 } // namespace
-int main(){ExecuteAndSignal();OwnershipAndRelay();FailureAtomicity();AliasesAndOutputGuards();SignalRetainedObjectWakesActualWaiter();
+int main(){ExecuteAndSignal();OwnershipAndRelay();FailureAtomicity();AliasesAndOutputGuards();ProceduralUploadCommitAndBatchRollback();SignalRetainedObjectWakesActualWaiter();
  if(failures)return EXIT_FAILURE;std::cout<<"PASS: actual staged submit, P3D relay/event, ownership, wait, aliases and atomic failure\n";return EXIT_SUCCESS;}

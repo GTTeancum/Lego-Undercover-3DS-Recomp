@@ -9,11 +9,13 @@
 namespace lego::ctr {
 enum class DspBootMode { Immediate, ReferenceSlice };
 enum class DspProbeReset { KnownOnly, ReferenceZeroData };
+class DspAudioSink;
 struct DspProbeOptions {
     bool enabled{};
     DspProbeReset reset{DspProbeReset::KnownOnly};
     std::uint32_t steps{100000};
     bool live{}; // Explicit integration; probe-only remains default.
+    std::shared_ptr<DspAudioSink> audio_sink; // Optional lossless consumer; selected by host, never implicit.
     bool capture_audio{}; // Explicit bounded host capture; no playback or silent discard.
     bool reference_transmit{}; // Opt-in bounded preset/IRQ gate + reference FIFO-empty source.
     bool reference_audio_silence{}; // Missing FIFO words tagged separately, opt-in only.
@@ -45,6 +47,13 @@ struct DspCapturedAudioFrame {
     std::uint64_t during_run_call{};     // Interpreter attempt, not hardware time.
     bool operator==(const DspCapturedAudioFrame&) const = default;
 };
+// Write must consume the complete frame or report a terminal failure. It may have
+// partial external effects on failure; the DSP seals rather than retrying a pop.
+class DspAudioSink {
+public:
+    virtual ~DspAudioSink() = default;
+    virtual bool Write(const DspCapturedAudioFrame&) noexcept = 0;
+};
 // Guarded DSP execution. Advance is a synchronous host-only boot probe; only
 // DspLiveDevice connects its completed state to the explicit live runtime. The
 // executor itself never commits IPC, ARM interrupts, timers, sound or a loaded flag.
@@ -56,9 +65,12 @@ public:
     static constexpr std::uint32_t kReferenceBootSlice = 16384; // Pinned LLE RunTeakraSlice, not a title-specific delay.
     static std::unique_ptr<DspExecutionProbe> Create(const Dsp1Image&, DspProbeReset,
                                                     const char*& error, bool capture_audio=false, bool reference_silence=false, bool reference_transmit=false,
-                                                    DspBootMode boot_mode=DspBootMode::Immediate) noexcept;
+                                                    DspBootMode boot_mode=DspBootMode::Immediate,
+                                                    std::shared_ptr<DspAudioSink> sink={}) noexcept;
     static constexpr std::size_t kAudioCaptureCapacity = 4096; // Host bound, not hardware FIFO.
+    // With a sink, this is the bounded first-frame prefix; total is separate.
     [[nodiscard]] std::span<const DspCapturedAudioFrame> captured_audio() const noexcept;
+    [[nodiscard]] std::uint64_t emitted_audio_frames() const noexcept;
     ~DspExecutionProbe();
     DspExecutionProbe(const DspExecutionProbe&)=delete;
     DspExecutionProbe& operator=(const DspExecutionProbe&)=delete;

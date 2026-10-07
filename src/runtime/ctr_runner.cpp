@@ -35,6 +35,8 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
         throw std::invalid_argument("DSP reference-slice boot requires live-teakra");
     if(dsp_probe.reference_transmit && (!dsp_probe.enabled || !dsp_probe.live))
         throw std::invalid_argument("reference DSP transmitter requires live-teakra");
+    if(dsp_probe.audio_sink && !dsp_probe.capture_audio)
+        throw std::invalid_argument("DSP audio sink requires explicit capture");
     if(dsp_probe.capture_audio && !dsp_probe.reference_transmit)
         throw std::invalid_argument("DSP audio capture requires explicit reference transmit profile");
     if(dsp_probe.reference_audio_silence && !dsp_probe.capture_audio)

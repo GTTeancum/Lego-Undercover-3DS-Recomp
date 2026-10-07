@@ -24,6 +24,8 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
     bool capture_audio{};
     std::array<DspCapturedAudioFrame,kAudioCaptureCapacity> audio{};
     std::size_t audio_count{};
+    std::uint64_t audio_total{};
+    std::shared_ptr<DspAudioSink> audio_sink;
     std::uint16_t live_pending{};
     std::uint64_t live_notification_count{};
     void Emit(unsigned bit) {
@@ -44,7 +46,7 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
         Emit(2+slot/2);
     }
 
-    Impl(const Dsp1Image& image,DspProbeReset reset,bool capture,bool reference_silence,bool reference_transmit,DspBootMode mode):handshake(image.receive_startup_replies),boot_mode(mode),capture_audio(capture) {
+    Impl(const Dsp1Image& image,DspProbeReset reset,bool capture,bool reference_silence,bool reference_transmit,DspBootMode mode,std::shared_ptr<DspAudioSink> sink):handshake(image.receive_startup_replies),boot_mode(mode),capture_audio(capture),audio_sink(std::move(sink)) {
         dsp.SetReferenceTransmitProfile(reference_transmit);
         dsp.Reset(); // Pinned register/peripheral construction; raw zero isn't provenance.
         if(reset==DspProbeReset::ReferenceZeroData)
@@ -93,11 +95,21 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
                 Fault(DspProbeFault::Audio,"DSP audio output requires explicit bounded capture");
                 throw std::runtime_error("DSP audio output has no selected consumer");
             }
-            if (audio_count == audio.size()) {
+            if (audio_count == audio.size() && !audio_sink) {
                 Fault(DspProbeFault::Audio,"DSP audio capture capacity exhausted; no samples silently dropped");
                 throw std::runtime_error("DSP audio capture full");
             }
-            audio[audio_count++] = {samples,fifo_mask,state.attempted_steps};
+            const DspCapturedAudioFrame frame{samples,fifo_mask,state.attempted_steps};
+            if(audio_total==std::numeric_limits<std::uint64_t>::max() ||
+               (audio_sink && !audio_sink->Write(frame))) {
+                Fault(DspProbeFault::Audio,"DSP audio sink write failed; partial external output may remain");
+                throw std::runtime_error("DSP audio sink failed");
+            }
+            ++audio_total;
+            if(audio_count<audio.size())audio[audio_count++]=frame;
+            // Beyond the prefix, the sink owns every frame. Without a sink the
+            // original finite-capture stop is unchanged; nothing is discarded.
+
         },reference_silence);
     }
     void Fault(DspProbeFault kind,const char* text) noexcept {
@@ -137,8 +149,9 @@ struct DspExecutionProbe::Impl final : DspBootMailbox {
 DspExecutionProbe::DspExecutionProbe(std::unique_ptr<Impl> p):impl_(std::move(p)){}
 DspExecutionProbe::~DspExecutionProbe()=default;
 std::unique_ptr<DspExecutionProbe> DspExecutionProbe::Create(const Dsp1Image& image,
-                                                           DspProbeReset reset,const char*& error,bool capture_audio,bool reference_silence,bool reference_transmit,DspBootMode boot_mode) noexcept {
+                                                           DspProbeReset reset,const char*& error,bool capture_audio,bool reference_silence,bool reference_transmit,DspBootMode boot_mode,std::shared_ptr<DspAudioSink> sink) noexcept {
     error=nullptr;
+    if(sink && !capture_audio) {error="DSP audio sink requires explicit capture";return {};}
     if(boot_mode!=DspBootMode::Immediate && boot_mode!=DspBootMode::ReferenceSlice) {
         error="invalid DSP boot polling mode";return {};
     }
@@ -158,7 +171,7 @@ std::unique_ptr<DspExecutionProbe> DspExecutionProbe::Create(const Dsp1Image& im
         }
     }
     try {
-        return std::unique_ptr<DspExecutionProbe>(new DspExecutionProbe(std::make_unique<Impl>(image,reset,capture_audio,reference_silence,reference_transmit,boot_mode)));
+        return std::unique_ptr<DspExecutionProbe>(new DspExecutionProbe(std::make_unique<Impl>(image,reset,capture_audio,reference_silence,reference_transmit,boot_mode,std::move(sink))));
     }catch(const std::bad_alloc&){error="host allocation failed creating DSP execution probe";}
      catch(...){error="DSP interpreter construction failed";}
     return {};
@@ -249,4 +262,8 @@ namespace lego::ctr {
 std::span<const DspCapturedAudioFrame> DspExecutionProbe::captured_audio() const noexcept {
     return std::span(impl_->audio).first(impl_->audio_count);
 }
+}
+
+namespace lego::ctr {
+std::uint64_t DspExecutionProbe::emitted_audio_frames() const noexcept { return impl_->audio_total; }
 }

@@ -31,10 +31,24 @@ struct PicaShaderUpload {
     std::uint32_t packed_count{};
     bool operator==(const PicaShaderUpload&) const = default;
 };
+// Raw procedural-table upload state. A future sampler must check written bits;
+// allocation zeros are not proof that the guest uploaded an entry. The three
+// value tables have 128 entries; color and color-difference tables have 256.
+template<std::size_t N> struct PicaLookupUpload {
+    std::array<std::uint32_t,N> words{};
+    std::bitset<N> written{};
+    bool operator==(const PicaLookupUpload&) const = default;
+};
+struct PicaProceduralUpload {
+    PicaLookupUpload<128> noise, color_map, alpha_map;
+    PicaLookupUpload<256> color, color_difference;
+    bool operator==(const PicaProceduralUpload&) const = default;
+};
 struct PicaUploadState {
     PicaShaderUpload gs,vs;
     std::array<std::array<std::uint32_t,256>,24> lighting{};
     std::array<std::bitset<256>,24> lighting_written{};
+    PicaProceduralUpload procedural{};
     std::bitset<kPicaInternalWords> registers_written{};
     std::uint32_t topology{}; // Empty primitive assembler; all draw paths stop.
     bool operator==(const PicaUploadState&) const = default;
@@ -42,7 +56,7 @@ struct PicaUploadState {
 struct PicaListResult {
     const char* error{};
     std::uint32_t byte_offset{},register_id{};
-    std::uint32_t packets{},writes{},program_words{},swizzle_words{},uniform_vectors{},lut_words{},irqs{};
+    std::uint32_t packets{},writes{},program_words{},swizzle_words{},uniform_vectors{},lut_words{},procedural_words{},irqs{};
     bool autostopped{};
 };
 struct PicaListPlan {

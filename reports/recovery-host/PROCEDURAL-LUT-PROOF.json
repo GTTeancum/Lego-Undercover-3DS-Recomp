@@ -1,0 +1,47 @@
+{
+  "list": {
+    "bytes": 23360,
+    "sha256": "3df1c3bf06e4690f57992289cfd4e8baae1ff2345301876b7edf4fbbeef64241",
+    "register_writes": 5683,
+    "swizzle_words": 83,
+    "procedural_words": 512,
+    "table_writes": {
+      "color-map": 128,
+      "alpha-map": 128,
+      "color": 128,
+      "color-difference": 128
+    },
+    "all_registers_independent_replay_match": true,
+    "live_tables_match": true,
+    "requested_P3D_count": 1,
+    "queue_committed": true
+  },
+  "sink": {
+    "records": 4598,
+    "all_actual_fifo": true,
+    "nonzero_samples": 0,
+    "memory_prefix": 4096,
+    "sha256": "b33890c588c1e56705c938b5bdb9fe884f77bad041fc83c4633675cfa1051016",
+    "playback": false
+  },
+  "next": {
+    "round": 569,
+    "thread": 7,
+    "cfg_block": "0x000A0002",
+    "bytes": 1,
+    "request_and_output_unchanged": true,
+    "issued": [
+      12856209,
+      99
+    ],
+    "time_ns": 158717957
+  },
+  "visuals": {
+    "rendered_frame": false,
+    "vram_only_depth_clear": true,
+    "depth_clear_bytes": 819200,
+    "depth_clear_word": "0x00FFFFFF"
+  },
+  "compiler_capture_files": 194,
+  "oracle": "Independent command-packet/data replay; not an independent CPU emulator or hardware test"
+}
