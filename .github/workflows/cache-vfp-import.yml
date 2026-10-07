@@ -1,0 +1,104 @@
+name: Cache VFP candidate verification
+on:
+  push:
+    branches: [work/cache-vfp-import-v1]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.prepare.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: import-config
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          ref: b6ea4709af883666f9b0eec9cb0af74b5926f7e2
+          path: candidate
+      - id: prepare
+        name: Reconstruct exact reviewed public tree and create candidate only
+        run: python3 import-config/tools/cache-vfp-import/reconstruct.py import-config/tools/cache-vfp-import candidate receipt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cache-vfp-candidate-receipt
+          path: receipt/
+          if-no-files-found: error
+          retention-days: 30
+  test:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gcc
+            compiler: g++
+            sanitize: false
+          - name: clang
+            compiler: clang++
+            sanitize: false
+          - name: sanitizers
+            compiler: clang++
+            sanitize: true
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - name: Verify exact tree and configure ROM-free tests
+        shell: bash
+        env:
+          CXX_NAME: ${{ matrix.compiler }}
+          SANITIZE: ${{ matrix.sanitize }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^{tree})" = d3a219c1d973e0a1b90b153184ac989378d52e7c
+          mkdir evidence
+          git rev-parse HEAD > evidence/commit.txt
+          git rev-parse HEAD^{tree} > evidence/tree.txt
+          "$CXX_NAME" --version > evidence/compiler.txt
+          type=Release
+          extra=()
+          if [[ "$SANITIZE" == true ]]; then
+            type=Debug
+            extra=(-DCMAKE_CXX_FLAGS=-O1\ -fsanitize=address,undefined\ -fno-omit-frame-pointer -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined)
+          fi
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE="$type" -DCMAKE_CXX_COMPILER="$CXX_NAME" "${extra[@]}" 2>&1 | tee evidence/configure.log
+          ctest --test-dir build --show-only=json-v1 > evidence/configured.json
+          python3 -c 'import json; d=json.load(open("evidence/configured.json")); assert len(d["tests"])==72'
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --parallel 2 2>&1 | tee evidence/build.log
+      - name: Test all configured suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir build --output-on-failure --timeout 120 --output-junit "$GITHUB_WORKSPACE/evidence/ctest.xml" 2>&1 | tee evidence/ctest.log
+          python3 - <<'PY'
+          import json,xml.etree.ElementTree as E
+          want=[x['name'] for x in json.load(open('evidence/configured.json'))['tests']]
+          cases=list(E.parse('evidence/ctest.xml').getroot().iter('testcase'))
+          names=[x.attrib['name'] for x in cases]
+          assert len(names)==len(set(names))==72 and set(names)==set(want)
+          assert all(x.find('failure') is None and x.find('error') is None and x.find('skipped') is None for x in cases)
+          print('All 72 configured names passed without skips or duplicates')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cache-vfp-candidate-${{ matrix.name }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
