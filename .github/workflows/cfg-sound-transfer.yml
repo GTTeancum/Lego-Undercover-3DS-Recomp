@@ -1,0 +1,20 @@
+name: Public patch transfer verification
+on:
+  push:
+    branches: [work/cfg-sound-upload-recovery]
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: transferred-public-patch
+          path: checkpoint-input/transferred-patch.gz
+          retention-days: 7
+          if-no-files-found: error
