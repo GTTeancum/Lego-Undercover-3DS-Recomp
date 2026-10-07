@@ -82,7 +82,7 @@ void InterruptAndGuards() {
     List no;no.Packet(0x10,0xABCDEF00);no.Packet(0x80,1);CHECK(f.Run(no));CHECK(f.plan.result.irqs==0&&f.plan.result.writes==2);
     List one_byte;one_byte.Packet(0x10,0xABCD0078);CHECK(f.Run(one_byte));CHECK(f.plan.result.irqs==1);
     List multiple;multiple.Packet(0x34,0);multiple.Packet(0x10,0x12345678);multiple.Packet(0x10,0x12345678);CHECK(f.Run(multiple));CHECK(f.plan.result.irqs==2&&!f.plan.result.autostopped);
-    for(auto id:{0x22EU,0x22FU,0x23CU,0x23DU,0x232U,0x233U,0x2A6U,0x2D6U,0xE8U,0xB0U,0x300U,0xFFFFU}){
+    for(auto id:{0x22EU,0x22FU,0x23CU,0x23DU,0x232U,0x233U,0xE8U,0xB0U,0x300U,0xFFFFU}){
         List bad;bad.Packet(0x80,0x1234);bad.Packet(id,0,0);f.Stop(bad);
     }
     List repeat;repeat.Packet(0x10,0x12345678,15,{0});f.Stop(repeat);

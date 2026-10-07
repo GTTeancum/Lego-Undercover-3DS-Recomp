@@ -17,6 +17,10 @@ using PicaGpuRegisters = std::array<std::uint32_t,kPicaGpuWords>;
 struct PicaShaderUpload {
     std::array<std::uint32_t,4096> program{};
     std::bitset<4096> program_written{};
+    // Operand descriptors uploaded by the guest. Unwritten entries are unknown
+    // to future shader consumers even though host allocation storage is zero.
+    std::array<std::uint32_t,4096> swizzle{};
+    std::bitset<4096> swizzle_written{};
     std::array<std::array<std::uint32_t,4>,96> floats{};
     std::bitset<96> floats_written{};
     std::array<std::uint32_t,4> integers{};
@@ -38,7 +42,7 @@ struct PicaUploadState {
 struct PicaListResult {
     const char* error{};
     std::uint32_t byte_offset{},register_id{};
-    std::uint32_t packets{},writes{},program_words{},uniform_vectors{},lut_words{},irqs{};
+    std::uint32_t packets{},writes{},program_words{},swizzle_words{},uniform_vectors{},lut_words{},irqs{};
     bool autostopped{};
 };
 struct PicaListPlan {

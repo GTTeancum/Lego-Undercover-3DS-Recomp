@@ -1,0 +1,64 @@
+{
+  "sound": {
+    "block": "0x70001",
+    "selected": "stereo",
+    "byte": 1,
+    "changed_offsets_in_64byte_window": [
+      24
+    ],
+    "guest_address": "0x0ffff658",
+    "stable_buffers": [
+      "gpu.bin",
+      "gsp.bin",
+      "gsp-epochs.bin",
+      "uploads.bin",
+      "mapped-hid.bin",
+      "vram.bin",
+      "probe-sram.bin",
+      "probe-provenance.bin"
+    ]
+  },
+  "swizzle": {
+    "list_bytes": 23360,
+    "list_sha256": "3df1c3bf06e4690f57992289cfd4e8baae1ff2345301876b7edf4fbbeef64241",
+    "prefix_swizzle_words": 83,
+    "prefix_vs_known": 83,
+    "prefix_gs_known": 83,
+    "stop_byte": 21120,
+    "stop_register": 176,
+    "live_committed": false,
+    "independent_raw_packet_replay": true
+  },
+  "final": {
+    "dispatch_round": 357,
+    "core_instructions": [
+      2407614,
+      99
+    ],
+    "dsp_scheduled_slices": 259,
+    "time_ns": 50144657,
+    "vram_all_zero": true
+  },
+  "capture_pairs": 129,
+  "startup_pairs": 6,
+  "tests": {
+    "gcc": {
+      "configured": 65,
+      "passed": 65,
+      "skipped": 0,
+      "junit": "junit-gcc.xml"
+    },
+    "clang": {
+      "configured": 65,
+      "passed": 65,
+      "skipped": 0,
+      "junit": "junit-clang.xml"
+    },
+    "asan": {
+      "configured": 65,
+      "passed": 65,
+      "skipped": 0,
+      "junit": "junit-asan.xml"
+    }
+  }
+}

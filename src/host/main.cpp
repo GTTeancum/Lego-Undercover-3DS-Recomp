@@ -83,7 +83,7 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-transmit-profile reference-stereo] [--dsp-boot-mode reference-slice]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cfg-sound-mode mono|stereo|surround] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-transmit-profile reference-stereo] [--dsp-boot-mode reference-slice]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
@@ -96,6 +96,8 @@ int main(int argc,char** argv) {
         auto vram_mode=ctr::GpuVramMode::Unconfigured;
         auto display_mode=ctr::DisplayClockMode::Disabled;
         auto cfg_profile=ctr::CfgProfile::Unconfigured;
+        auto cfg_sound_mode=ctr::CfgSoundMode::Unconfigured;
+        std::string_view cfg_sound_name;
         auto cpu_mode=ctr::CpuExecutionMode::Strict;
         auto ptm_step_mode = ctr::PtmStepMode::Unconfigured;
         std::uint32_t block_limit=1000000,event_limit=4096;
@@ -161,6 +163,15 @@ int main(int argc,char** argv) {
                 if (std::string_view(argv[i+1])!="reference-stereo")
                     throw std::runtime_error("CFG profile must be reference-stereo (or omit the option)");
                 cfg_profile=ctr::CfgProfile::ReferenceStereo;
+            }
+            else if (option=="--cfg-sound-mode") {
+                if (cfg_sound_mode != ctr::CfgSoundMode::Unconfigured)
+                    throw std::runtime_error("select CFG sound mode only once");
+                cfg_sound_name=argv[i+1];
+                if (cfg_sound_name=="mono") cfg_sound_mode=ctr::CfgSoundMode::Mono;
+                else if (cfg_sound_name=="stereo") cfg_sound_mode=ctr::CfgSoundMode::Stereo;
+                else if (cfg_sound_name=="surround") cfg_sound_mode=ctr::CfgSoundMode::Surround;
+                else throw std::runtime_error("CFG sound mode must be mono, stereo or surround (or omit it)");
             }
             else if (option=="--display-clock-mode") {
                 if (std::string_view(argv[i+1])!="reference-idle")
@@ -244,13 +255,16 @@ int main(int argc,char** argv) {
             std::cout << "romfs_sha256=" << romfs->sha256() << " raw_bytes=" << ctr::kLegoRawRomfsBytes
                       << " view_offset=" << ctr::kLegoRomfsViewOffset << " view_bytes=" << romfs->size() << '\n';
         }
-        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile,cpu_mode,dsp_config,dsp_probe);
+        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile,cpu_mode,dsp_config,dsp_probe,cfg_sound_mode);
         if (!shared_extdata_root.empty())
             std::cout << "shared_extdata_root=" << shared_extdata_root.generic_string() << '\n';
         if (ptm_step_mode == ctr::PtmStepMode::EmptyHistory)
             std::cout << "ptm_step_source=explicit_empty_history total_steps="<<0<<" sensor_input=none\n";
         if (vram_mode==ctr::GpuVramMode::ReferenceZero)
             std::cout << "gpu_vram_source=pinned_hle_zero_initialization bytes=6291456 cpu_mapping=none\n";
+        if (cfg_sound_mode!=ctr::CfgSoundMode::Unconfigured)
+            std::cout<<"cfg_sound_mode="<<cfg_sound_name<<" value="<<unsigned(cfg_sound_mode)
+                     <<" source=explicit_host_preference recovered_console_setting=false playback=unchanged\n";
         if (cfg_profile==ctr::CfgProfile::ReferenceStereo)
             std::cout << "cfg_profile=pinned_hle_stereo_default block=00050005 bytes=32 recovered_calibration=false\n";
         if (dsp_config.profile()==ctr::DspSpecialProfile::EmptySystemConfig)

@@ -68,7 +68,6 @@ struct Executor {
         if(id==0x22E||id==0x22F) return Fail("PICA draw execution is unimplemented");
         if(id==0x23C||id==0x23D) return Fail("PICA command-list chaining is unimplemented");
         if(In(id,0x232,0x235))return Fail("PICA default/immediate attributes are unimplemented");
-        if(In(id,0x2A6,0x2AD)||In(id,0x2D6,0x2DD))return Fail("PICA swizzle upload is unimplemented");
         if(In(id,0xE8,0xEF)||In(id,0xB0,0xB7))return Fail("PICA fog/procedural lookup upload is unimplemented");
         auto& word=Reg(id);const auto expanded=ByteMask(mask);
         word=(word&~expanded)|(value&expanded);
@@ -104,6 +103,16 @@ struct Executor {
             shader.program[offset]=value;shader.program_written.set(offset);
             if(vs&&MirrorVs()) {p.uploads.gs.program[offset]=value;p.uploads.gs.program_written.set(offset);}
             ++offset;++p.result.program_words;
+        } else if(In(id,0x2A6,0x2AD)||In(id,0x2D6,0x2DD)) {
+            // Pinned PicaCore swizzle ports consume the raw parameter (not the
+            // byte-masked register mirror), incrementing a full-width offset.
+            // VS descriptors also reach GS only under the existing mirror rule.
+            const bool vs=id>=0x2D6;auto& offset=Reg(vs?0x2D5:0x2A5);
+            if(offset>=4096U)return Fail("PICA swizzle upload outside reference capacity");
+            auto& shader=vs?p.uploads.vs:p.uploads.gs;
+            shader.swizzle[offset]=value;shader.swizzle_written.set(offset);
+            if(vs&&MirrorVs()) {p.uploads.gs.swizzle[offset]=value;p.uploads.gs.swizzle_written.set(offset);}
+            ++offset;++p.result.swizzle_words;
         } else if(In(id,0x1C8,0x1CF)) {
             auto& config=Reg(0x1C5);const auto type=(config>>8)&31U,index=config&255U;
             if(type>=24)return Fail("PICA lighting LUT type outside capacity");

@@ -21,7 +21,11 @@ constexpr auto kStereoBytes = [] {
 }();
 }
 
-CfgService::CfgService(CfgProfile profile) : profile_(profile) {
+CfgService::CfgService(CfgProfile profile, CfgSoundMode sound_mode)
+    : profile_(profile), sound_mode_(sound_mode) {
+    if (sound_mode != CfgSoundMode::Unconfigured && sound_mode != CfgSoundMode::Mono &&
+        sound_mode != CfgSoundMode::Stereo && sound_mode != CfgSoundMode::Surround)
+        throw std::invalid_argument("unsupported CFG sound mode");
     if (profile != CfgProfile::Unconfigured && profile != CfgProfile::ReferenceStereo)
         throw std::invalid_argument("unsupported CFG profile");
 }
@@ -33,8 +37,10 @@ bool CfgService::CanHandle(const IpcCommandBuffer& q) const noexcept {
     // Exact observed write-only mapped-buffer shape, not a static buffer.
     // Size mismatches and other blocks remain host stops, not fabricated Results
     // or reference error-path zero output. No guest-controlled allocation size.
-    return profile_ == CfgProfile::ReferenceStereo &&
-           q[0] == IpcMakeHeader(1, 2, 2) && q[1] == kCfgStereoBytes &&
+    if (q[0] != IpcMakeHeader(1, 2, 2)) return false;
+    if (q[2] == kCfgSoundBlock)
+        return sound_mode_ != CfgSoundMode::Unconfigured && q[1] == 1U && q[3] == 0x1CU;
+    return profile_ == CfgProfile::ReferenceStereo && q[1] == kCfgStereoBytes &&
            q[2] == kCfgStereoBlock && q[3] == ((kCfgStereoBytes << 4) | 0xCU);
 }
 
@@ -42,15 +48,19 @@ Result CfgService::Handle(IpcRouter& router, Kernel&, GuestMemory& memory,
                           ThreadObject& thread, IpcCommandBuffer& q) {
     if (!CanHandle(q)) return kResultNotFound;
     const auto address = q[4];
-    if (std::uint64_t(address) + kCfgStereoBytes > 0x100000000ULL ||
-        !memory.IsWritable(address, kCfgStereoBytes))
+    const auto size = q[1]; // CanHandle bounds this to exactly 1 or 32.
+    const std::array<std::uint8_t, 1> sound{static_cast<std::uint8_t>(sound_mode_)};
+    const std::span<const std::uint8_t> bytes = q[2] == kCfgSoundBlock
+        ? std::span<const std::uint8_t>(sound) : std::span<const std::uint8_t>(kStereoBytes);
+    if (std::uint64_t(address) + size > 0x100000000ULL ||
+        !memory.IsWritable(address, size))
         return kResultInvalidPointer;
     const auto cb64 = std::uint64_t(thread.tls_address) + kIpcCommandBufferOffset;
     if (cb64 + sizeof(IpcCommandBuffer) > 0x100000000ULL ||
         !memory.IsReadable(static_cast<std::uint32_t>(cb64), sizeof(IpcCommandBuffer)) ||
         !memory.IsWritable(static_cast<std::uint32_t>(cb64), sizeof(IpcCommandBuffer)))
         return kResultInvalidPointer;
-    if (memory.SpansAlias(address, kCfgStereoBytes,
+    if (memory.SpansAlias(address, size,
                           static_cast<std::uint32_t>(cb64), sizeof(IpcCommandBuffer))) {
         router.RequestHostStop("CFG output aliases IPC response");
         return kResultSuccess; // Router stops without committing a guest reply.
@@ -59,7 +69,7 @@ Result CfgService::Handle(IpcRouter& router, Kernel&, GuestMemory& memory,
         // Reuse the reservation-safe private write path. Shared output and
         // cross-region spans are outside this bounded direct-buffer model.
         // This is host containment policy, not a claim that firmware forbids them.
-        if (!memory.PrepareDeviceWrite(address, kCfgStereoBytes)) {
+        if (!memory.PrepareDeviceWrite(address, size)) {
             router.RequestHostStop("CFG output requires private writable backing");
             return kResultSuccess;
         }
@@ -67,7 +77,7 @@ Result CfgService::Handle(IpcRouter& router, Kernel&, GuestMemory& memory,
         router.RequestHostStop(error.what()); // No output bytes were changed.
         return kResultSuccess;
     }
-    if (!memory.CommitDeviceWrite(address, kStereoBytes)) {
+    if (!memory.CommitDeviceWrite(address, bytes)) {
         router.RequestHostStop("CFG prepared output commit invariant failed");
         return kResultSuccess;
     }

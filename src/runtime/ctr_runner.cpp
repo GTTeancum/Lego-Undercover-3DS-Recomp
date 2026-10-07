@@ -25,7 +25,8 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
                            DisplayClockMode display_mode,
                            CfgProfile cfg_profile,
                            CpuExecutionMode cpu_mode,
-                           DspSpecialConfig dsp_config, DspProbeOptions dsp_probe)
+                           DspSpecialConfig dsp_config, DspProbeOptions dsp_probe,
+                           CfgSoundMode cfg_sound_mode)
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_),
       display_mode_(display_mode), display_clock_(kernel.now_ns()),
       cpu_mode_(cpu_mode),diagnostic_origin_(kernel.now_ns()) {
@@ -47,7 +48,7 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
     if (display_mode!=DisplayClockMode::Disabled && display_mode!=DisplayClockMode::ReferenceIdle)
         throw std::invalid_argument("invalid display clock mode");
     ipc_.RegisterService("APT:U", std::make_shared<AptService>());
-    ipc_.RegisterService("cfg:u", std::make_shared<CfgService>(cfg_profile));
+    ipc_.RegisterService("cfg:u", std::make_shared<CfgService>(cfg_profile,cfg_sound_mode));
     auto gsp=std::make_shared<GspGpuService>();
     if (vram_mode==GpuVramMode::ReferenceZero)
         gsp->ConfigureVram(GpuVramBank::ReferenceZero());
