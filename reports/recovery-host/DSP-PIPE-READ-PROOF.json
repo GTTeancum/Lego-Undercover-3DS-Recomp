@@ -1,0 +1,81 @@
+{
+  "capture_pairs": 291,
+  "read_sizes": [
+    2,
+    30
+  ],
+  "output_equal_actual_firmware_response": true,
+  "neighbour_bytes_preserved": true,
+  "conversions": 30,
+  "notification_wait_slices": 1,
+  "scheduled_slices": 2,
+  "final_round": 295,
+  "next_request": "cfg:u GetConfig 0x00070001 size1",
+  "core1_instructions": 0,
+  "actual_fifo_frames": 14,
+  "all_startup_silence": true,
+  "vram_all_zero": true,
+  "game_inputs_patched": false,
+  "scope": "Logging-only before/after snapshots; not independent CPU oracle or full guest-memory dump",
+  "tests": {
+    "gcc": {
+      "exit": 0,
+      "seconds": 2.83185887500008,
+      "configured": 63,
+      "cases": 63,
+      "exact_names": true,
+      "failures": 0,
+      "skipped": 0
+    },
+    "clang": {
+      "exit": 0,
+      "seconds": 8.656662043999972,
+      "configured": 63,
+      "cases": 63,
+      "exact_names": true,
+      "failures": 0,
+      "skipped": 0
+    },
+    "asan": {
+      "exit": 0,
+      "seconds": 13.175996140000052,
+      "configured": 63,
+      "cases": 63,
+      "exact_names": true,
+      "failures": 0,
+      "skipped": 0
+    }
+  },
+  "startup_pairs": [
+    {
+      "name": "full",
+      "exit": 3,
+      "matched": true
+    },
+    {
+      "name": "immediate",
+      "exit": 3,
+      "matched": true
+    },
+    {
+      "name": "known",
+      "exit": 3,
+      "matched": true
+    },
+    {
+      "name": "no-cfg",
+      "exit": 3,
+      "matched": true
+    },
+    {
+      "name": "probe",
+      "exit": 3,
+      "matched": true
+    },
+    {
+      "name": "strict",
+      "exit": 3,
+      "matched": true
+    }
+  ]
+}
