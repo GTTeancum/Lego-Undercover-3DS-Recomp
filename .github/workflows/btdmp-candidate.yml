@@ -1,0 +1,140 @@
+name: BTDMP reference candidate verification
+on:
+  push:
+    branches: [work/btdmp-reference-import]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      candidate: ${{ steps.restore.outputs.candidate }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: importer
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          ref: b0ba35cbd462ce9f3e0a7345023cd8c1e03a86c0
+          path: candidate
+      - name: Reconstruct exact tested public tree; publish candidate only
+        id: restore
+        working-directory: candidate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,lzma,os,pathlib,subprocess
+          parent='b0ba35cbd462ce9f3e0a7345023cd8c1e03a86c0'
+          target='331f4e9a429b3ec7314a8000d89d94d67869204b'
+          def git(*args): return subprocess.check_output(['git',*args],text=True).strip()
+          assert git('rev-parse','HEAD')==parent
+          assert git('rev-parse','HEAD^{tree}')=='6934e92465d0ee41cab127cfbbae6c16b7e17e4c'
+          chunks=pathlib.Path('../importer/checkpoint-import/btdmp')
+          packed=b''.join((chunks/f'part{i}.xz').read_bytes() for i in range(2))
+          assert len(packed)==17488
+          assert hashlib.sha256(packed).hexdigest()=='4e9994328b9f18a94c4afa20bb8a1b56b173083e5fe92198a0fd2b96c35290f8'
+          raw=lzma.decompress(packed,memlimit=128*1024*1024)
+          assert len(raw)==55691
+          assert hashlib.sha256(raw).hexdigest()=='e85eebfc13aa6f2b9cc5d32c4d55bb90acc5b8167b6b92903b2506e48591201f'
+          records=json.loads(raw);assert len(records)==17
+          seen=set()
+          for item in records:
+              name=item['path'];p=pathlib.Path(name)
+              assert not p.is_absolute() and '..' not in p.parts and p.as_posix()==name
+              assert p.parts[0] not in ('.git','.github','checkpoint-import') and name not in seen
+              assert item['mode'] in (0o644,0o755)
+              seen.add(name);old=p.read_bytes() if p.exists() else b''
+              assert hashlib.sha256(old).hexdigest()==item['old_sha256']
+              lines=old.decode('utf-8').splitlines(keepends=True);previous=len(lines)
+              for start,end,replacement in reversed(item['edits']):
+                  assert 0<=start<=end<=previous
+                  previous=start;lines[start:end]=replacement.splitlines(keepends=True)
+              new=''.join(lines).encode('utf-8')
+              assert hashlib.sha256(new).hexdigest()==item['new_sha256']
+              p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(new);p.chmod(item['mode'])
+              subprocess.run(['git','add','-f','--',name],check=True)
+          assert git('write-tree')==target
+          subprocess.run(['git','config','user.name','LEGO Recomp checkpoint'],check=True)
+          subprocess.run(['git','config','user.email','noreply@github.com'],check=True)
+          subprocess.run(['git','commit','-m','Model explicit reference BTDMP transmitter and bounded provenance-tagged audio capture\n\nPreserve newer published semaphore source and the older pending variant separately.\nUse a bounded reference preset and real FIFO-empty notifications, not speculative\ncontrol-bit decoding. Strict capture completes two original DSP slices, records\neight zero FIFO frames, then stops on underrun. Optional tagged reference silence\ndoes not unblock the actual queued audio-startup message. No playback or frame.\n\nFull local GCC/Clang builds and all 60 suites passed; ROM-free sanitizers passed.\nFive ordinary and eleven CLI compiler pairs match. Private captures and all original\ninputs remain separate. This exact-source candidate awaits hosted verification.'],check=True)
+          commit=git('rev-parse','HEAD');assert git('rev-parse','HEAD^{tree}')==target
+          branch='work/btdmp-reference-candidate-'+os.environ['GITHUB_RUN_ID']
+          subprocess.run(['git','push','origin',commit+':refs/heads/'+branch],check=True)
+          receipt={'commit':commit,'tree':target,'parent':parent,'branch':branch,'private_inputs':'none','main_updated':False}
+          pathlib.Path('candidate-receipt.json').write_text(json.dumps(receipt,indent=2))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('candidate='+commit+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: btdmp-candidate-receipt
+          path: candidate/candidate-receipt.json
+          retention-days: 30
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gcc
+            compiler: g++
+            sanitizers: false
+          - name: clang
+            compiler: clang++
+            sanitizers: false
+          - name: sanitizers
+            compiler: clang++
+            sanitizers: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.candidate }}
+          persist-credentials: false
+      - name: Configure ROM-free tests
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ '${{ matrix.sanitizers }}' = 'true' ]; then
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} '-DCMAKE_CXX_FLAGS=-O1 -fsanitize=address,undefined -fno-omit-frame-pointer' '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined' 2>&1 | tee configure.log
+          else
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} 2>&1 | tee configure.log
+          fi
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build --parallel 2 2>&1 | tee build.log
+      - name: Test and verify complete configured suite
+        shell: bash
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -o pipefail
+          ctest --test-dir build --output-on-failure --output-junit "$PWD/junit.xml" 2>&1 | tee test.log
+          python3 - <<'PY'
+          import json,pathlib,subprocess,xml.etree.ElementTree as ET
+          names=[t['name'] for t in json.loads(subprocess.check_output(['ctest','--test-dir','build','--show-only=json-v1']))['tests']]
+          cases=ET.parse('junit.xml').getroot().findall('.//testcase')
+          assert len(names)==len(set(names))==60
+          assert sorted(c.attrib['name'] for c in cases)==sorted(names)
+          assert all(not c.findall('failure') and not c.findall('error') and not c.findall('skipped') for c in cases)
+          pathlib.Path('test-receipt.json').write_text(json.dumps({'tests':60,'all_passed':True,'scope':'ROM-free, no private game inputs','commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: btdmp-candidate-${{ matrix.name }}
+          path: |
+            configure.log
+            build.log
+            test.log
+            junit.xml
+            test-receipt.json
+          retention-days: 30
