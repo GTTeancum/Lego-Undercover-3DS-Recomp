@@ -4,8 +4,21 @@
 
 namespace lego::ctr {
 Result DspDiscoveryService::Handle(IpcRouter& router,Kernel& kernel,GuestMemory& memory,
-                                   ThreadObject&,IpcCommandBuffer& q) {
+                                   ThreadObject& thread,IpcCommandBuffer& q) {
     if (!CanHandle(q)) return kResultNotFound;
+    if(q[0]==IpcMakeHeader(0xC,1,0)) {
+        // Pinned ConvertProcessAddressFromDspDram: DATA-base + word-address*2.
+        // This is an address translation, not initialization or a memory read.
+        // Unknown DATA remains unknown and fails if/when the game dereferences it.
+        const auto address=DspLiveDevice::DataAddress + q[1]*2U;
+        if(live_->error() || probe_->summary().state==DspProbeState::Fault ||
+           !live_->attached() || !memory.IsMapped(address,2)) {
+            router.RequestHostStop("DSP address conversion requires a healthy mapped DATA bank");
+            return kResultSuccess;
+        }
+        q.fill(0);q[0]=IpcMakeHeader(0xC,2,0);q[2]=address;return kResultSuccess;
+    }
+    if(q[0]==IpcMakeHeader(0x10,3,0)) return ReadPipeIfPossible(router,kernel,memory,thread,q);
     if(q[0]==IpcMakeHeader(0x7,1,0)) {
         if(!probe_->SetSemaphore(static_cast<std::uint16_t>(q[1]))) {
             router.RequestHostStop("DSP semaphore update failed; live target faulted or inactive");

@@ -15,6 +15,7 @@ function(lego_add_ctr_runtime target_name)
         "${LEGO_RECOMP_ROOT}/src/services/dsp_execution_probe.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/dsp_live_device.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/dsp_discovery_service.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/dsp_pipe_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_dual_core.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_dual_runner.cpp"
         "${LEGO_RECOMP_ROOT}/src/runtime/ctr_recorded_step.cpp"

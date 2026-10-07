@@ -103,12 +103,12 @@ DspPipeResult DspLiveDevice::WritePipe(std::uint8_t pipe,std::span<const std::ui
     }
     return DspPipeResult::Complete;
 }
-DspPipeResult DspLiveDevice::ReadPipe(std::uint8_t pipe,std::span<std::uint8_t> output) noexcept {
+DspPipeResult DspLiveDevice::ReadPipe(std::uint8_t pipe,std::span<std::uint8_t> output, bool wait_for_notification) noexcept {
     if(pipe>=8)return DspPipeResult::Invalid;
     DspPipeDescriptor d{};auto result=InspectPipe(pipe*2,d);if(result!=DspPipeResult::Complete)return result;
     if(output.size()>d.capacity)return DspPipeResult::Invalid;
     if(output.empty())return DspPipeResult::Complete;
-    if(output.size()>d.used || !probe_->CanSend(2))return DspPipeResult::WouldBlock;
+    if(output.size()>d.used || (!wait_for_notification && !probe_->CanSend(2)))return DspPipeResult::WouldBlock;
     if(!ValidateTable())return DspPipeResult::Invalid;
     const auto memory=probe_->data_backing();const auto base=d.address_words*2;
     const auto at=d.read_pointer&0x7FFFU,n=static_cast<std::uint32_t>(output.size());
@@ -117,8 +117,27 @@ DspPipeResult DspLiveDevice::ReadPipe(std::uint8_t pipe,std::span<std::uint8_t> 
     if(!memory->Read(base+at,std::span(copy).first(first)) ||
        (first<n && !memory->Read(base,std::span(copy).subspan(first,n-first))))return DspPipeResult::Invalid;
     if(!memory->CanWrite(table_+d.slot*10+4,2))return DspPipeResult::Fault;
-    if(!WritePointer(d.slot,AdvancePointer(d.read_pointer,n,d.capacity)) || !probe_->Send(2,d.slot)){
-        Fail("DSP pipe read failed after possible partial device commit");return DspPipeResult::Fault;
+    if(!WritePointer(d.slot,AdvancePointer(d.read_pointer,n,d.capacity))){
+        Fail("DSP pipe read pointer commit failed");return DspPipeResult::Fault;
+    }
+    // Pinned LLE updates its owned read pointer BEFORE waiting for an empty
+    // command mailbox. A wait runs real full DSP slices, not forced mailbox clears
+    // or fabricated acknowledgements. ARM time/scheduled deadlines are unchanged,
+    // matching the reference's synchronous service wait convention.
+    constexpr unsigned MaxNotificationSlices=4; // Explicit host work/containment bound.
+    unsigned waits=0;
+    while(!probe_->CanSend(2)) {
+        if(!wait_for_notification || waits==MaxNotificationSlices){
+            Fail("DSP pipe notification wait limit after read-pointer commit");return DspPipeResult::Fault;
+        }
+        if(notification_wait_slices_==std::numeric_limits<std::uint64_t>::max() ||
+           !probe_->ContinueLive(SliceSteps)){
+            Fail("DSP execution fault during pipe notification wait; partial read retained");return DspPipeResult::Fault;
+        }
+        ++waits;++notification_wait_slices_;
+    }
+    if(!probe_->Send(2,d.slot)){
+        Fail("DSP pipe notification failed after read-pointer commit");return DspPipeResult::Fault;
     }
     std::copy_n(copy.begin(),n,output.begin());return DspPipeResult::Complete;
 }

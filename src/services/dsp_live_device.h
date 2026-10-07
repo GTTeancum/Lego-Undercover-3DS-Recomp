@@ -25,7 +25,12 @@ public:
     bool attached() const noexcept{return attached_;}
     std::uint64_t slices() const noexcept{return slices_;}
     DspPipeResult InspectPipe(std::uint8_t slot,DspPipeDescriptor&) const noexcept;
-    DspPipeResult ReadPipe(std::uint8_t pipe,std::span<std::uint8_t> output) noexcept;
+    // Default remains the atomic nonblocking device API. The service may select
+    // bounded reference waiting AFTER its read-pointer commit, as pinned LLE does.
+    // Failure then retains partial device effects; it is not a retryable no-op.
+    DspPipeResult ReadPipe(std::uint8_t pipe,std::span<std::uint8_t> output,
+                           bool wait_for_notification=false) noexcept;
+    std::uint64_t notification_wait_slices() const noexcept {return notification_wait_slices_;}
     DspPipeResult WritePipe(std::uint8_t pipe,std::span<const std::uint8_t> input) noexcept;
     std::shared_ptr<DspExecutionProbe> probe() const noexcept{return probe_;}
 private:
@@ -35,7 +40,7 @@ private:
     bool Fail(const char* why) noexcept{error_=why;return false;}
     std::shared_ptr<DspExecutionProbe> probe_;
     std::uint32_t table_{};
-    std::uint64_t next_tick_{},slices_{};
+    std::uint64_t next_tick_{},slices_{},notification_wait_slices_{};
     bool attached_{};
     const char* error_{};
 };

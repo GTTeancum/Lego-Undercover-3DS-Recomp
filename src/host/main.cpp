@@ -281,6 +281,7 @@ int main(int argc,char** argv) {
                       << " playback=none capacity=" << ctr::DspExecutionProbe::kAudioCaptureCapacity << '\n';
         if(const auto* device=runner.dsp_diagnostics().live_device())
             std::cout<<"dsp_live_loaded=1 data_base=0x1ff40000 scheduled_slices="<<device->slices()
+                     <<" notification_wait_slices="<<device->notification_wait_slices()
                      <<" next_deadline_ns="<<device->next_deadline_ns().value_or(0)<<'\n';
         if(runner.dsp_error())std::cout<<"dsp_live_error="<<runner.dsp_error()<<'\n';
         if(const auto* probe=runner.dsp_diagnostics().execution_probe()) {

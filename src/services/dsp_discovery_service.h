@@ -22,6 +22,12 @@ public:
         // separately validated IPC and blocking behavior.
         if(probe_options_.live && live_ && q[0]==IpcMakeHeader(0xD,2,2))
             return q[1]==2 && q[2]==4 && q[3]==0x10402;
+        // Bounded audio-pipe reads. Size is Pop<u16> in the pinned service;
+        // peer0 is the observed DSP-to-CPU direction. No other pipe/peer is enabled.
+        if(probe_options_.live && live_ && q[0]==IpcMakeHeader(0x10,3,0))
+            return q[1]==2 && q[2]==0 && (q[3]&0xFFFFU)<=128;
+        if(probe_options_.live && live_ && q[0]==IpcMakeHeader(0xC,1,0))
+            return q[1]<0x20000; // Bounded word address within the mapped DATA bank.
         const auto bytes=q[1];
         return q[0]==IpcMakeHeader(0x11,3,2) && bytes>=kDsp1HeaderBytes &&
                bytes<=kDsp1MaxBytes && q[4]==((bytes<<4)|0xAU) &&
@@ -34,6 +40,10 @@ public:
     }
     bool RunScheduled(Kernel& kernel,std::uint64_t now) noexcept {
         if(signal_error_ || !live_ || !live_->RunScheduled(now))return false;
+        return DeliverPendingInterrupts(kernel);
+    }
+    bool DeliverPendingInterrupts(Kernel& kernel) noexcept {
+        if(signal_error_ || !probe_)return false;
         const auto pending=probe_->TakeLiveInterrupts();
         for(unsigned i=0;i<interrupts_.size();++i)
             if((pending&(1U<<i)) && interrupts_[i] && !kernel.SignalEventObject(*interrupts_[i])) {
@@ -51,6 +61,7 @@ public:
     const Dsp1Image* inspected_image() const noexcept { return inspected_.get(); }
     const DspSpecialReceipt& special_receipt() const noexcept { return special_receipt_; }
 private:
+    Result ReadPipeIfPossible(IpcRouter&, Kernel&, GuestMemory&, ThreadObject&, IpcCommandBuffer&);
     struct SemaphoreTarget final : EventSignalTarget {
         std::weak_ptr<DspExecutionProbe> probe;
         std::uint16_t preset{};
