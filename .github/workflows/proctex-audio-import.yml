@@ -1,0 +1,104 @@
+name: Procedural LUT and audio candidate verification
+on:
+  push:
+    branches: [work/proctex-audio-import-20261007]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.prepare.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: delivery
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          ref: 0799795e30b277ad1a6cc7c05ac624c3110171eb
+          path: candidate
+      - id: prepare
+        name: Verify exact tested tree and create candidate only
+        run: python3 delivery/.delivery/procedural-lut/prepare.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proctex-candidate-receipt
+          path: candidate-receipt.json
+          if-no-files-found: error
+          retention-days: 30
+  test:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gcc
+            compiler: g++
+            sanitize: false
+          - name: clang
+            compiler: clang++
+            sanitize: false
+          - name: sanitizers
+            compiler: clang++
+            sanitize: true
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - name: Configure ROM-free tests
+        shell: bash
+        env:
+          CXX_NAME: ${{ matrix.compiler }}
+          SANITIZE: ${{ matrix.sanitize }}
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          git rev-parse HEAD > evidence/source-commit.txt
+          git rev-parse HEAD^{tree} > evidence/source-tree.txt
+          "$CXX_NAME" --version > evidence/compiler.txt
+          build_type=Release
+          extra=()
+          if [[ "$SANITIZE" == true ]]; then
+            build_type=Debug
+            extra=("-DCMAKE_CXX_FLAGS=-O1 -fsanitize=address,undefined -fno-omit-frame-pointer" "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined")
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE="$build_type" -DCMAKE_CXX_COMPILER="$CXX_NAME" "${extra[@]}" 2>&1 | tee evidence/configure.log
+          ctest --test-dir build --show-only=json-v1 > evidence/configured.json
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --parallel 2 2>&1 | tee evidence/build.log
+      - name: Test all 67 configured suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir build --output-on-failure --timeout 120 --output-junit "$GITHUB_WORKSPACE/evidence/ctest.xml" 2>&1 | tee evidence/ctest.log
+          python3 - <<'PY'
+          import json,xml.etree.ElementTree as E
+          configured=json.load(open('evidence/configured.json'))['tests']
+          cases=E.parse('evidence/ctest.xml').findall('.//testcase')
+          names=[c.attrib['name'] for c in cases]
+          assert len(names)==len(set(names))==67
+          assert set(names)=={c['name'] for c in configured}
+          assert all(c.find('failure') is None and c.find('error') is None and c.find('skipped') is None for c in cases)
+          print('All 67 configured suites passed without skips or duplicates.')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: proctex-candidate-${{ matrix.name }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
