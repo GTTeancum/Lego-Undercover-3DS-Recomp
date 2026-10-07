@@ -61,4 +61,31 @@ Result GspGpuService::WriteHwRegisters(IpcRouter& router,GuestMemory& memory,
     command.fill(0);command[0]=IpcMakeHeader(id,1,0);command[1]=result;
     return kResultSuccess;
 }
+// The pinned GSP command uses the same process/address/size shape as DSP's
+// cache operation. Only this cacheless private-memory model is implemented;
+// flushing does not submit GPU work, expose VRAM or complete a frame.
+Result GspGpuService::FlushDataCache(IpcRouter& router, Kernel& kernel,
+                                     GuestMemory& memory, ThreadObject& thread,
+                                     IpcCommandBuffer& command) {
+    const auto process=std::dynamic_pointer_cast<ProcessObject>(kernel.handles().Get(command[4]));
+    if(!process)return kResultInvalidHandle;
+    if(process!=kernel.current_process()) {
+        router.RequestHostStop("GSP cache operation for another process is unsupported");
+        return kResultSuccess;
+    }
+    const auto reply=std::uint64_t(thread.tls_address)+kIpcCommandBufferOffset;
+    if(reply+sizeof(command)>0x100000000ULL ||
+       !memory.IsCachelessPrivateRange(static_cast<std::uint32_t>(reply),sizeof(command)) ||
+       !memory.IsWritable(static_cast<std::uint32_t>(reply),sizeof(command)))
+        return kResultInvalidPointer;
+    if(command[2] && !memory.IsCachelessPrivateRange(command[1],command[2])) {
+        router.RequestHostStop("GSP cache range is not one readable cacheless private span");
+        return kResultSuccess;
+    }
+    // All prior private writes already update their shared backing. No cache-line
+    // rounding, byte movement, reservation invalidation, ownership change, GPU
+    // notification or time advance is needed. Zero length performs no range work.
+    command.fill(0);command[0]=IpcMakeHeader(0x0008,1,0);
+    return kResultSuccess;
+}
 } // namespace lego::ctr

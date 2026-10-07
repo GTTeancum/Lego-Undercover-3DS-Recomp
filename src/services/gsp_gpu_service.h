@@ -42,6 +42,8 @@ public:
     }
     bool CanHandle(const IpcCommandBuffer& command) const noexcept override {
         if (!identity_) return false; // Registration endpoint is never a client.
+        if (command[0]==IpcMakeHeader(0x0008,2,2))
+            return command[3]==IpcCopyHandleDesc();
         if (command[0]==IpcMakeHeader(0x000B,1,0)) return true;
         if (command[0]==IpcMakeHeader(0x000C,0,0)) return true;
         if (command[0]==IpcMakeHeader(0x0001,2,2))
@@ -58,6 +60,8 @@ public:
     Result Handle(IpcRouter& router,Kernel& kernel,GuestMemory& memory,ThreadObject& thread,
                   IpcCommandBuffer& command) override {
         if(!CanHandle(command))return kResultNotFound;
+        if (IpcCommandId(command[0])==0x0008)
+            return FlushDataCache(router,kernel,memory,thread,command);
         if (IpcCommandId(command[0])==0x000B) {
             // Pinned IPC Pop<bool> consumes the low byte, not the full word.
             // SetLcdForceBlack builds a zero RGB ColorFill and changes bit 24.
@@ -157,6 +161,7 @@ private:
         default: return false;
         }
     }
+    Result FlushDataCache(IpcRouter&,Kernel&,GuestMemory&,ThreadObject&,IpcCommandBuffer&);
     Result WriteHwRegisters(IpcRouter&,GuestMemory&,ThreadObject&,IpcCommandBuffer&);
     Result TriggerCommandQueue(IpcRouter&,Kernel&,GuestMemory&,ThreadObject&,IpcCommandBuffer&);
     struct SessionIdentity {

@@ -16,6 +16,8 @@ public:
         : config_(config), probe_options_(probe) {}
     bool CanHandle(const IpcCommandBuffer& q) const noexcept override {
         if(probe_options_.live && live_ && (q[0]==IpcMakeHeader(0x16,0,0) || q[0]==IpcMakeHeader(0x17,1,0) || q[0]==IpcMakeHeader(0x7,1,0))) return true;
+        if(probe_options_.live && live_ && q[0]==IpcMakeHeader(0x13,2,2))
+            return q[3]==IpcCopyHandleDesc(); // One process object, not a PID.
         if(probe_options_.live && live_ && q[0]==IpcMakeHeader(0x15,2,2))
             return q[1]<3 && q[2]<8 && q[3]==IpcCopyHandleDesc();
         // Observed audio-startup message only; larger payloads/other pipes need
@@ -62,6 +64,7 @@ public:
     const DspSpecialReceipt& special_receipt() const noexcept { return special_receipt_; }
 private:
     Result ReadPipeIfPossible(IpcRouter&, Kernel&, GuestMemory&, ThreadObject&, IpcCommandBuffer&);
+    Result FlushDataCache(IpcRouter&, Kernel&, GuestMemory&, ThreadObject&, IpcCommandBuffer&);
     struct SemaphoreTarget final : EventSignalTarget {
         std::weak_ptr<DspExecutionProbe> probe;
         std::uint16_t preset{};

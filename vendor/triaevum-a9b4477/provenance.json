@@ -169,5 +169,14 @@
   "format": "oot3d_pinned_a32_runtime_v1",
   "source_revision": "607aaa60e1e94caaeaaa524c9d6d120fdd265701",
   "source_selection_version": 15,
-  "source_snapshot_id": "850483fb59713e87"
+  "source_snapshot_id": "850483fb59713e87",
+  "checkpoint_patches": [
+    {
+      "date": "2026-10-07",
+      "path": "recomp/a32_vfp_scalar.cpp",
+      "baseline_sha256": "d07a379cb9e1a72487e5ac50533bbf718f31414fc6960500e4ce9d934b1e94cc",
+      "working_sha256": "83f5233180c87fa53680427e4de3c2e4739e2dafe4e723be7978db52de1aed89",
+      "purpose": "Bounded VFPv2 single-precision short-vector lane dispatch; retain scalar numeric algorithms; bank-zero/broadcast rules, circular banks, stride validation, sticky flags; reject cross-lane overlap, double vectors and exception traps."
+    }
+  ]
 }

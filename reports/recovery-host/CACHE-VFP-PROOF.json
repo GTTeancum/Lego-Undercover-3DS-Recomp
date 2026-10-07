@@ -1,0 +1,188 @@
+{
+  "scope": "Independent captured-byte/coherence checks and finite RN binary32 arithmetic replay, not a complete ARM/DSP emulator or hardware timing oracle",
+  "matching_capture_files": 69,
+  "cache_calls": [
+    {
+      "service": "dsp::DSP",
+      "address": 338627968,
+      "size": 2048,
+      "time_ns": 164557222,
+      "handles": 37,
+      "threads": 7,
+      "target_plus_neighbours_sha256": "2fe9f9c6a865043cc0b7716ee9abafdf924462e5532fb20c02abfb8a775c4fff",
+      "successful_reply_header": 1245248
+    },
+    {
+      "service": "dsp::DSP",
+      "address": 338630016,
+      "size": 1184,
+      "time_ns": 164611203,
+      "handles": 37,
+      "threads": 7,
+      "target_plus_neighbours_sha256": "7aa15ecc47fb78c6d301966d0fdfd193fb8b7ed0e88d19a8044a29ed75e8b374",
+      "successful_reply_header": 1245248
+    },
+    {
+      "service": "dsp::DSP",
+      "address": 338631200,
+      "size": 1896,
+      "time_ns": 164685336,
+      "handles": 37,
+      "threads": 7,
+      "target_plus_neighbours_sha256": "145647a9411760065f2c67a840429c843702de44c96f924b6d357a82a0a13041",
+      "successful_reply_header": 1245248
+    },
+    {
+      "service": "dsp::DSP",
+      "address": 338633120,
+      "size": 2048,
+      "time_ns": 164753588,
+      "handles": 37,
+      "threads": 7,
+      "target_plus_neighbours_sha256": "5e4b019212c99a19203d71b89139350226b8c7d98833311db76788a973aca8f2",
+      "successful_reply_header": 1245248
+    },
+    {
+      "service": "dsp::DSP",
+      "address": 338635168,
+      "size": 33264,
+      "time_ns": 164812679,
+      "handles": 37,
+      "threads": 7,
+      "target_plus_neighbours_sha256": "0b839f91f76bb6a476dd0a33568d74aecbc4168e074d76aee716fddf3728ddab",
+      "successful_reply_header": 1245248
+    },
+    {
+      "service": "dsp::DSP",
+      "address": 338668448,
+      "size": 37064,
+      "time_ns": 164948838,
+      "handles": 37,
+      "threads": 7,
+      "target_plus_neighbours_sha256": "0bd41c3f8fa110b54c047e64bc5288bbd527605b9ab54ae61d7034aba4483fa1",
+      "successful_reply_header": 1245248
+    },
+    {
+      "service": "dsp::DSP",
+      "address": 338705536,
+      "size": 2472,
+      "time_ns": 165023505,
+      "handles": 37,
+      "threads": 7,
+      "target_plus_neighbours_sha256": "c2402f3a1f7747120469ccc45c9c202a42d63c5619eb5470d1364c7978fcfee2",
+      "successful_reply_header": 1245248
+    },
+    {
+      "service": "dsp::DSP",
+      "address": 338708032,
+      "size": 6704,
+      "time_ns": 165226912,
+      "handles": 37,
+      "threads": 7,
+      "target_plus_neighbours_sha256": "41f87e9f1a2784ca60e9eb714f2cec39edb29086d3aa7c26c946bdc3793eb24d",
+      "successful_reply_header": 1245248
+    },
+    {
+      "service": "gsp::Gpu",
+      "address": 338376000,
+      "size": 128,
+      "time_ns": 284206761,
+      "handles": 37,
+      "threads": 7,
+      "target_plus_neighbours_sha256": "e018f1061efc796e30140f897458f678e4986b5c83eb6b346e7a927590ca0365",
+      "successful_reply_header": 524352
+    }
+  ],
+  "dsp_flushes": 8,
+  "gsp_flushes": 1,
+  "target_bytes": 86808,
+  "vector": {
+    "calls": 58,
+    "lane_operations": 214,
+    "op_counts": {
+      "SUB": 2,
+      "NEG": 2,
+      "MUL": 14,
+      "MLS": 4,
+      "MLA": 36
+    },
+    "width_counts": {
+      "1": 4,
+      "3": 6,
+      "4": 48
+    },
+    "sites": {
+      "00258af0": 2,
+      "00258af4": 2,
+      "00258af8": 2,
+      "00258afc": 2,
+      "00258b00": 2,
+      "0025891c": 2,
+      "00258920": 2,
+      "00258924": 2,
+      "00258928": 2,
+      "00258934": 2,
+      "00258938": 2,
+      "0025893c": 2,
+      "00258940": 2,
+      "0025894c": 2,
+      "00258950": 2,
+      "00258954": 2,
+      "00258958": 2,
+      "00258964": 2,
+      "00258968": 2,
+      "0025896c": 2,
+      "00258970": 2,
+      "00130870": 1,
+      "00130874": 1,
+      "00130878": 1,
+      "0013087c": 1,
+      "00130888": 1,
+      "00130890": 1,
+      "00130898": 1,
+      "001308a0": 1,
+      "001308ac": 1,
+      "001308b4": 1,
+      "001308bc": 1,
+      "001308c4": 1,
+      "001308d0": 1,
+      "001308d8": 1,
+      "001308e0": 1,
+      "001308e8": 1
+    },
+    "all_32_register_words_match": true,
+    "fpscr_and_cpsr_preserved": true,
+    "finite_RN_replay": true
+  },
+  "queue": {
+    "all_registers_uploads_relay_vram_unchanged": true,
+    "list_bytes": 1376,
+    "attribute_first_byte": 896,
+    "attribute_first_register": 562,
+    "attribute_first_parameter": 2,
+    "attribute_words": 12
+  },
+  "final": {
+    "rounds": 843,
+    "thread": 1,
+    "time_ns": 317564398,
+    "handles": 37,
+    "threads": 7,
+    "pc": 2462844
+  },
+  "audio": {
+    "records": 9794,
+    "all_actual_fifo": true,
+    "all_startup_zero": true,
+    "bytes": 156736,
+    "sha256": "487837de2bb9d8bcf01c0ffc7ec0b45e3540656122ca55c4c979c6b9dc424557",
+    "playback": false
+  },
+  "vram": {
+    "sha256": "443f3a20720a0535f93ab184651deee779c73efae0790fb4ab406fb266c6c695",
+    "depth_clear_offset": 4297728,
+    "depth_clear_bytes": 819200,
+    "all_other_bytes_zero": true,
+    "rendered_image": false
+  }
+}

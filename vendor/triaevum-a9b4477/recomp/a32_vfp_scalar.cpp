@@ -863,6 +863,82 @@ VfpBinary32Result VfpBinary32Compare(
     return {result.value, result.flags & kExceptionFlags};
 }
 
+namespace {
+// ARM DDI 0274H 2.7 and 3.4.2: VFPv2 single-precision register banks are
+// circular groups of eight. Destination bank 0 forces scalar operation. Fm
+// in bank 0 broadcasts; Fn still advances when the destination is a vector.
+// This bounded path retains the existing bit-exact scalar arithmetic engine.
+// Double vectors, exception trapping and cross-lane source/destination hazards
+// remain unsupported; no instruction latency or vector pipeline is modeled.
+ExecutionResult ExecuteSingleShortVector(std::uint32_t raw, std::uint32_t pc,
+                                          GuestState& state) {
+    const auto length_field = (state.fpscr >> 16U) & 7U;
+    const auto stride_field = (state.fpscr >> 20U) & 3U;
+    if ((stride_field != 0U && stride_field != 3U) ||
+        (length_field == 0U && stride_field != 0U))
+        return Unsupported(state, raw, pc);
+    const auto stride = stride_field == 3U ? 2U : 1U;
+    const auto ternary = raw & kTernaryMask;
+    bool three_operand = false, scalar_only = false;
+    switch (ternary) {
+    case 0x0E000A00U: case 0x0E000A40U:
+    case 0x0E100A00U: case 0x0E100A40U:
+    case 0x0E200A00U: case 0x0E200A40U:
+    case 0x0E300A00U: case 0x0E300A40U: case 0x0E800A00U:
+        three_operand = true;
+        break;
+    default:
+        switch (raw & kUnaryMask) {
+        case 0x0EB00AC0U: case 0x0EB10A40U: case 0x0EB10AC0U:
+            break; // ABS, NEG, SQRT can be vectors.
+        case 0x0EB80AC0U: case 0x0EB80A40U:
+        case 0x0EBD0AC0U: case 0x0EBC0AC0U:
+        case 0x0EB40A40U: case 0x0EB40AC0U:
+            scalar_only = true; // Existing conversions and comparisons.
+            break;
+        default:
+            return Unsupported(state, raw, pc);
+        }
+    }
+    const auto d = DestinationLane(raw), n = LeftLane(raw), m = RightLane(raw);
+    const unsigned count = (scalar_only || d < 8U) ? 1U : length_field + 1U;
+    if (count * stride > 8U) return Unsupported(state, raw, pc);
+    const auto lane = [stride](unsigned first, unsigned i) {
+        return (first & ~7U) | ((first + i * stride) & 7U);
+    };
+    // Reject shifted overlap before any write. Identical per-iteration operands
+    // (including a multiply-accumulate destination) are safe and supported.
+    for (unsigned i = 0; i < count; ++i) {
+        for (unsigned j = 0; j < count; ++j) {
+            if (i == j) continue;
+            if ((three_operand && lane(d, i) == lane(n, j)) ||
+                (m >= 8U && lane(d, i) == lane(m, j)))
+                return Unsupported(state, raw, pc);
+        }
+    }
+    GuestState work = state;
+    work.fpscr &= ~kFpscrVectorModeMask;
+    for (unsigned i = 0; i < count; ++i) {
+        const unsigned di = lane(d, i), ni = lane(n, i);
+        const unsigned mi = (count == 1U || m < 8U) ? m : lane(m, i);
+        std::uint32_t scalar_raw = raw & ~((1U << 22U) | (15U << 12U) | (1U << 5U) | 15U);
+        scalar_raw |= (di & 1U) << 22U | (di >> 1U) << 12U |
+                      (mi & 1U) << 5U | (mi >> 1U);
+        if (three_operand) {
+            scalar_raw &= ~((15U << 16U) | (1U << 7U));
+            scalar_raw |= (ni >> 1U) << 16U | (ni & 1U) << 7U;
+        }
+        const auto result = ExecuteVfpScalar(scalar_raw, pc, work);
+        if (result.kind != ExitKind::Fallthrough) return Unsupported(state, raw, pc);
+    }
+    // Sticky flags accumulate through each lane. LEN/STRIDE and rounding/NaN
+    // controls survive the operation; the architectural PC advances only once.
+    work.fpscr |= state.fpscr & kFpscrVectorModeMask;
+    state = work;
+    return Fallthrough(state, pc);
+}
+} // namespace
+
 ExecutionResult ExecuteVfpScalar(
     std::uint32_t raw,
     std::uint32_t pc,
@@ -871,9 +947,11 @@ ExecutionResult ExecuteVfpScalar(
         return ExecuteVfpBinary64(raw, pc, state);
     }
     if ((raw & kConditionMask) == kConditionMask ||
-        (state.fpscr &
-         (kFpscrVectorModeMask | kFpscrExceptionEnableMask)) != 0U) {
+        (state.fpscr & kFpscrExceptionEnableMask) != 0U) {
         return Unsupported(state, raw, pc);
+    }
+    if ((state.fpscr & kFpscrVectorModeMask) != 0U) {
+        return ExecuteSingleShortVector(raw, pc, state);
     }
 
     const Control control = ControlFromFpscr(state.fpscr);

@@ -98,6 +98,13 @@ public:
     bool IsReadable(std::uint32_t address, std::uint32_t size = 1) const noexcept;
     bool IsWritable(std::uint32_t address, std::uint32_t size = 1) const noexcept;
 
+    // This address space has no CPU cache or delayed private-memory writes.
+    // Restrict the bounded DSP cache operation to one readable private backing
+    // (including its aliases). Inspect metadata only: never touch shared/device
+    // callbacks, initialize unknown SRAM, or imply external DSP-bus support.
+    // Zero length is handled separately by the caller; this predicate rejects it.
+    bool IsCachelessPrivateRange(std::uint32_t address, std::uint32_t size) const noexcept;
+
     // True when mapped spans overlap physically, including distinct aliases of
     // a service-owned shared page. Invalid/unmapped spans return false; callers
     // must preflight permissions and bounds before relying on this predicate.

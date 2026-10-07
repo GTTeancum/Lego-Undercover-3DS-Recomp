@@ -6,6 +6,7 @@ namespace lego::ctr {
 Result DspDiscoveryService::Handle(IpcRouter& router,Kernel& kernel,GuestMemory& memory,
                                    ThreadObject& thread,IpcCommandBuffer& q) {
     if (!CanHandle(q)) return kResultNotFound;
+    if(q[0]==IpcMakeHeader(0x13,2,2)) return FlushDataCache(router,kernel,memory,thread,q);
     if(q[0]==IpcMakeHeader(0xC,1,0)) {
         // Pinned ConvertProcessAddressFromDspDram: DATA-base + word-address*2.
         // This is an address translation, not initialization or a memory read.

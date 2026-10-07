@@ -77,3 +77,23 @@ That oracle shares instruction backends and is not independent ARM emulation.
 Neither the private AOT archive nor any opcode backend is changed by this slice.
 
 Current recomp/a32_runtime.cpp SHA-256: 952fac140b5d860cd472c56c313231c4dcc8eb7b1719caeaa341503015030773
+
+## October 7: bounded VFPv2 single-precision short vectors
+
+The original program reaches supported scalar arithmetic with FPSCR LEN=2,
+which denotes three short-vector iterations. The previous global vector-mode
+guard rejected even scalar-bank destinations. The new bounded dispatch follows
+ARM DDI 0274H sections 2.7 and 3.4.2: circular eight-register banks, scalar
+destinations S0..S7, scalar Fm broadcasts, advancing Fn, valid stride encodings,
+and scalar-only conversions/comparisons. It reuses the unchanged scalar integer
+floating-point algorithms. Sticky exception flags accumulate; LEN/STRIDE and
+other controls survive; the architectural PC advances once.
+
+Unsupported encodings, double-precision vectors, enabled exception trapping and
+shifted cross-lane source/destination overlap still stop without partial output.
+Only aligned per-iteration overlap is supported. This is not full VFP pipeline,
+hardware latency, trap/support-code or general alias-hazard emulation. Original
+code.bin and every saved AOT page remain unchanged. No runtime decoding fallback
+is introduced. The private original-run trace and public synthetic tests distinguish
+actual game execution from finite test fixtures. Current file hashes are recorded
+under checkpoint_patches in provenance.json; older provenance remains historical.

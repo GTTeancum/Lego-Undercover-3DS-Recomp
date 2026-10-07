@@ -148,6 +148,13 @@ bool GuestMemory::IsWritable(std::uint32_t address,
     return CanAccess(address, size, MemoryPermission::Write);
 }
 
+bool GuestMemory::IsCachelessPrivateRange(std::uint32_t address,
+                                          std::uint32_t size) const noexcept {
+    const Region* region = FindRegion(address, size); // Also rejects overflow/zero.
+    return region && region->backing && !region->shared && !region->device &&
+           CanAccess(address, size, MemoryPermission::Read);
+}
+
 bool GuestMemory::SpansAlias(std::uint32_t a,std::uint32_t a_size,
                              std::uint32_t b,std::uint32_t b_size) const noexcept {
     if (!a_size || !b_size) return false;
