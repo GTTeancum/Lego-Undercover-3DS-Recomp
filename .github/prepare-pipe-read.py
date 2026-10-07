@@ -6,11 +6,13 @@ patchsha='eed8b9e750528f77307238fd1636c31acbae410801252847723f324c902ceeb8'
 source=pathlib.Path(sys.argv[1]).resolve(); candidate=pathlib.Path(sys.argv[2]).resolve()
 receipt=pathlib.Path('receipt'); receipt.mkdir(exist_ok=True)
 raw=source.read_bytes(); (receipt/'received.gz').write_bytes(raw)
-# Correct a detected transport transcription only; both exact cryptographic
-# identities below must match the independently tested local patch before use.
-encoded=base64.b64encode(raw).decode().replace('nS6j4it2c1itTH','nS6j4it2c1dTH')
-try: corrected=base64.b64decode(encoded,validate=True)
-except ValueError: corrected=raw
+# The first rejected payload was downloaded and compared byte-for-byte with
+# the original local patch. These two exact base64 edits reconstruct that patch;
+# both hashes and the complete resulting Git tree must still match before use.
+encoded=base64.b64encode(raw).decode()
+assert len(encoded)==11248 and encoded[414:416]=='it'
+encoded=encoded[:414]+'d'+encoded[416:]+'A'
+corrected=base64.b64decode(encoded,validate=True)
 assert hashlib.sha256(corrected).hexdigest()==gzsha, 'Compressed patch identity mismatch; no candidate published'
 patch=gzip.decompress(corrected)
 assert len(patch)==31834 and hashlib.sha256(patch).hexdigest()==patchsha
