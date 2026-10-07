@@ -1,0 +1,125 @@
+name: Exact sound and swizzle candidate
+on:
+  push:
+    branches: [work/cfg-sound-swizzle-import]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.make.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: payload
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          path: base
+          ref: 3089a50280cba142d452ae414630d55b80a9b32f
+      - name: Verify exact public bytes and create candidate only
+        id: make
+        working-directory: base
+        run: |
+          python3 - <<'PY'
+          import base64,gzip,hashlib,json,os,pathlib,subprocess
+          base='3089a50280cba142d452ae414630d55b80a9b32f'
+          tree='a8888c11916da750bef68d10c3a67eecd3cca3e4'
+          p=pathlib.Path('../payload/checkpoint-input')
+          raw=(p/'transferred-patch.gz').read_bytes()
+          assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()=='0c4fe511a09ec094de25fd6373a78b6e04f770f4'
+          text=base64.b64encode(raw).decode()
+          corrections=[[5136,5137,'U',''],[6938,6941,'al7','2xv'],[8226,8227,'u','/'],[10754,10755,'M',''],[13666,13668,'==','']]
+          for start,end,old,new in reversed(corrections):
+              assert text[start:end]==old
+              text=text[:start]+new+text[end:]
+          compressed=base64.b64decode(text,validate=True)
+          assert hashlib.sha1(b'blob '+str(len(compressed)).encode()+b'\0'+compressed).hexdigest()=='a4ad67d6b71c584ff540b263b72168fd4885bb44'
+          patch=gzip.decompress(compressed)
+          assert hashlib.sha256(patch).hexdigest()=='2960be28247237fa967d128443bb7935d309d29e689ba5470f50eec760f5df43'
+          subprocess.run(['git','apply','--index','-'],input=patch,check=True)
+          docs={'docs/recovery/CURRENT-REBUILD.md':'dc4671dcf8aa2998382687518c2835025ffec22d','reports/recovery-host/CFG-SOUND-SWIZZLE.md':'a4344fb2b83e14e7bd461e59a096f34834e5b6a5','reports/recovery-host/CFG-SOUND-SWIZZLE-PROOF.json':'80b5181054492fe15d8f0961ce6aff592dc0c6e3'}
+          for path,sha in docs.items():
+              data=(p/path).read_bytes()
+              assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==sha,path
+              out=pathlib.Path(path);out.parent.mkdir(parents=True,exist_ok=True);out.write_bytes(data)
+          subprocess.run(['git','add','-f','--',*docs],check=True)
+          assert subprocess.check_output(['git','write-tree'],text=True).strip()==tree
+          subprocess.run(['git','config','user.name','LEGO Recomp checkpoint'],check=True)
+          subprocess.run(['git','config','user.email','noreply@github.com'],check=True)
+          message='Add explicit sound preference and staged PICA swizzle uploads\n\nOriginal startup reaches procedural LUT at round357 with99 core1 instructions.\nThe 83 swizzle words are staged only; the whole GPU list remains uncommitted.\nFull local GCC/Clang builds and65 suites, sanitizers, six startup pairs and129\ncapture pairs passed. No frame, menu, playback or hardware timing claim.\n'
+          commit=subprocess.check_output(['git','commit-tree',tree,'-p',base],input=message,text=True).strip()
+          branch='work/cfg-sound-swizzle-candidate-'+os.environ['GITHUB_RUN_ID']
+          subprocess.run(['git','push','origin',commit+':refs/heads/'+branch],check=True)
+          receipt={'commit':commit,'tree':tree,'parent':base,'branch':branch}
+          pathlib.Path('../candidate-receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('commit='+commit+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sound-candidate-receipt
+          path: candidate-receipt.json
+          retention-days: 30
+  test:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gcc
+            compiler: g++
+            sanitize: 'false'
+          - name: clang
+            compiler: clang++
+            sanitize: 'false'
+          - name: sanitizers
+            compiler: clang++
+            sanitize: 'true'
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - name: Configure exact candidate
+        env:
+          COMPILER: ${{ matrix.compiler }}
+          SANITIZE: ${{ matrix.sanitize }}
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          git rev-parse HEAD > evidence/commit.txt
+          git rev-parse HEAD^{tree} > evidence/tree.txt
+          args=(-DCMAKE_BUILD_TYPE=Release)
+          if [ "$SANITIZE" = true ]; then
+            args=(-DCMAKE_BUILD_TYPE=Debug '-DCMAKE_CXX_FLAGS=-O1 -fsanitize=address,undefined -fno-omit-frame-pointer' '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined')
+          fi
+          cmake -S . -B build -DCMAKE_CXX_COMPILER="$COMPILER" "${args[@]}" 2>&1 | tee evidence/configure.log
+      - name: Build and test all ROM-free suites
+        run: |
+          set -euo pipefail
+          cmake --build build --parallel 2 2>&1 | tee evidence/build.log
+          ctest --test-dir build --show-only=json-v1 > evidence/configured.json
+          ctest --test-dir build --output-on-failure --timeout 120 --output-junit "$GITHUB_WORKSPACE/evidence/junit.xml" 2>&1 | tee evidence/ctest.log
+          python3 - <<'PY'
+          import json,xml.etree.ElementTree as E
+          want=[t['name'] for t in json.load(open('evidence/configured.json'))['tests']]
+          tests=E.parse('evidence/junit.xml').findall('.//testcase')
+          assert len(want)==65 and sorted(want)==sorted(t.attrib['name'] for t in tests)
+          assert not any(t.find('failure') is not None or t.find('error') is not None or t.find('skipped') is not None for t in tests)
+          print('PASS exact65 configured suites, no skips or duplicates')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sound-candidate-${{ matrix.name }}
+          path: evidence/
+          retention-days: 30
