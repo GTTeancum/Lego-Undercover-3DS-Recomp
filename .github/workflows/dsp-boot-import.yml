@@ -1,0 +1,116 @@
+name: DSP boot candidate verification
+on:
+  push:
+    branches: [work/dsp-boot-import-20261007]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.prepare.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: bundle
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          path: source
+          ref: 4be383cba5c8b370e5ca45150a098618203ac410
+      - name: Verify exact source and publish candidate only
+        id: prepare
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import gzip, hashlib, json, os, pathlib, subprocess
+          root = pathlib.Path.cwd()
+          parts = root / 'bundle/tools/dsp-boot-import'
+          compressed = b''.join((parts / (n + '.bin')).read_bytes() for n in ('0','1','2a','2b','3a','3b'))
+          assert hashlib.sha256(compressed).hexdigest() == '11b3cae79a6427b23874ebaa30f69b523d26cb6adbe0f0ebf296c3f54ccc0b62'
+          patch = gzip.decompress(compressed)
+          assert hashlib.sha256(patch).hexdigest() == '88e0f565268b2dd51c9ca02d0f10965548a65c2b0c1abc4e496d995c45e56e17'
+          (root / 'verified.patch').write_bytes(patch)
+          source = root / 'source'
+          def git(*args):
+              return subprocess.check_output(['git', *args], cwd=source, text=True).strip()
+          assert git('rev-parse','HEAD') == '4be383cba5c8b370e5ca45150a098618203ac410'
+          git('apply','--index','--binary',str(root / 'verified.patch'))
+          tree = git('write-tree')
+          assert tree == 'e9042ae9040ac47d22ed47fe65976ca637f9788a', tree
+          git('config','user.name','LEGO Recomp checkpoint')
+          git('config','user.email','noreply@github.com')
+          git('commit','-m','Preserve reference DSP boot polling batches and actual transmit IRQ enable\n\nExplicit reference-slice boot mode retains bounded progress and polls only at\ncompleted 16384-call boundaries. Original firmware consumes its startup message,\nwrites its own reply and wakes the game at the next unsupported pipe-read IPC.\nNo task pointers, mailbox replies, wait results or game bytes are fabricated.\n\nFull local GCC/Clang native builds and 61 suites passed, as did ROM-free\nASan/UBSan. Six original-startup pairs and 333 paired captures matched.\nThis isolated candidate awaits hosted tests; no rendered frame is claimed.')
+          commit = git('rev-parse','HEAD')
+          branch = 'work/dsp-boot-candidate-' + os.environ['GITHUB_RUN_ID']
+          git('push','origin','HEAD:refs/heads/' + branch)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write('commit=' + commit + '\n')
+          (root / 'candidate.json').write_text(json.dumps({'commit':commit,'tree':tree,'branch':branch,'parent':'4be383cba5c8b370e5ca45150a098618203ac410'},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsp-boot-candidate-receipt
+          path: candidate.json
+          retention-days: 30
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gcc
+            compiler: g++
+            sanitize: false
+          - name: clang
+            compiler: clang++
+            sanitize: false
+          - name: sanitizers
+            compiler: clang++
+            sanitize: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - name: Configure ROM-free tests
+        shell: bash
+        run: |
+          if [ '${{ matrix.sanitize }}' = true ]; then
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_CXX_FLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined' 2>&1 | tee configure.log
+          else
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} 2>&1 | tee configure.log
+          fi
+      - name: Build
+        run: cmake --build build --parallel 2 2>&1 | tee build.log
+      - name: Test all configured suites
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          ctest --test-dir build --output-on-failure --output-junit "$PWD/junit.xml" 2>&1 | tee test.log
+          ctest --test-dir build --show-only=json-v1 > configured.json
+          python3 - <<'PY'
+          import json, pathlib, subprocess, xml.etree.ElementTree as ET
+          expected = [t['name'] for t in json.loads(pathlib.Path('configured.json').read_text())['tests']]
+          cases = ET.parse('junit.xml').getroot().findall('.//testcase')
+          assert len(expected) == 61 and len(set(expected)) == 61
+          assert sorted(c.get('name') for c in cases) == sorted(expected)
+          assert not any(c.find('failure') is not None or c.find('error') is not None or c.find('skipped') is not None for c in cases)
+          pathlib.Path('test-receipt.json').write_text(json.dumps({'commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'passed':len(cases),'names':expected,'scope':'ROM-free hosted tests'},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dsp-boot-${{ matrix.name }}
+          path: |
+            configure.log
+            build.log
+            test.log
+            junit.xml
+            configured.json
+            test-receipt.json
+          retention-days: 30
