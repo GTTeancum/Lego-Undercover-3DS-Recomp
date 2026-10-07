@@ -1,0 +1,92 @@
+name: Language AOT candidate verification
+on:
+  push:
+    branches: [work/language-aot-import-v1]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.prepare.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Reconstruct exact reviewed public source and create candidate only
+        id: prepare
+        run: python .github/language-import/reconstruct.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: language-candidate-receipt
+          path: language-candidate.json
+          retention-days: 30
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: gcc
+            compiler: g++
+            sanitize: false
+          - name: clang
+            compiler: clang++
+            sanitize: false
+          - name: sanitizers
+            compiler: clang++
+            sanitize: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - name: Verify exact tree and configure ROM-free tests
+        env:
+          COMPILER: ${{ matrix.compiler }}
+          SANITIZE: ${{ matrix.sanitize }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^{tree})" = 3167ec7ebe8f69f5abfae950cfb757743ddac98f
+          if [ "$SANITIZE" = true ]; then
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER="$COMPILER" -DCMAKE_CXX_FLAGS="-O1 -fsanitize=address,undefined -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" 2>&1 | tee configure.log
+          else
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER="$COMPILER" 2>&1 | tee configure.log
+          fi
+          ctest --test-dir build --show-only=json-v1 > configured.json
+      - name: Build
+        run: |
+          set -euo pipefail
+          cmake --build build --parallel 2 2>&1 | tee build.log
+      - name: Test all configured suites
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          ctest --test-dir build --output-on-failure --output-junit "$GITHUB_WORKSPACE/junit.xml" 2>&1 | tee test.log
+          python - <<'PY'
+          import json,xml.etree.ElementTree as E
+          names=[x['name'] for x in json.load(open('configured.json'))['tests']]
+          cases=list(E.parse('junit.xml').iter('testcase'))
+          assert len(names)==len(cases)==69
+          assert len(set(names))==69 and sorted(names)==sorted(x.attrib['name'] for x in cases)
+          assert not any(list(x.iter('failure')) or list(x.iter('error')) or list(x.iter('skipped')) for x in cases)
+          print('All 69 configured suites passed without skips or duplicates')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: language-candidate-${{ matrix.name }}
+          path: |
+            configure.log
+            build.log
+            test.log
+            configured.json
+            junit.xml
+          retention-days: 30
