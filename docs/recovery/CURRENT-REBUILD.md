@@ -1,3 +1,94 @@
+# October 28, 2026 — explicit per-title SaveData opening
+
+## Current result and next task
+
+The original game's `OpenArchive(4, Empty)` request now executes through a
+separate title-save backend. On an explicitly selected fresh save container,
+the real missing-save response is `0x080C00C0, 0xC8A04554, 0, 0`, followed by
+zeroed unused reply words. It allocates no archive or kernel handle, changes no
+save files, and ignores the incidental Empty-path byte `0x3c` after validating
+its readable span.
+
+The unchanged original game advances from round **1203** to **1277**:
+
+```text
+stop=UnsupportedSvc pc=0x0025c9f4 detail=0x00000001 thread=1 dispatch_rounds=1277
+r0=0x00000005 r1=0x0e021000 r2=0x083b5000 r3=0x00002000 r4=0x00000003
+guest_now_ns=534871200
+```
+
+This is `ControlMemory` operation5 (Unmap): target0x0e021000,
+source0x083b5000, size0x2000, requested source permissions3. The last IPC name
+is `gsp::Gpu`, but that earlier completed IPC is not the stop cause. No FS
+format request follows the missing-save reply in this run. Next work is to
+implement the actual inverse alias operation after checking the recorded
+mapping and pinned source, preserving bytes and restoring source permissions.
+
+No visible game scene, menu, audio playback or gameplay is demonstrated.
+
+## SaveData behavior
+
+`--save-data-root DIR` is opt-in and requires an existing host container. The
+initialized FS session supplies the program ID; lowercase numeric components
+select `<root>/<program-high:08x>/<program-low:08x>/data/00000001`.
+Configuring or opening does not create directories, metadata or game files.
+An omitted host selection remains an explicit unsupported capability; a
+configured but absent title save returns NotFormatted. Existing real save
+directories need no metadata file for OpenArchive and receive opaque u64
+handles from a separate typed table. File operations and formatting are still
+unsupported; shared-extdata file semantics are never substituted.
+
+The POSIX backend pins the selected root and descends with descriptor-relative,
+no-follow directory opens. Shared-extdata allocation reserves the SaveData
+handle namespace. Unsupported hosts receive no pathname-only fallback.
+Unexpected host I/O errors stop before committing a guest reply or allocating
+a save mount. A real existing save is left unchanged by OpenArchive.
+
+This follows the local backend semantics in
+[Azahar 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac](https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/file_sys/archive_source_sd_savedata.cpp),
+with explicit containment and handle typing as host policy. The private
+reference manifest records twelve primary-source files and their Git/SHA-256
+identities. Those sources do not establish measured console filesystem timing.
+
+## Verification
+
+The new SaveData suite and seven existing FS/RomFS suites pass: **eight focused
+suites**, with **78** suites now registered overall. Tests cover the exact
+failure reply, missing versus unconfigured storage, ignored non-NUL Empty
+payload, real existing directories, session/program binding, handle separation,
+response preflight, symlink rejection, pinned-root replacement and real host
+permission failure. The sandbox's uid mapping blocks the existing isolated
+privilege-drop test; the authorized run with normal process permissions passes.
+No existing test was disabled or changed.
+
+The ordinary run and separate FS-only logging capture match normalized launch
+arguments and complete stdout, CPU/stop fields, and all **270,528 DSP audio
+bytes**. The capture contains **67** complete FS request/response pairs. Its
+last FS operation is the real missing-save reply at501570401ns, with38 kernel
+handles before and after. The fresh SaveData container stays empty. The
+separate shared-extdata tree contains the same20-byte `gamecoin.dat` generated
+by the already-supported earlier PTM path; it is not a new title save.
+
+Private evidence: `savedata-open-native-blxjkvde`,
+`savedata-open-capture-dwyailt_/savedata-proof.json`, `save-data-local-tests.json`,
+`save-data-open-build.json` and `save-data-references/manifest.json`, all under
+`evidence/`. These inputs/captures are not part of public Git. Public source is
+preserved in the real repository history; the private checkpoint carries its
+source identity and complete proof/log data. Original code, ExHeader and RomFS
+hashes remain unchanged.
+
+After the documented native build, the private finite-run helper reproduces
+this state with an independently created empty save container:
+
+```bash
+python3 evidence/run_original.py continuation build-current/LEGOChaseNative \
+  --fresh-save-data --host-event-limit 16384
+```
+
+The prior drawing/transfer milestone and its evidence remain below as history.
+
+---
+
 # October 28, 2026 — native color draws and framebuffer crop
 
 ## Current outcome and next stop

@@ -33,18 +33,25 @@ bool FsUserService::CanHandle(const IpcCommandBuffer& command) const noexcept {
                command[9]==0x00004802 && command[11]==0x00030002;
     }
     if (command[0] == IpcMakeHeader(0x0802, 7, 2)) {
+        const auto archive = std::uint64_t(command[2]) | (std::uint64_t(command[3]) << 32);
+        if (IsSaveDataArchiveHandle(archive)) return false;
         const auto bytes = command[5];
         return shared_->archives.CanOpenFiles() && command[4] == 4 &&
                bytes >= 4 && bytes <= 0x1000 && (bytes & 1) == 0 &&
                command[8] == ((bytes << 14) | 2) && (command[6] & ~7U) == 0;
     }
     if (command[0] == IpcMakeHeader(0x0808, 8, 2)) {
+        const auto archive = std::uint64_t(command[2]) | (std::uint64_t(command[3]) << 32);
+        if (IsSaveDataArchiveHandle(archive)) return false;
         const auto bytes = command[5];
         const auto size = std::uint64_t(command[7]) | (std::uint64_t(command[8]) << 32);
         return shared_->archives.CanCreateFiles() && command[4] == 4 &&
                bytes >= 4 && bytes <= 0x1000 && (bytes & 1) == 0 &&
                command[9] == ((bytes << 14) | 2) && size <= kMaxSharedCreateSize;
     }
+    if (command[0] == IpcMakeHeader(0x080C, 3, 2) && command[1] == 4)
+        return shared_->save_archives.configured() && command[2] == 1 &&
+               command[3] == 1 && command[4] == 0x00004002;
     return shared_->archives.configured() &&
            command[0] == IpcMakeHeader(0x080C, 3, 2) && command[1] == 7 &&
            command[2] == 2 && command[3] == 12 && command[4] == 0x00030002;
@@ -181,6 +188,26 @@ Result FsUserService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& mem
     }
     if (id == 0x080C) {
         const auto address = command[5];
+        if (command[1] == 4) {
+            if (std::uint64_t(address) + 1 > 0x100000000ULL || !memory.IsReadable(address, 1))
+                return kResultInvalidPointer;
+            // PathType::Empty ignores the observed byte 0x3C. It is transport
+            // data, not a NUL-terminated name or a caller-selected title path.
+            std::uint64_t handle = 0;
+            Result result;
+            try {
+                result = shared_->save_archives.Open(program_id_, &handle);
+            } catch (const std::exception& error) {
+                router.RequestHostStop(error.what());
+                return kResultSuccess; // The original request remains uncommitted.
+            }
+            command.fill(0);
+            command[0] = IpcMakeHeader(id, 3, 0);
+            command[1] = result;
+            command[2] = static_cast<std::uint32_t>(handle);
+            command[3] = static_cast<std::uint32_t>(handle >> 32);
+            return kResultSuccess;
+        }
         if (std::uint64_t(address) + 12 > 0x100000000ULL || !memory.IsReadable(address, 12))
             return kResultInvalidPointer;
         std::uint32_t media = 0, low_id = 0, high_id = 0;

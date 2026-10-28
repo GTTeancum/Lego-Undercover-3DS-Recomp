@@ -26,7 +26,8 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
                            CfgProfile cfg_profile,
                            CpuExecutionMode cpu_mode,
                            DspSpecialConfig dsp_config, DspProbeOptions dsp_probe,
-                           CfgSoundMode cfg_sound_mode, CfgLanguage cfg_language)
+                           CfgSoundMode cfg_sound_mode, CfgLanguage cfg_language,
+                           const std::filesystem::path& save_data_root)
     : registry_(registry), memory_(memory), kernel_(kernel), rtc_epoch_ms_(rtc_epoch_ms), ipc_(), svc_(kernel, &ipc_),
       display_mode_(display_mode), display_clock_(kernel.now_ns()),
       cpu_mode_(cpu_mode),diagnostic_origin_(kernel.now_ns()) {
@@ -67,6 +68,8 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
     auto fs = std::make_shared<FsUserService>(0x00040000000AD500ULL);
     if (!shared_extdata_root.empty() && !fs->ConfigureSharedExtdataRoot(shared_extdata_root))
         throw std::invalid_argument("shared-extdata root must be an existing directory");
+    if (!save_data_root.empty() && !fs->ConfigureSaveDataRoot(save_data_root))
+        throw std::invalid_argument("save-data root must be a supported existing directory");
     if (romfs) fs->ConfigureRomfs(std::move(romfs));
     ipc_.RegisterService("fs:USER", std::move(fs));
 }

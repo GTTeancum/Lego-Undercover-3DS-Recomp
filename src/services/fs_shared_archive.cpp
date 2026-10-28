@@ -83,7 +83,7 @@ Result SharedArchiveMounts::Open(std::uint32_t low_id, std::uint64_t* out_handle
         result = CheckDirectory(path);
         if (result != kResultSuccess) return result;
     }
-    if (next_handle_ == std::numeric_limits<std::uint64_t>::max())
+    if (next_handle_ >= kSaveDataArchiveHandleTag)
         return kResultOutOfHandles; // Host exhaustion guard, not hardware limit.
     const auto handle = next_handle_;
     mounts_.emplace(handle, std::move(path));

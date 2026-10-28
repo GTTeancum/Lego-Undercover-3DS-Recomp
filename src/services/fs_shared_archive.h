@@ -17,6 +17,13 @@ inline constexpr Result kResultFsPathNotFound = 0xC8804471U;
 inline constexpr Result kResultFsFileAlreadyExists = 0xC82044B4U;
 inline constexpr Result kResultFsUnsupportedOpenFlags = 0xE0C046F8U;
 inline constexpr Result kResultFsUnexpectedFileOrDirectory = 0xE0C04702U;
+// Host archive-table type tag, not a firmware-prescribed handle value. Shared
+// extdata uses the lower half; title SaveData uses the upper half. They must
+// never dispatch through each other's backend or silently reuse an identifier.
+inline constexpr std::uint64_t kSaveDataArchiveHandleTag = std::uint64_t{1} << 63;
+inline constexpr bool IsSaveDataArchiveHandle(std::uint64_t handle) noexcept {
+    return (handle & kSaveDataArchiveHandleTag) != 0;
+}
 // Explicit host safety limit, NOT a discovered console capacity.
 inline constexpr std::uint64_t kMaxSharedCreateSize = 16ULL * 1024 * 1024;
 

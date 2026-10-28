@@ -44,6 +44,7 @@ function(lego_add_ctr_runtime target_name)
         "${LEGO_RECOMP_ROOT}/src/services/y2r_user_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/fs_user_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/fs_shared_archive.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/fs_save_archive.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/fs_file_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/fs_romfs_service.cpp"
     )

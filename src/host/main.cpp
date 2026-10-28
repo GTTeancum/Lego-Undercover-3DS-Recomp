@@ -88,11 +88,11 @@ void ValidateRegistry(const a32::Registry& registry, std::span<const std::uint8_
 int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
-            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cfg-sound-mode mono|stereo|surround] [--cfg-language ja|en|fr|de|it|es|zh-cn|ko|nl|pt|ru|zh-tw] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-audio-file NEW_FILE] [--dsp-transmit-profile reference-stereo] [--dsp-boot-mode reference-slice]\n"
+            std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--save-data-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cfg-sound-mode mono|stereo|surround] [--cfg-language ja|en|fr|de|it|es|zh-cn|ko|nl|pt|ru|zh-tw] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-audio-file NEW_FILE] [--dsp-transmit-profile reference-stereo] [--dsp-boot-mode reference-slice]\n"
                        "Headless reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
-        std::filesystem::path shared_extdata_root, romfs_path, exheader_path;
+        std::filesystem::path shared_extdata_root, save_data_root, romfs_path, exheader_path;
         ctr::DspSpecialConfig dsp_config;
         ctr::DspProbeOptions dsp_probe;
         bool dsp_executor_selected=false,dsp_reset_selected=false,dsp_steps_selected=false,dsp_audio_selected=false;
@@ -219,6 +219,11 @@ int main(int argc,char** argv) {
                 if (!argv[i+1][0]) throw std::runtime_error("empty shared-extdata root");
                 shared_extdata_root=argv[i+1];
             }
+            else if (option=="--save-data-root") {
+                if (!save_data_root.empty() || !argv[i+1][0])
+                    throw std::runtime_error("save-data root requires one nonempty directory selection");
+                save_data_root=argv[i+1];
+            }
             else if (option=="--ptm-step-mode") {
                 if (std::string_view(argv[i+1]) != "empty")
                     throw std::runtime_error("PTM step mode must be empty (explicit new profile)");
@@ -297,9 +302,12 @@ int main(int argc,char** argv) {
             audio_file=lego::host::DspAudioFile::Open(dsp_audio_path);
             dsp_probe.audio_sink=audio_file;
         }
-        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile,cpu_mode,dsp_config,dsp_probe,cfg_sound_mode,cfg_language);
+        ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile,cpu_mode,dsp_config,dsp_probe,cfg_sound_mode,cfg_language,save_data_root);
         if (!shared_extdata_root.empty())
             std::cout << "shared_extdata_root=" << shared_extdata_root.generic_string() << '\n';
+        if (!save_data_root.empty())
+            std::cout << "save_data_root=" << save_data_root.generic_string()
+                      << " program_id=00040000000ad500 auto_format=false\n";
         if (ptm_step_mode == ctr::PtmStepMode::EmptyHistory)
             std::cout << "ptm_step_source=explicit_empty_history total_steps="<<0<<" sensor_input=none\n";
         if (vram_mode==ctr::GpuVramMode::ReferenceZero)

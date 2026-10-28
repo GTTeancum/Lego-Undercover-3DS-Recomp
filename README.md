@@ -6,11 +6,13 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 The current source reconstructs original-game startup in a native, headless runtime and now executes bounded PICA color draws. No visible game scene, menu, or playable gameplay is demonstrated. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md) for the verified state, reproduction commands, and next work.
 
-The latest October 28 continuation completes the original GPU draw at dispatch round 843 and the unscaled framebuffer transfer reached at round 1109. With an explicitly larger diagnostic event budget, the unchanged original game advances to round 1203, where `fs:USER` requests `OpenArchive` for save data (archive ID 4). That filesystem operation is the next unsupported behavior.
+The latest October 28 continuation adds an explicit per-title SaveData backend. With a fresh, explicitly selected save container, the original game receives the real missing-save result and advances from dispatch round 1203 to round 1277. The next observed stop is kernel `ControlMemory` operation 5 (Unmap), for a 0x2000-byte alias; no subsequent save-format request was observed.
 
-The new renderer connects the existing native vertex loader and shader executor to triangle assembly, perspective color interpolation, texture-disabled TEV, alpha blending, and masked writes into tiled RGBA8 VRAM. Draw bytes, registers, queue retirement, and interrupts remain part of one staged queue transaction. DisplayTransfer `0x1004` now converts a cropped tiled RGBA8 buffer to linear RGB8 without horizontal averaging.
+`--save-data-root DIR` selects an existing container, separate from shared extdata. The initialized FS session's program ID chooses `<high8>/<low8>/data/00000001`. Opening creates nothing: an absent save returns NotFormatted and a zero handle; a real existing directory receives a distinct u64 SaveData handle. No-follow directory traversal and separate handle namespaces preserve backend isolation. SaveData file operations and formatting remain unsupported.
 
-Independent private checks verify every pixel of the original 192,000-pixel first draw and all 6 MiB of VRAM on both captured and arbitrary seeded backgrounds. The original target was already black; the seeded checks establish actual blend and mask behavior. All 77 local runtime suites pass. Hosted checks and private original-game evidence are recorded separately in the continuation receipt.
+The eight focused filesystem suites pass, including the new SaveData suite; the repository now registers 78 runtime suites. An independent private capture verifies the original missing-save response, unchanged save storage, all 67 FS request/response pairs, and ordinary/capture agreement through the next kernel stop. Exact-commit hosted checks are recorded separately.
+
+The preceding rendering milestone remains intact: bounded native PICA draws and cropped RGBA8-to-RGB8 transfers execute, and private independent checks verify the original first rectangle and seeded VRAM updates. No visible game scene, menu, or gameplay is demonstrated.
 
 ## Historical recovery records
 

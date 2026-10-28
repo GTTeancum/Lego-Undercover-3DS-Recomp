@@ -1,6 +1,7 @@
 #pragma once
 #include "runtime/ctr_ipc.h"
 #include "services/fs_shared_archive.h"
+#include "services/fs_save_archive.h"
 #include "services/fs_romfs_service.h"
 
 namespace lego::ctr {
@@ -12,12 +13,16 @@ public:
     bool ConfigureSharedExtdataRoot(const std::filesystem::path& root) {
         return shared_->archives.ConfigureRoot(root);
     }
+    bool ConfigureSaveDataRoot(const std::filesystem::path& root) {
+        return shared_->save_archives.ConfigureRoot(root);
+    }
     void ConfigureRomfs(std::shared_ptr<const RomfsImage> image) {
         if (!image || (shared_->romfs && shared_->romfs!=image))
             throw std::invalid_argument("RomFS cannot be null or rebased");
         shared_->romfs=std::move(image);
     }
     [[nodiscard]] const SharedArchiveMounts& archives() const noexcept { return shared_->archives; }
+    [[nodiscard]] const SaveDataArchiveMounts& save_archives() const noexcept { return shared_->save_archives; }
     Result CreateSessionHandler(std::shared_ptr<IpcService>* out) override;
     bool CanHandle(const IpcCommandBuffer& command) const noexcept override;
     Result Handle(IpcRouter&, Kernel&, GuestMemory&, ThreadObject&,
@@ -33,6 +38,7 @@ private:
         std::uint64_t program_id;
         std::uint32_t priority{0xFFFFFFFFU};
         SharedArchiveMounts archives;
+        SaveDataArchiveMounts save_archives;
         std::shared_ptr<const RomfsImage> romfs;
     };
     explicit FsUserService(std::shared_ptr<SharedState> shared);
