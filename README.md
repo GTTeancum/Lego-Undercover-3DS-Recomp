@@ -6,13 +6,13 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 The current source reconstructs original-game startup in a native, headless runtime and now executes bounded PICA color draws. No visible game scene, menu, or playable gameplay is demonstrated. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md) for the verified state, reproduction commands, and next work.
 
-The latest October 28 continuation adds an explicit per-title SaveData backend. With a fresh, explicitly selected save container, the original game receives the real missing-save result and advances from dispatch round 1203 to round 1277. The next observed stop is kernel `ControlMemory` operation 5 (Unmap), for a 0x2000-byte alias; no subsequent save-format request was observed.
+The latest October 28 continuation adds explicit per-title SaveData opening and completes the observed private-memory cleanup sequence. The unchanged original game advances from dispatch round 1203 to **1469**, where execution reaches a missing translated ARM block at **0x00133788**. Extending authenticated build-time AOT coverage is the next task.
 
-`--save-data-root DIR` selects an existing container, separate from shared extdata. The initialized FS session's program ID chooses `<high8>/<low8>/data/00000001`. Opening creates nothing: an absent save returns NotFormatted and a zero handle; a real existing directory receives a distinct u64 SaveData handle. No-follow directory traversal and separate handle namespaces preserve backend isolation. SaveData file operations and formatting remain unsupported.
+`--save-data-root DIR` selects an existing container, separate from shared extdata. Missing title saves return the real NotFormatted result without creating files; existing directories receive distinct u64 handles. The memory runtime now removes complete recorded aliases while restoring source read/write access, and accepts a bounded private Protect request when the entire span already has the requested permissions.
 
-The eight focused filesystem suites pass, including the new SaveData suite; the repository now registers 78 runtime suites. An independent private capture verifies the original missing-save response, unchanged save storage, all 67 FS request/response pairs, and ordinary/capture agreement through the next kernel stop. Exact-commit hosted checks are recorded separately.
+All **78 local runtime suites pass**. Private original-game checks verify the missing-save reply, the exact alias teardown with all 8192 bytes preserved, and the following Protect with all 1024 reservation-epoch tokens unchanged. Ordinary and diagnostic runs match CPU state and startup output. Full diagnostic-audio equivalence remains incomplete because two capture files were truncated; their failed artifacts and explicit scope limits are retained. Exact-commit hosted checks are recorded separately.
 
-The preceding rendering milestone remains intact: bounded native PICA draws and cropped RGBA8-to-RGB8 transfers execute, and private independent checks verify the original first rectangle and seeded VRAM updates. No visible game scene, menu, or gameplay is demonstrated.
+The preceding rendering milestone remains intact: bounded native PICA draws and cropped RGBA8-to-RGB8 transfers execute, with independent first-rectangle and seeded-VRAM checks. **No visible game scene, menu, or gameplay is demonstrated.**
 
 ## Historical recovery records
 

@@ -78,6 +78,15 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
             state.r[1] = 0;
             return ResumeAfterSvc(exit.pc, state);
         }
+        if (operation == 5U) {
+            const auto result=guest_memory->UnmapUserAlias(state.r[1],state.r[2],state.r[3],state.r[4]);
+            if (!result) return exit;
+            state.r[0]=*result;
+            // Pinned Unmap also leaves out_addr unassigned. Zero is the same
+            // deterministic host policy used by Map, not a hardware claim.
+            state.r[1]=0;
+            return ResumeAfterSvc(exit.pc,state);
+        }
         if (operation == 6U) {
             if (state.r[2]&0xFFFU) {
                 state.r[0]=kResultMisalignedAddress;
@@ -90,7 +99,7 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
             state.r[1]=0; // Same explicit unused-output policy as Map.
             return ResumeAfterSvc(exit.pc,state);
         }
-        // Free/Unmap, general Protect and flagged Map forms remain unsupported, not a
+        // Free, general Protect and flagged alias operations remain unsupported, not a
         // successful allocation/copy or a guessed guest failure.
         if ((operation & 0xFFU) != 3U) return exit;
         const std::uint32_t addr0 = state.r[1];

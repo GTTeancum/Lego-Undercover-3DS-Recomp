@@ -76,6 +76,43 @@ std::optional<Result> GuestMemory::MapUserAlias(std::uint32_t target, std::uint3
         return std::nullopt; // No partial map, byte change, Result or CPU update.
     }
 }
+std::optional<Result> GuestMemory::UnmapUserAlias(std::uint32_t target, std::uint32_t source,
+                                                  std::uint32_t size, std::uint32_t permissions) noexcept {
+    if ((target&0xFFFU) || (source&0xFFFU)) return kResultMisalignedAddress;
+    if (size&0xFFFU) return kResultMisalignedSize;
+    if (permissions&~3U) return kResultInvalidCombination;
+    if (!size || size>kMaxUserAliasBytes) return std::nullopt;
+    if (source<HeapBegin || std::uint64_t(source)+size>HeapEnd) return InvalidAddress;
+    if (Overlap(source,size,target,size)) return InvalidState;
+    if (target<HeapBegin || std::uint64_t(target)+size>HeapEnd) return std::nullopt;
+    // Pinned Process::Unmap uses the REQUESTED source permissions, not the
+    // remembered ones. This exact-pair slice restores only RW; other modes need
+    // persistent private protection after the alias overlay is removed.
+    constexpr auto rw=MemoryPermission::Read|MemoryPermission::Write;
+    if (permissions!=static_cast<unsigned>(rw)) return std::nullopt;
+    const auto alias=std::find_if(user_aliases_.begin(),user_aliases_.end(),
+        [&](const UserAlias& item){return item.target==target && item.source==source && item.size==size;});
+    // The pin's wrong-pair Result is only a TODO. Unproved pairs and partial
+    // ranges remain host stops instead of borrowing that unverified error.
+    if (alias==user_aliases_.end()) return std::nullopt;
+    const auto* original=FindRegion(source,size);
+    const auto* view=FindRegion(target,size);
+    if (!original || !view || !original->backing || original->user_alias ||
+        original->shared || original->device || original->permissions!=rw ||
+        !view->user_alias || view->base!=target || view->size!=size ||
+        view->shared || view->device || view->permissions!=alias->permissions ||
+        view->backing!=original->backing ||
+        std::uint64_t(view->backing_offset)!=std::uint64_t(original->backing_offset)+source-original->base)
+        return std::nullopt; // Broken host metadata is not a guest Result.
+    const auto view_index=static_cast<std::size_t>(view-regions_.data());
+    // All checks precede publication. Erasing these metadata records cannot
+    // allocate or fail. The original region retains the same backing and epoch
+    // keys; removing the source overlay restores its established RW permissions.
+    regions_.erase(regions_.begin()+view_index);
+    user_aliases_.erase(alias);
+    return kResultSuccess;
+}
+
 std::optional<Result> GuestMemory::ProtectUserAlias(std::uint32_t address, std::uint32_t size,
                                                     std::uint32_t permissions) noexcept {
     if (address&0xFFFU) return kResultMisalignedAddress;
@@ -97,8 +134,16 @@ std::optional<Result> GuestMemory::ProtectUserAlias(std::uint32_t address, std::
             return kResultSuccess;
         }
     }
-    // General region subdivision/reprotection is still unimplemented. Preserve
-    // the request rather than claiming a firmware error for a valid future call.
-    return std::nullopt;
+    // The original sequence immediately reprotects its restored private source
+    // to the RW permissions it already has. A single real private region with
+    // matching permissions needs no subdivision or state/byte/epoch change.
+    const auto* region=FindRegion(address,size);
+    if (!region || !region->backing || region->user_alias || region->shared || region->device ||
+        region->permissions!=static_cast<MemoryPermission>(permissions)) return std::nullopt;
+    for (const auto& alias:user_aliases_)
+        if (Overlap(address,size,alias.source,alias.size)) return std::nullopt;
+    // Changes to private permissions, multi-region spans and partial alias
+    // overlays remain explicit host stops; no general reprotection is inferred.
+    return kResultSuccess;
 }
 } // namespace lego::ctr

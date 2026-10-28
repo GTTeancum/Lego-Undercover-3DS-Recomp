@@ -74,8 +74,15 @@ public:
     // Source-state intervals are recorded without fragmenting its backing region.
     std::optional<Result> MapUserAlias(std::uint32_t target, std::uint32_t source,
                                         std::uint32_t size, std::uint32_t permissions) noexcept;
-    // Bounded Protect for a complete recorded alias source or target. The
-    // opposite view's permissions and the shared bytes/reservations are retained.
+    // Bounded Unmap for one complete recorded pair, restoring source RW.
+    // Other restore modes and partial ranges stop. Metadata removal allocates
+    // nothing and preserves source bytes, backing identity and exclusive epochs.
+    std::optional<Result> UnmapUserAlias(std::uint32_t target, std::uint32_t source,
+                                          std::uint32_t size, std::uint32_t permissions) noexcept;
+    // Bounded Protect for a complete recorded alias source/target, or an already
+    // matching private span with no alias-source overlap. The private case is a
+    // verified no-op; changing general private protection remains unsupported.
+    // The opposite view's permissions and shared bytes/reservations are retained.
     std::optional<Result> ProtectUserAlias(std::uint32_t address, std::uint32_t size,
                                            std::uint32_t permissions) noexcept;
     [[nodiscard]] std::optional<PrivateState> private_state(std::uint32_t address) const noexcept;

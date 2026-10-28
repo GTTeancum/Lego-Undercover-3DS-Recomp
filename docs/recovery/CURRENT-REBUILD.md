@@ -1,3 +1,138 @@
+# October 28, 2026 — SaveData and private-memory cleanup
+
+## Current result
+
+The unchanged original game advances from dispatch round **1203** to **1469**.
+The explicit per-title SaveData backend is published in `31dc20990bf78a125954dac54a02bfb24bb1527f`.
+This follow-on completes the actual memory cleanup sequence reached afterward:
+Unmap at round 1277 and the subsequent Protect at round 1278.
+
+```text
+stop=MissingBlock pc=0x00133788 detail=0x00000000 thread=1 dispatch_rounds=1469
+guest_now_ns=618440772
+```
+
+The next task is authenticated build-time AOT coverage for the newly reached
+ARM block. The PC is absent from both the saved source table and its linked
+executable table, including recorded suffix coverage. The next recorded block
+starts at 0x001337A0; the 24-byte gap is a candidate translation interval, not an
+already validated or generated supplement. The private next-blocker brief
+records original bytes, hashes, table evidence and the existing generation
+route. Do not patch game bytes, fabricate runtime decode, or publish original
+instruction arrays. No new AOT translation was generated in this milestone.
+
+No visible game scene, menu, audible playback or gameplay is demonstrated.
+The earlier completed GSP IPC is diagnostic context, not the MissingBlock cause.
+
+## Implemented behavior and limits
+
+SaveData opening uses a distinct configured container and typed handle table,
+as documented in the preceding section below. The original missing-save reply
+is real NotFormatted; configuration/opening create no title-save files. No
+format request was observed. Existing-save success is checked with authored
+filesystem fixtures, not a recovered personal game save.
+
+The observed Unmap removes target 0x0E021000, which shares 8192 bytes with
+source 0x083B5000. The source had been protected to None; Unmap requests restoration
+to ReadWrite. `GuestMemory::UnmapUserAlias` verifies one complete recorded pair,
+backing identity and offsets, then removes only target/alias metadata. The
+source retains its bytes, physical identity, exclusive epochs and allocation;
+commit-resource accounting does not change. All checks precede the
+allocation-free metadata erasure. Partial pairs, unmatched pairs, flagged
+operations and other source-restoration permissions remain explicit stops.
+
+The next original Protect requests ReadWrite on the now-private source span,
+which is already ReadWrite. The new fallback proves that the entire bounded,
+aligned span lies in one private backing with exactly the requested permissions
+and no overlap with any alias-source overlay. It then succeeds without changing
+permissions, splitting regions, writing bytes or allocating. General private
+permission changes, partial alias protection and multi-region cases remain
+unsupported. Existing exact-alias Protect behavior is preserved.
+
+Both SVC paths retain the existing deterministic unused-output policy (`r1=0`)
+and advance PC by 4 on a handled result. This avoids reproducing the pinned HLE
+wrapper's uninitialized output; it is host policy, not a hardware-value claim.
+Pinned reference gaps—missing Map-pair checking and mutation before later
+failure—are not reproduced. The native implementation preflights the entire
+supported operation.
+
+## Verification and recorded limitations
+
+All **78 unique local CMake suites pass**, verified against the complete console
+log and JUnit XML. The new SaveData suite and expanded alias suite cover exact
+replies, real filesystem state, isolated handles, mapping identity, permissions,
+nonzero bytes, epochs, unaffected neighbors/aliases, allocation-failure behavior,
+request/output preflight and guarded unsupported shapes.
+
+The first full local run could not execute three malformed generated outputs:
+all lacked execute bits and one was empty. Those artifacts and the 75-test
+initial result were preserved. Only the three disposable executables were
+regenerated; the full 78-test run then passed. Native/CTR hashes and production
+source remained unchanged. Normal process permissions were used for the
+existing isolated privilege-drop filesystem tests. No test was disabled.
+
+Separate original-game captures establish:
+
+- The exact missing-save reply and all 67 preceding FS request/response pairs;
+  SaveData stays empty, and the separate shared-extdata tree contains only the
+  previously recorded 20-byte Play Coin file.
+- The actual Map/Protect/Unmap relation before implementation, including source
+  permissions None and a readable target sharing the same physical bytes.
+- Successful original Unmap with all 8192 bytes preserved, source RW restored,
+  target absent and every other alias unchanged.
+- Successful following Protect with all 8192 bytes and all 1024 epoch tokens
+  (27 nonzero) unchanged, along with permissions, alias metadata, CPU reservation
+  fields and guest time. This is evidence about the host memory model, not
+  measured hardware exclusive-monitor behavior.
+- Identical normalized launch arguments, complete stdout, CPU/stop fields and
+  final MissingBlock in ordinary and instrumented execution.
+
+**Full final audio-artifact equivalence is incomplete.** Ordinary execution
+retains 314,304 bytes for 19,642 reported records. The first final capture retained
+only 312,672 bytes; the one authorized retry retained 314,256 bytes, missing 48 bytes
+(three records). Each retained prefix exactly matches ordinary output, and both
+processes reported the same record count and successful close. The cause is
+unresolved. Failed files/receipts remain intact. No tail was reconstructed, no
+success was asserted for the strict audio gate, and the original strict verifier
+still rejects both files. A separately named memory/CPU proof reports that
+scope explicitly. Earlier intermediate captures have full audio equivalence;
+that does not make the final incomplete captures complete.
+
+Authoritative private evidence includes:
+
+- `save-memory-final-build.{log,json}` and `save-memory-final-tests.{log,xml,json}`.
+- `savedata-open-capture-dwyailt_/savedata-proof.json`.
+- `unmap-baseline-capture-e9xuodl2/unmap-baseline-proof.json`.
+- `save-unmap-capture-1dhv31j1/unmap-proof.json`.
+- `save-protect-capture-retry-b1_9_0sq/memory-state-proof-with-audio-limitation.json`.
+- `save-protect-native-g22huee4/receipt.json` and `next-aot-blocker.json`.
+
+These paths are beneath the private checkpoint's `evidence/` directory. Hosted
+GCC/Clang/sanitizer results are collected for the exact published revision and
+recorded separately from private original-game execution. Source is preserved
+in GitHub; private evidence contains source identity metadata, not another copy
+of the repository. Original code.bin, ExHeader, RomFS and saved AOT are unchanged.
+
+## Reproduction
+
+Use the existing native build instructions and separately preserved original
+inputs. The finite original run requires the explicit fresh save selection:
+
+```bash
+python3 evidence/run_original.py continuation build-current/LEGOChaseNative \
+  --fresh-save-data --host-event-limit 16384
+```
+
+Private capture rebuilding and scope are documented in
+`evidence/protect_final_capture/README.md`. Preserve the recorded audio
+limitation when reusing the state proof. The current stop was reached without
+hitting or increasing the 16,384-event cap.
+
+The preceding SaveData-only and drawing/transfer milestones remain below as
+historical records.
+
+---
+
 # October 28, 2026 — explicit per-title SaveData opening
 
 ## Current result and next task

@@ -1,5 +1,6 @@
 #include "runtime/ctr_memory.h"
 #include "runtime/ctr_svc_bridge.h"
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -196,6 +197,185 @@ void OriginalSourceProtection() {
     CHECK(result==0 && f.memory.IsReadable(Target) && !f.memory.IsReadable(Source));
     CHECK(f.kernel.now_ns()==0 && !f.kernel.current_thread()->pending_wake);
 }
+
+bool SameCpu(const a32::GuestState& a,const a32::GuestState& b) {
+    return a.r==b.r && a.cpsr==b.cpsr && a.fpscr==b.fpscr && a.thread_pointer==b.thread_pointer &&
+        a.vfp==b.vfp && a.exclusive_address==b.exclusive_address && a.exclusive_token==b.exclusive_token &&
+        a.exclusive_size==b.exclusive_size && a.exclusive_valid==b.exclusive_valid;
+}
+bool SameAliases(std::span<const GuestMemory::UserAlias> a,std::span<const GuestMemory::UserAlias> b) {
+    return a.size()==b.size() && std::equal(a.begin(),a.end(),b.begin(),[](const auto& x,const auto& y) {
+        return x.source==y.source && x.target==y.target && x.size==y.size &&
+            x.permissions==y.permissions && x.source_permissions==y.source_permissions;
+    });
+}
+std::vector<std::uint8_t> ReadRange(GuestMemory& memory,std::uint32_t address,unsigned size) {
+    std::vector<std::uint8_t> bytes(size);
+    for(unsigned i=0;i<size;++i)CHECK(memory.Read8(address+i,&bytes[i]));
+    return bytes;
+}
+void ObservedCompleteUnmap() {
+    // Literal original sequence: Map(0E021000,083B5000,2000,RW), then Protect
+    // the source to None, then Unmap the complete pair while restoring RW.
+    constexpr std::uint32_t source=0x083B5000,target=0x0E021000,size=0x2000,other=0x0E030000;
+    GuestMemory memory;Kernel kernel;SvcBridge bridge{kernel};
+    std::uint32_t allocation=0;
+    CHECK(kernel.ControlMemory(&memory,&allocation,source-0x1000,0,0x4000,3,3)==0);
+    CHECK(allocation==source-0x1000);
+    std::vector<std::uint8_t> expected(0x4000);
+    for(unsigned i=0;i<expected.size();++i)expected[i]=static_cast<std::uint8_t>(13*i+(i>>8)+7);
+    CHECK(memory.LoadBytes(allocation,expected));
+    CHECK(memory.MapUserAlias(other,allocation,0x1000,3)==0);
+    CHECK(memory.ProtectUserAlias(allocation,0x1000,0)==0);
+    const auto other_alias=memory.user_aliases()[0];
+    const auto neighbour=ReadRange(memory,other,0x1000);
+    Handle resource{};CHECK(kernel.GetResourceLimit(&resource,kCurrentProcessPseudoHandle)==0);
+    auto limits=std::dynamic_pointer_cast<ResourceLimitObject>(kernel.handles().Get(resource));
+    CHECK(limits);const auto committed=limits->Current(ResourceLimitType::Commit);
+    const auto handles=kernel.handles().OpenHandleCount(),threads=kernel.threads().size();
+    const auto request=[&](unsigned operation,unsigned permissions) {
+        a32::GuestState cpu{};
+        for(unsigned i=0;i<16;++i)cpu.r[i]=0x13570000+i;
+        for(unsigned i=0;i<32;++i)cpu.vfp[i]=0x24680000+i;
+        cpu.r[0]=operation;cpu.r[1]=target;cpu.r[2]=source;cpu.r[3]=size;cpu.r[4]=permissions;
+        cpu.r[15]=0x0025C9F4;cpu.cpsr=0x60000010;cpu.fpscr=0x23000018;cpu.thread_pointer=0x1FF82000;
+        cpu.exclusive_address=target+16;cpu.exclusive_token=0xABCDEF;cpu.exclusive_size=4;cpu.exclusive_valid=true;
+        return cpu;
+    };
+    const auto call=[&](a32::GuestState& cpu) {
+        return bridge.Handle({a32::ExitKind::Svc,cpu.r[15],a32::FallbackReason::None,kSvcControlMemory},cpu,&memory);
+    };
+    auto cpu=request(4,3);CHECK(call(cpu).kind==a32::ExitKind::Fallthrough && cpu.r[0]==0);
+    cpu=request(6,0);cpu.r[1]=source;cpu.r[2]=0;
+    CHECK(call(cpu).kind==a32::ExitKind::Fallthrough && cpu.r[0]==0);
+    CHECK(!memory.IsReadable(source,size) && !memory.IsWritable(source,size));
+    CHECK(memory.Write32(target,0xDEADBEEF) && memory.Write32(target+16,0x55667788));
+    CHECK(memory.Write8(target+size-1,0xC7));
+    const std::array<std::uint8_t,4> first{0xEF,0xBE,0xAD,0xDE},reserved{0x88,0x77,0x66,0x55};
+    std::copy(first.begin(),first.end(),expected.begin()+0x1000);
+    std::copy(reserved.begin(),reserved.end(),expected.begin()+0x1010);expected[0x2FFF]=0xC7;
+    CHECK(memory.PrepareDeviceWrite(target+0x30,4));
+    std::uint64_t value{},token{},other_token{},after{};std::uint32_t fault{};
+    CHECK(memory.LoadExclusive(target+16,4,&value,&token,&fault) && value==0x55667788);
+    CHECK(memory.LoadExclusive(other,4,&value,&other_token,&fault));
+    cpu=request(5,3);auto wanted=cpu;wanted.r[0]=0;wanted.r[1]=0;wanted.r[15]=0x0025C9F8;
+    fail_after=0;const auto result=call(cpu);fail_after=-1;
+    CHECK(result.kind==a32::ExitKind::Fallthrough && SameCpu(cpu,wanted));
+    CHECK(!memory.IsMapped(target,size) && !memory.IsReadable(target) && !memory.IsWritable(target));
+    CHECK(!memory.private_state(target) && memory.private_state(source)==GuestMemory::PrivateState::Private);
+    CHECK(memory.IsMapped(source,size) && memory.IsReadable(source,size) && memory.IsWritable(source,size));
+    CHECK(!memory.SpansAlias(target,size,source,size));
+    CHECK(memory.user_aliases().size()==1 && SameAliases(memory.user_aliases(),std::span(&other_alias,1)));
+    CHECK(memory.private_state(allocation)==GuestMemory::PrivateState::Aliased && !memory.IsReadable(allocation));
+    CHECK(ReadRange(memory,other,0x1000)==neighbour);
+    CHECK(ReadRange(memory,source,0x3000)==std::vector<std::uint8_t>(expected.begin()+0x1000,expected.end()));
+    CHECK(memory.LoadExclusive(source+16,4,&value,&after,&fault) && after==token && value==0x55667788);
+    CHECK(memory.LoadExclusive(other,4,&value,&after,&fault) && after==other_token);
+    // Actual next request, at round 1278: Protect the restored private source
+    // with the same RW permissions. It must not split metadata or touch bytes.
+    cpu=request(6,3);cpu.r[1]=source;cpu.r[2]=0;
+    wanted=cpu;wanted.r[0]=0;wanted.r[1]=0;wanted.r[15]=0x0025C9F8;
+    fail_after=0;const auto protect=call(cpu);fail_after=-1;
+    CHECK(protect.kind==a32::ExitKind::Fallthrough && SameCpu(cpu,wanted));
+    CHECK(memory.IsMapped(allocation,0x4000) && memory.IsReadable(source,0x3000) && memory.IsWritable(source,0x3000));
+    CHECK(!memory.IsMapped(target) && memory.private_state(source)==GuestMemory::PrivateState::Private);
+    CHECK(SameAliases(memory.user_aliases(),std::span(&other_alias,1)) && !memory.IsReadable(allocation));
+    CHECK(ReadRange(memory,source,0x3000)==std::vector<std::uint8_t>(expected.begin()+0x1000,expected.end()));
+    CHECK(ReadRange(memory,other,0x1000)==neighbour);
+    CHECK(memory.LoadExclusive(source+16,4,&value,&after,&fault) && after==token);
+    CHECK(memory.LoadExclusive(other,4,&value,&after,&fault) && after==other_token);
+    CHECK(memory.StoreExclusive(target+16,4,0,token,&fault)==a32::ExclusiveStoreResult::MemoryFault);
+    CHECK(memory.StoreExclusive(source+16,4,0x12345678,token,&fault)==a32::ExclusiveStoreResult::Success);
+    // Preparation through the removed view retains its canonical source epochs.
+    const std::array<std::uint8_t,4> device{1,2,3,4};
+    CHECK(!memory.CommitDeviceWrite(target+0x30,device));
+    CHECK(memory.CommitDeviceWrite(source+0x30,device));
+    CHECK(ReadRange(memory,source+0x30,4)==std::vector<std::uint8_t>(device.begin(),device.end()));
+    CHECK(limits->Current(ResourceLimitType::Commit)==committed && kernel.handles().OpenHandleCount()==handles);
+    CHECK(kernel.threads().size()==threads && kernel.now_ns()==0 && !kernel.current_thread()->pending_wake);
+    CHECK(memory.MapUserAlias(target,source,size,3)==0); // Both freed target and restored source are reusable.
+    std::uint32_t word{};CHECK(memory.Read32(target+16,&word) && word==0x12345678);
+    CHECK(memory.UnmapUserAlias(target,source,size,3)==0);
+    CHECK(!memory.UnmapUserAlias(target,source,size,3)); // No invented wrong-pair Result after removal.
+}
+void UnmapGuardsAreAtomic() {
+    Fixture f;
+    CHECK(f.memory.MapUserAlias(Target,Source,Size,3)==0 && f.memory.ProtectUserAlias(Source,Size,0)==0);
+    CHECK(f.memory.MapUserAlias(Target+0x10000,Source+Size,0x1000,1)==0);
+    CHECK(f.memory.ProtectUserAlias(Source+Size,0x1000,2)==0);
+    CHECK(f.memory.Write32(Target+8,0xABCD9876));
+    const auto bytes=ReadRange(f.memory,Target,Size),other_bytes=ReadRange(f.memory,Target+0x10000,0x1000);
+    const std::vector<GuestMemory::UserAlias> aliases(f.memory.user_aliases().begin(),f.memory.user_aliases().end());
+    std::uint64_t value{},token{},after{};std::uint32_t fault{};
+    CHECK(f.memory.LoadExclusive(Target+8,4,&value,&token,&fault));
+    const auto unchanged=[&] {
+        CHECK(SameAliases(f.memory.user_aliases(),aliases));
+        CHECK(ReadRange(f.memory,Target,Size)==bytes && ReadRange(f.memory,Target+0x10000,0x1000)==other_bytes);
+        CHECK(!f.memory.IsReadable(Source) && !f.memory.IsWritable(Source));
+        CHECK(f.memory.IsReadable(Target) && f.memory.IsWritable(Target));
+        CHECK(f.memory.private_state(Source)==GuestMemory::PrivateState::Aliased);
+        CHECK(f.memory.LoadExclusive(Target+8,4,&value,&after,&fault) && after==token);
+    };
+    const auto check=[&](a32::GuestState cpu,std::optional<Result> expected) {
+        auto wanted=cpu;
+        const auto exit=f.Call(cpu);
+        if(expected) {
+            wanted.r[0]=*expected;wanted.r[1]=0;wanted.r[15]+=4;
+            CHECK(exit.kind==a32::ExitKind::Fallthrough);
+        } else CHECK(exit.kind==a32::ExitKind::Svc);
+        CHECK(SameCpu(cpu,wanted));unchanged();
+    };
+    for(unsigned permissions:{0U,1U,2U})check(f.Cpu(permissions,5),std::nullopt);
+    auto cpu=f.Cpu(3,5);cpu.r[1]+=0x1000;cpu.r[2]+=0x1000;cpu.r[3]-=0x1000;check(cpu,std::nullopt);
+    cpu=f.Cpu(3,5);cpu.r[3]=0x1000;check(cpu,std::nullopt);
+    cpu=f.Cpu(3,5);cpu.r[3]+=0x1000;check(cpu,std::nullopt);
+    cpu=f.Cpu(3,5);cpu.r[2]+=0x1000;check(cpu,std::nullopt);
+    cpu=f.Cpu(3,5);cpu.r[1]+=0x20000;check(cpu,std::nullopt);
+    cpu=f.Cpu(3,5);cpu.r[3]=0;check(cpu,std::nullopt);
+    cpu=f.Cpu(3,5);cpu.r[3]=GuestMemory::kMaxUserAliasBytes+0x1000;check(cpu,std::nullopt);
+    cpu=f.Cpu(3,5);cpu.r[1]=0x0FFFF000;check(cpu,std::nullopt);
+    for(unsigned operation:{0x105U,0xF05U,0x10005U,1U})check(f.Cpu(3,operation),std::nullopt);
+    cpu=f.Cpu(3,5);cpu.r[1]++;check(cpu,kResultMisalignedAddress);
+    cpu=f.Cpu(3,5);cpu.r[2]++;check(cpu,kResultMisalignedAddress);
+    cpu=f.Cpu(3,5);cpu.r[3]++;check(cpu,kResultMisalignedSize);
+    check(f.Cpu(4,5),kResultInvalidCombination);
+    cpu=f.Cpu(3,5);cpu.r[2]=0x07000000;check(cpu,InvalidAddress);
+    cpu=f.Cpu(3,5);cpu.r[2]=0xFFFFF000;check(cpu,InvalidAddress);
+    cpu=f.Cpu(3,5);cpu.r[1]=Source+0x1000;check(cpu,InvalidState);
+    // A matching base-region permission is not enough when the request cuts
+    // into a source overlay or alias target, or covers an overlay plus neighbours.
+    cpu=f.Cpu(3,6);cpu.r[1]=Source+0x1000;cpu.r[2]=0;cpu.r[3]=0x1000;check(cpu,std::nullopt);
+    cpu=f.Cpu(3,6);cpu.r[1]=Target+0x1000;cpu.r[2]=0;cpu.r[3]=0x1000;check(cpu,std::nullopt);
+    cpu=f.Cpu(3,6);cpu.r[1]=Source-0x1000;cpu.r[2]=0;cpu.r[3]=Size+0x2000;check(cpu,std::nullopt);
+    CHECK(f.memory.UnmapUserAlias(Target,Source,Size,3)==0);
+    CHECK(f.memory.user_aliases().size()==1 && SameAliases(f.memory.user_aliases(),std::span(aliases).subspan(1)));
+    CHECK(ReadRange(f.memory,Source,Size)==bytes && ReadRange(f.memory,Target+0x10000,0x1000)==other_bytes);
+    CHECK(!f.memory.IsReadable(Source+Size) && f.memory.IsWritable(Source+Size));
+    for(unsigned permission:{0U,1U,2U}) {
+        cpu=f.Cpu(permission,6);cpu.r[1]=Source;cpu.r[2]=0;const auto before=cpu;
+        CHECK(f.Call(cpu).kind==a32::ExitKind::Svc && SameCpu(cpu,before));
+        CHECK(SameAliases(f.memory.user_aliases(),std::span(aliases).subspan(1)));
+        CHECK(f.memory.IsReadable(Source,Size) && f.memory.IsWritable(Source,Size));
+        CHECK(ReadRange(f.memory,Source,Size)==bytes && ReadRange(f.memory,Target+0x10000,0x1000)==other_bytes);
+        CHECK(f.memory.LoadExclusive(Source+8,4,&value,&after,&fault) && after==token);
+    }
+    CHECK(!f.memory.ProtectUserAlias(Source+Size-0x1000,0x2000,3)); // Still overlaps the other source.
+    CHECK(!f.memory.ProtectUserAlias(Base+0x5F000,0x2000,3)); // Runs past the real backing region.
+    GuestMemory split;CHECK(split.Map(Source,0x1000,RW) && split.Map(Source+0x1000,0x1000,RW));
+    CHECK(!split.ProtectUserAlias(Source,0x2000,3) && split.IsWritable(Source) && split.IsWritable(Source+0x1000));
+    GuestMemory shared;CHECK(shared.MapSharedServicePage(Source,std::make_shared<ServiceSharedMemoryObject>(),RW));
+    CHECK(!shared.ProtectUserAlias(Source,0x1000,3) && shared.IsReadable(Source) && shared.IsWritable(Source));
+}
+void UnmapDoesNotRequirePriorAccess() {
+    for(unsigned permission=0;permission<4;++permission) {
+        Fixture f;CHECK(f.memory.Write32(Source,0xFACEABCD));
+        CHECK(f.memory.MapUserAlias(Target,Source,Size,permission)==0);
+        CHECK(f.memory.ProtectUserAlias(Source,Size,(permission+1)%4)==0);
+        fail_after=0;const auto result=f.memory.UnmapUserAlias(Target,Source,Size,3);fail_after=-1;
+        CHECK(result==0 && f.memory.user_aliases().empty() && !f.memory.IsMapped(Target));
+        CHECK(f.memory.IsReadable(Source,Size) && f.memory.IsWritable(Source,Size) && f.Read(Source)==0xFACEABCD);
+    }
+}
 void AllocationRollbackAndCapacity() {
     unsigned failures_seen=0, successes=0;
     for(long i=0;i<9;++i) {
@@ -218,11 +398,15 @@ void AllocationRollbackAndCapacity() {
     for(unsigned i=0;i<GuestMemory::kMaxUserAliases;++i)CHECK(m.MapUserAlias(Target+i*0x1000,Base+i*0x1000,0x1000,3)==0);
     CHECK(!m.MapUserAlias(Target+0x80000,Base+0x80000,0x1000,3));
     CHECK(m.user_aliases().size()==GuestMemory::kMaxUserAliases && !m.IsMapped(Target+0x80000));
+    CHECK(m.UnmapUserAlias(Target+0x4000,Base+0x4000,0x1000,3)==0);
+    CHECK(m.user_aliases().size()==GuestMemory::kMaxUserAliases-1);
+    CHECK(m.MapUserAlias(Target+0x80000,Base+0x80000,0x1000,3)==0);
 }
 }
 int main() {
     ExactOriginalRequest();PermissionsAndErrors();ReservationsAndDeviceWrites();OriginalSourceProtection();AllocationRollbackAndCapacity();
+    ObservedCompleteUnmap();UnmapGuardsAreAtomic();UnmapDoesNotRequirePriorAccess();
     if(failures)return EXIT_FAILURE;
-    std::cout<<"PASS: real private aliases, independent permissions, physical reservation identity and transactional metadata\n";
+    std::cout<<"PASS: private aliases, exact RW unmap, unchanged private protection, physical reservations and transactional metadata\n";
     return EXIT_SUCCESS;
 }
