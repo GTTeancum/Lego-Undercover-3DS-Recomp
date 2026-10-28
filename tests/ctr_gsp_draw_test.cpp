@@ -83,7 +83,7 @@ struct Fixture {
                 CHECK(memory.Write32(kVertices+32*v+4*component,std::bit_cast<std::uint32_t>(values[component])));
         }
     }
-    void TexturedDepth(bool private_texture=false) {
+    void TexturedDepth(bool private_texture=false,unsigned texture_format=0) {
         // The existing authored MOV output1 now supplies ordinary texture UV.
         // Unmapped primary-color components retain the established value1.
         Set(0x51,0x1F1F0D0C);
@@ -92,12 +92,14 @@ struct Fixture {
             CHECK(memory.Write32(kVertices+32*vertex+16,std::bit_cast<std::uint32_t>(0.5f)));
             CHECK(memory.Write32(kVertices+32*vertex+20,std::bit_cast<std::uint32_t>(0.5f)));
         }
-        Set(0x80,1);Set(0x82,0x00100010);Set(0x83,6);Set(0x84,0);Set(0x8E,0);
+        Set(0x80,1);Set(0x82,0x00100010);Set(0x83,6);Set(0x84,0);Set(0x8E,texture_format);
         Set(0x85,(private_texture?kTextureVa-0x14000000U+0x20000000U:kGpuVramPhysicalBase+kTexture)/8);
         Set(0xC0,0x00030003); // Replace RGB and alpha with texture0.
-        std::vector<std::uint8_t> texture(1024);
-        for(unsigned i=0;i<texture.size();i+=4) {
-            texture[i]=0x80;texture[i+1]=0x30;texture[i+2]=0x20;texture[i+3]=0x10;
+        const bool ia8=texture_format==5;
+        std::vector<std::uint8_t> texture(ia8?512:1024);
+        for(unsigned i=0;i<texture.size();i+=ia8?2:4) {
+            texture[i]=0x80;texture[i+1]=ia8?0x40:0x30;
+            if(!ia8) {texture[i+2]=0x20;texture[i+3]=0x10;}
         }
         if(private_texture)CHECK(memory.LoadBytes(kTextureVa,texture));
         else CHECK(bank->Write(kTexture,texture));
@@ -234,10 +236,39 @@ void TextureFcramDependenciesAndRollback() {
     Fixture relay;relay.TexturedDepth();relay.Draw();relay.Irq();relay.Submit();
     relay.Word(0,0x3400);relay.Stop("relay");
 }
+
+void Ia8EncodedSpansAndFeedback() {
+    // IA8's 16x16 source occupies exactly 512 bytes. A preceding transfer into
+    // its final 128 bytes must stop; a transfer starting at byte 512 is disjoint.
+    Fixture overlap;overlap.TexturedDepth(true,5);overlap.Draw();overlap.Irq();overlap.Submit(1,2);
+    overlap.PacketAt(0,{3,kGpuVramVirtualBase+kTransfer,kTextureVa+384,0x80008,0x80008,0x4400,0,0});
+    const auto before=overlap.PrivateBytes(kTextureVa,512);
+    overlap.Stop("PICA texture source depends on an earlier staged FCRAM transfer");
+    CHECK(overlap.PrivateBytes(kTextureVa,512)==before);
+
+    Fixture adjacent;adjacent.TexturedDepth(true,5);adjacent.Draw();adjacent.Irq();adjacent.Submit(1,2);
+    adjacent.PacketAt(0,{3,kGpuVramVirtualBase+kTransfer,kTextureVa+512,0x80008,0x80008,0x4400,0,0});
+    const auto source=adjacent.PrivateBytes(kTextureVa,512);
+    adjacent.Success();adjacent.Pixels({0x55,82,91,99});adjacent.DepthPixels();
+    CHECK(adjacent.PrivateBytes(kTextureVa,512)==source);
+    CHECK(adjacent.PrivateBytes(kTextureVa+512,128)==std::vector<std::uint8_t>(128,0xA5));
+    CHECK(adjacent.Page()[1]==2 && adjacent.Page()[12]==4 && adjacent.Page()[13]==5);
+
+    // The same encoded extent controls framebuffer feedback rejection. Ending
+    // immediately before color storage is valid; even an overlap of 8 bytes is not.
+    Fixture boundary;boundary.TexturedDepth(false,5);
+    CHECK(boundary.bank->Write(kFramebuffer-512,boundary.bank->bytes().subspan(kTexture,512)));
+    boundary.Set(0x85,(kGpuVramPhysicalBase+kFramebuffer-512)/8);
+    boundary.Draw();boundary.Irq();boundary.Submit();boundary.Success();
+    boundary.Pixels({0x55,82,91,99});boundary.DepthPixels();
+    Fixture feedback;feedback.TexturedDepth(false,5);
+    feedback.Set(0x85,(kGpuVramPhysicalBase+kFramebuffer-512+8)/8);
+    feedback.Draw();feedback.Submit();feedback.Stop("texture source overlaps");
+}
 } // namespace
 
 int main(){RealPixelsThenIrq();WholeQueueRollback();OrderedDrawsAndTransfers();FillForwardingAndPrivateSourceGuard();
-    TextureSnapshotAndDepthWrites();TextureFcramDependenciesAndRollback();
+    TextureSnapshotAndDepthWrites();TextureFcramDependenciesAndRollback();Ia8EncodedSpansAndFeedback();
     if(failures)return EXIT_FAILURE;
     std::cout<<"PASS: native draw/texture/depth bytes, ordered device staging, restart, IRQ and complete-queue rollback\n";
 }

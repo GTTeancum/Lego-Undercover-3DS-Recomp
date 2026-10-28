@@ -1,3 +1,69 @@
+# October 28, 2026 — IA8 texture sampling
+
+## Current result and next task
+
+Texture0 now accepts IA8 (format 5) alongside RGBA8. The original draw at
+**0xB58** and the next two draws stage successfully. The same 5952-byte GPU
+command list reaches its seventh draw, at **0x12C0**, which selects ETC1A4:
+
+```text
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=3 dispatch_rounds=1529
+host_ipc_error=PICA texture0 format is outside the supported RGBA8/IA8 slice at list byte 0x12c0 register 0x22e
+guest_now_ns=635131145
+```
+
+**Next task: implement the observed ETC1A4 compressed texture format.** The
+captured texture is 64 by 64 with a complete 4096-byte encoded source. Preserve
+the pinned PICA block layout and explicit alpha; this requires an actual block
+decoder. IA8 support alone does not complete this queue, present a frame, or
+advance execution beyond round 1529. The later failure rolls back every staged
+draw. No visible game scene, menu, audible playback or gameplay is demonstrated.
+
+## IA8 behavior and verification
+
+The staged texture plan now has an explicit format. IA8 stores two source bytes
+per texel in alpha/intensity order and expands each lookup to `(I,I,I,A)` before
+the existing nearest or linear filtering. Tile addressing, Y inversion, numeric
+policy, provenance checks and sampler bounds are retained. The encoded two-byte
+extent drives source reads, FCRAM dependencies and color/depth feedback checks;
+it is never replaced by an expanded four-byte extent. Unknown formats and
+malformed plan sizes still fail without changing caller output.
+
+The sampler, rasterizer and queue suites pass. Added authored cases exercise
+independent intensity/alpha, transparent nonzero intensity, tile boundaries,
+nearest/linear goldens, exact source ends, malformed plans, transfer adjacency
+versus overlap, framebuffer feedback and whole-queue rollback. No new suite was
+added; the existing full configuration still contains 79 suites. Hosted checks
+are attached to the exact published revision separately from original-game work.
+
+One offline native replay verifies all **65536** original texel centers and
+**2876** meaningful noncenter filter/clamp probes. All **273648** output color
+bytes match an independent address/decode/binary32 oracle. The exact **131072**
+encoded source bytes are retained. All **2640** selected shader components
+match the independent arithmetic oracle; all **44** triangles have zero area.
+The draw produces no patches or pixel work and preserves the complete 6 MiB
+VRAM snapshot. This degenerate geometry is not a visible texture-rendering
+claim; authored nondegenerate draws test the integration separately.
+
+The selective original capture records only queue 250 and final state. Its
+complete normalized arguments/stdout, CPU/IPC state and all **323072** audio
+bytes match the ordinary run. Six draws succeed only in disposable storage;
+the seventh stops on ETC1A4. The live queue retains its rollback behavior.
+Filtering and depth remain declared emulator approximations, and earlier
+historical evidence limitations are unchanged.
+
+Private receipts: `ia8-build.json`, `ia8-focused-tests.{json,log,xml}`,
+`ia8-replay-s_0e7j5q/{proof,receipt}.json`, `ia8-native-hqs7m6jo/`, and
+`ia8-capture-nychrpno/`. Original inputs and the four authenticated AOT
+supplements are unchanged. Native SHA-256:
+`863baf3b47b3059d950391133cf0ee823208fd0ecb77aef7d93c3b4946af7030`.
+CTR library SHA-256:
+`2b30e9d4d674fb2ee8d04d04b607c5264975817a8951be284ff36d5d12895245`.
+
+The following sections preserve previous milestones and their original scope.
+
+---
+
 # October 28, 2026 — proven whole-triangle clip rejection
 
 ## Current result and next task

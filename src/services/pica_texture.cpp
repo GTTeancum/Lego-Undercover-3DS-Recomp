@@ -35,6 +35,13 @@ bool NormalOrZero(float value) noexcept {
 }
 float Mul(float a,float b) noexcept {volatile float out=a*b;return out;}
 float Add(float a,float b) noexcept {volatile float out=a+b;return out;}
+std::uint32_t TexelBytes(PicaTextureFormat format) noexcept {
+    switch (format) {
+    case PicaTextureFormat::RGBA8: return 4;
+    case PicaTextureFormat::IA8: return 2;
+    }
+    return 0;
+}
 
 Color Texel(const PicaTexturePlan& plan,std::uint32_t x,std::uint32_t y) noexcept {
     // Clamp/wrap acts on logical coordinates before the storage Y inversion.
@@ -45,7 +52,11 @@ Color Texel(const PicaTexturePlan& plan,std::uint32_t x,std::uint32_t y) noexcep
         morton|=((x>>bit)&1U)<<(2*bit);
         morton|=((stored_y>>bit)&1U)<<(2*bit+1);
     }
-    const auto offset=tile*256+4*morton;
+    const auto offset=(tile*64+morton)*TexelBytes(plan.format);
+    if (plan.format==PicaTextureFormat::IA8) {
+        const auto intensity=plan.bytes[offset+1];
+        return {intensity,intensity,intensity,plan.bytes[offset]};
+    }
     return {plan.bytes[offset+3],plan.bytes[offset+2],plan.bytes[offset+1],plan.bytes[offset]};
 }
 
@@ -80,17 +91,22 @@ bool StagePicaTexture0(const PicaGpuRegisters& registers,const PicaUploadState& 
         !Known(uploads,0x84,0x0F0F1FFFU) || !Known(uploads,0x85,0x0FFFFFFFU) ||
         !Known(uploads,0x8E,15))
         return fail("PICA texture0 consumed register state is unknown");
-    if ((reg(0x83)&0x71007700U) || (reg(0x84)&0x0F0F1FFFU) || (reg(0x8E)&15U))
-        return fail("PICA texture0 requires ordinary RGBA8, base level0 and clamp-to-edge");
+    if ((reg(0x83)&0x71007700U) || (reg(0x84)&0x0F0F1FFFU))
+        return fail("PICA texture0 requires ordinary 2D, base level0 and clamp-to-edge");
+    const auto format=static_cast<PicaTextureFormat>(reg(0x8E)&15U);
+    const auto texel_bytes=TexelBytes(format);
+    if (!texel_bytes)
+        return fail("PICA texture0 format is outside the supported RGBA8/IA8 slice");
     const auto magnify=(reg(0x83)>>1)&1U,minify=(reg(0x83)>>2)&1U;
     if (magnify!=minify)
         return fail("PICA texture0 requires identical minification and magnification filters");
 
     PicaTexturePlan staged;
+    staged.format=format;
     staged.width=(reg(0x82)>>16)&0x7FFU;staged.height=reg(0x82)&0x7FFU;
     if (!Dimensions(staged.width,staged.height))
         return fail("PICA texture0 dimensions are outside supported power-of-two bounds");
-    const auto bytes=std::uint64_t(staged.width)*staged.height*4;
+    const auto bytes=std::uint64_t(staged.width)*staged.height*texel_bytes;
     if (bytes>kPicaTextureMaxBytes)
         return fail("PICA texture0 exceeds the host byte bound");
     const auto physical=(reg(0x85)&0x0FFFFFFFU)*8U;
@@ -129,10 +145,11 @@ bool SamplePicaTexture(const PicaTexturePlan& plan,float u,float v,
     const auto fail=[&](const char* message){error=message;return false;};
     if (!Dimensions(plan.width,plan.height))
         return fail("PICA texture sample has invalid staged dimensions");
-    const auto bytes=std::uint64_t(plan.width)*plan.height*4;
-    if (bytes>kPicaTextureMaxBytes || plan.bytes.size()!=bytes || plan.read.bytes!=bytes ||
+    const auto texel_bytes=TexelBytes(plan.format);
+    const auto bytes=std::uint64_t(plan.width)*plan.height*texel_bytes;
+    if (!texel_bytes || bytes>kPicaTextureMaxBytes || plan.bytes.size()!=bytes || plan.read.bytes!=bytes ||
         (plan.filter!=PicaTextureFilter::Nearest && plan.filter!=PicaTextureFilter::Linear))
-        return fail("PICA texture sample has an invalid staged extent or filter");
+        return fail("PICA texture sample has an invalid staged format, extent or filter");
     if (!NormalOrZero(u) || !NormalOrZero(v) || std::fegetround()!=FE_TONEAREST)
         return fail("PICA texture sample requires finite normal/zero coordinates and nearest host rounding");
     Color sampled{};

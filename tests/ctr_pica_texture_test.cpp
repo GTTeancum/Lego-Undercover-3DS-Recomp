@@ -50,6 +50,18 @@ std::vector<std::uint8_t> AuthoredTexture() {
     Store(bytes,168,{223,229,233,239});
     return bytes;
 }
+std::vector<std::uint8_t> AuthoredIa8Texture() {
+    std::vector<std::uint8_t> bytes(512,0xCD);
+    const auto put=[&](unsigned offset,std::uint8_t intensity,std::uint8_t alpha) {
+        bytes[offset]=alpha;bytes[offset+1]=intensity;
+    };
+    // Literal two-byte offsets for logical (7,7),(8,7),(7,8),(8,8).
+    // All four 8x8 tiles are involved; alpha and intensity deliberately differ.
+    put(298,10,20);put(384,110,100);put(126,30,200);put(212,250,40);
+    // Logical (0,0),(1,0),(0,7),(0,8),(15,15), including transparent nonzero I.
+    put(340,17,231);put(342,31,0);put(256,177,33);put(84,229,119);put(170,67,149);
+    return bytes;
+}
 
 struct Fixture {
     GuestMemory memory;
@@ -102,6 +114,7 @@ void RejectSample(const PicaTexturePlan& plan,float u,float v) {
 void MortonNearestAndClamp() {
     Fixture f;f.Set(0x83,0,11);if (!f.Good())return;
     CHECK(f.plan.width==16 && f.plan.height==16 && f.plan.filter==PicaTextureFilter::Nearest);
+    CHECK(f.plan.format==PicaTextureFormat::RGBA8);
     CHECK((f.plan.read==PicaTextureReadSpan{kPhysical,1024}));
     CHECK(f.plan.bytes==AuthoredTexture());
     for (auto [u,v,color]:std::array<std::tuple<float,float,Color>,9>{{
@@ -162,6 +175,44 @@ void PhysicalSourceEquivalenceAndLimits() {
     f.Set(0x85,0x08000000U/8);f.Stop(&f.memory);
 }
 
+void Ia8DecodeAndFiltering() {
+    Fixture f;f.Set(0x8E,5,1);f.Set(0x83,0,11);
+    CHECK(f.bank->Write(kOffset,AuthoredIa8Texture()));if (!f.Good())return;
+    CHECK(f.plan.format==PicaTextureFormat::IA8 && f.plan.bytes==AuthoredIa8Texture());
+    CHECK((f.plan.read==PicaTextureReadSpan{kPhysical,512}));
+    for (auto [u,v,color]:std::array<std::tuple<float,float,Color>,8>{{
+        {7.5f/16,7.5f/16,{10,10,10,20}},{8.5f/16,7.5f/16,{110,110,110,100}},
+        {7.5f/16,8.5f/16,{30,30,30,200}},{0.5f,0.5f,{250,250,250,40}},
+        {1.5f/16,0.5f/16,{31,31,31,0}},{0.5f/16,7.5f/16,{177,177,177,33}},
+        {0.5f/16,8.5f/16,{229,229,229,119}},{1,1,{67,67,67,149}}}})Sample(f.plan,u,v,color);
+    Sample(f.plan,0,0,{17,17,17,231});
+    f.Set(0x83,6,11);if (!f.Good())return;
+    Sample(f.plan,0.5f,0.5f,{100,100,100,90});
+    Sample(f.plan,7.75f/16,8.25f/16,{73,73,73,130}); // Independent I/A interpolation.
+    Sample(f.plan,1.5f/16,0.5f/16,{31,31,31,0}); // Intensity is not premultiplied by alpha.
+}
+
+void Ia8EncodedExtentAndFailures() {
+    Fixture f;f.Set(0x8E,5,1);const auto texture=AuthoredIa8Texture();
+    CHECK(f.memory.Map(kPrivateVa,512,kRw));CHECK(f.memory.LoadBytes(kPrivateVa,texture));
+    CHECK(!f.memory.IsMapped(kPrivateVa+512));f.Set(0x85,kPrivatePhysical/8);
+    if (!f.Good(&f.memory))return;
+    CHECK((f.plan.read==PicaTextureReadSpan{kPrivatePhysical,512}) && f.plan.bytes==texture);
+    Sample(f.plan,0.5f,0.5f,{100,100,100,90});
+    GuestMemory short_source;CHECK(short_source.Map(kPrivateVa,511,kRw));f.Stop(&short_source);
+
+    const auto end_address=kGpuVramPhysicalBase+kGpuVramBytes-512;
+    CHECK(f.bank->Write(kGpuVramBytes-512,texture));f.Set(0x85,end_address/8);
+    if (!f.Good())return;
+    CHECK((f.plan.read==PicaTextureReadSpan{end_address,512}) && f.plan.bytes==texture);
+    Sample(f.plan,0.5f,0.5f,{100,100,100,90});
+    f.Set(0x85,(end_address+8)/8);f.Stop(); // Eight bytes beyond exact device end.
+    const auto saved=f.plan;
+    f.plan.bytes.pop_back();RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
+    f.plan.format=PicaTextureFormat::RGBA8;RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
+    f.plan.read.bytes=1024;RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
+}
+
 struct ReadProbe final : DeviceMemory {
     mutable unsigned probes{},reads{};
     std::uint32_t size() const noexcept override {return 0x1000;}
@@ -219,6 +270,7 @@ void InvalidSamplesStayAtomic() {
     f.plan.bytes.pop_back();RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
     --f.plan.read.bytes;RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
     f.plan.filter=static_cast<PicaTextureFilter>(99);RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
+    f.plan.format=static_cast<PicaTextureFormat>(99);RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
     f.plan.width=12;RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
     const auto rounding=std::fegetround();CHECK(std::fesetround(FE_DOWNWARD)==0);
     RejectSample(f.plan,0.5f,0.5f);CHECK(std::fesetround(rounding)==0);
@@ -227,7 +279,8 @@ void InvalidSamplesStayAtomic() {
 
 int main() {
     MortonNearestAndClamp();LinearGoldensAndPureSampling();PhysicalSourceEquivalenceAndLimits();
+    Ia8DecodeAndFiltering();Ia8EncodedExtentAndFailures();
     UnavailableSourcesStayAtomic();KnownRegistersAndUnsupportedConfigurations();InvalidSamplesStayAtomic();
     if (failures)return EXIT_FAILURE;
-    std::cout<<"PASS: authored texture Morton/ABGR, nearest/linear clamp, immutable physical reads and atomic bounds\n";
+    std::cout<<"PASS: authored RGBA8/IA8 texture bytes, Morton/linear sampling, immutable physical reads and atomic bounds\n";
 }

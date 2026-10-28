@@ -11,6 +11,7 @@ class GpuVramBank;
 // Host staging limits, not claims about every PICA texture configuration.
 inline constexpr std::uint32_t kPicaTextureMaxBytes = 4 * 1024 * 1024;
 enum class PicaTextureFilter : std::uint8_t { Nearest, Linear };
+enum class PicaTextureFormat : std::uint8_t { RGBA8 = 0, IA8 = 5 };
 
 struct PicaTextureReadSpan {
     std::uint32_t physical_address{},bytes{};
@@ -20,12 +21,14 @@ struct PicaTextureReadSpan {
 struct PicaTexturePlan {
     std::uint32_t width{},height{};
     PicaTextureFilter filter{PicaTextureFilter::Nearest};
+    PicaTextureFormat format{PicaTextureFormat::RGBA8};
     PicaTextureReadSpan read;
+    // Original encoded source bytes; IA8 retains two bytes per texel, RGBA8 four.
     std::vector<std::uint8_t> bytes;
     bool operator==(const PicaTexturePlan&) const = default;
 };
 
-// Stages ordinary unit0, tiled RGBA8, base level0, clamp-to-edge in both axes,
+// Stages ordinary unit0, tiled RGBA8 or IA8, base level0, clamp-to-edge in both axes,
 // and identical nearest or linear min/mag filters. Dimensions must be powers of
 // two in [8,1024]. Consumed register fields require known byte provenance.
 // Global texture enables/fog, framebuffer feedback and earlier queue writes are
@@ -41,6 +44,7 @@ bool StagePicaTexture0(const PicaGpuRegisters& registers,
                        PicaTexturePlan& plan,const char*& error);
 
 // Pure, allocation-free sampling of a staged texture. Output order is R,G,B,A.
+// IA8 taps expand stored alpha/intensity to R=G=B=intensity with separate alpha.
 // Linear filtering uses explicitly rounded binary32 arithmetic at normalized
 // u*width-0.5 / v*height-0.5, clamped taps and tiled lookup with Y inversion.
 // This is a deterministic emulator approximation, not measured PICA precision.
