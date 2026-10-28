@@ -19,6 +19,8 @@ enum class GpuVramMode { Unconfigured, ReferenceZero };
 class GpuVramBank final {
 public:
     static std::shared_ptr<GpuVramBank> ReferenceZero();
+    // Independent staging copy of established device bytes, never a reset.
+    [[nodiscard]] std::shared_ptr<GpuVramBank> Clone() const;
     [[nodiscard]] std::span<const std::uint8_t> bytes() const noexcept { return bytes_; }
     bool Write(std::uint32_t offset, std::span<const std::uint8_t> data) noexcept;
 private:
@@ -37,9 +39,12 @@ struct DisplayTransferPlan {
 };
 
 // Supported slices: 0x4400 equal-size RGBA4 tiled VRAM -> private linear heap;
+// 0x1004 unscaled RGBA8 tiled VRAM -> RGB8 linear device VRAM;
 // 0x01001004 horizontally halved RGBA8 tiled VRAM -> RGB8 linear device VRAM.
-// The latter uses the programmed output rectangle as a left/top crop, then halves
-// its width. Other format/flag combinations remain unsupported. Both declared
+// The RGB8 modes use the programmed output rectangle as a left/top crop; only
+// the scaled mode halves its width and requires an even programmed width.
+// Unscaled linear output may have odd or partial-tile dimensions. Other
+// format/flag combinations remain unsupported. Both declared
 // input and output spans are bounded separately; overlapping device spans stop.
 // Stages all bytes without touching the VRAM source or any guest destination.
 bool StageDisplayTransfer(const DisplayTransferRequest& request,

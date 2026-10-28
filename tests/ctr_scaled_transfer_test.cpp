@@ -71,7 +71,7 @@ void StagePixelsAndBounds(){
         const auto original=p.output;const auto bytes=p.bytes;
         CHECK(!StageDisplayTransfer(bad,bank.get(),p,error)&&error&&p.output==original&&p.bytes==bytes);
     }
-    for(auto flags:{0x01001005U,0x02001004U,0x00001004U,0x01001006U,0x01001024U,0x01001404U}){
+    for(auto flags:{0x01001005U,0x02001004U,0x01001006U,0x01001024U,0x01001404U}){
         auto bad=Request();bad.flags=flags;CHECK(!StageDisplayTransfer(bad,bank.get(),p,error));
     }
     CHECK(!StageDisplayTransfer(Request(),nullptr,p,error));
@@ -117,7 +117,7 @@ void DeviceCommitAndRealWaiter(){
     std::uint64_t val=0,token=0;std::uint32_t fault=0;CHECK(f.m.LoadExclusive(kOutput,4,&val,&token,&fault));
     CHECK(f.k.WaitSynchronization1(f.event,-1).blocked);CHECK(f.k.CloseHandle(f.event)==0);
     f.Put();CHECK(f.Call().kind==a32::ExitKind::Fallthrough&&f.cpu.r[0]==0);
-    std::copy(expected.begin(),expected.end(),bank.begin()+kOutput-kGpuVramVirtualBase);CHECK(f.Bank()==bank);
+    std::copy(expected.begin(),expected.end(),bank.begin()+(kOutput-kGpuVramVirtualBase));CHECK(f.Bank()==bank);
     page[f.queue()]=1;page[f.queue()+1]=0;page[1]=1;page[12]=4;CHECK(f.Page()==page);
     regs[0x300]=(kInput-kGpuVramVirtualBase+kGpuVramPhysicalBase)>>3;regs[0x301]=(kOutput-kGpuVramVirtualBase+kGpuVramPhysicalBase)>>3;
     regs[0x302]=0x019001E0;regs[0x303]=0x01900200;regs[0x304]=0x01001004;regs[0x306]&=~1U;

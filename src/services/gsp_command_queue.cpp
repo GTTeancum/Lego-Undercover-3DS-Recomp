@@ -1,4 +1,5 @@
 #include "services/gsp_gpu_service.h"
+#include "services/pica_rasterizer.h"
 #include <atomic>
 #include <sstream>
 #include <vector>
@@ -12,6 +13,72 @@ constexpr std::uint32_t kPacketSize = 0x20;
 constexpr std::uint32_t kPacketCount = 15;
 constexpr std::uint32_t kStatusStopped = 1;
 constexpr std::uint32_t kCacheFlush = 5;
+constexpr std::uint32_t kMaxQueueDraws = 16;
+constexpr std::uint32_t kMaxQueuePixelTests = 16 * 1024 * 1024;
+
+// One lazy private VRAM snapshot follows successful staged device writes. It
+// lets a later draw or transfer see an earlier draw without touching live VRAM.
+// Individual per-packet patches are retained for ordered, allocation-free commit.
+struct QueueDrawStage {
+    GuestMemory& memory;
+    const GpuVramBank* initial_vram;
+    const std::array<std::unique_ptr<DisplayTransferPlan>,kPacketCount>& transfers;
+    std::shared_ptr<GpuVramBank> snapshot;
+    std::vector<PicaRasterPlan>* current{};
+    std::uint32_t packet{},draw_count{},pixel_tests{};
+
+    const GpuVramBank* ReadVram() const {return snapshot ? snapshot.get() : initial_vram;}
+    GpuVramBank* MutableVram() {
+        if(!snapshot && initial_vram)snapshot=initial_vram->Clone();
+        return snapshot.get();
+    }
+    static bool Draw(void* opaque,std::uint32_t id,const PicaGpuRegisters& regs,
+                     const PicaUploadState& uploads,PicaListResult& result) {
+        auto& stage=*static_cast<QueueDrawStage*>(opaque);
+        const auto fail=[&](const char* message){result.error=message;return false;};
+        if(stage.draw_count>=kMaxQueueDraws)
+            return fail("PICA draws exceed the whole-queue host bound");
+        if(!stage.ReadVram())return fail("PICA draw requires an explicitly configured VRAM bank");
+        PicaVertexFetchPlan fetched;
+        if(!StagePicaVertexFetch(id,regs,uploads,stage.memory,stage.ReadVram(),fetched,result.error))return false;
+        // FCRAM transfer destinations are not copied into the private VRAM
+        // snapshot. Refuse stale vertex reads, including alternative VA aliases.
+        for(const auto& read:fetched.reads) {
+            if(read.physical_address<0x20000000U || read.physical_address>=0x28000000U)continue;
+            const auto va=read.physical_address-0x20000000U+0x14000000U;
+            for(std::uint32_t prior=0;prior<stage.packet;++prior) {
+                const auto& transfer=stage.transfers[prior];
+                if(transfer && !transfer->output_vram && stage.memory.SpansAlias(
+                        va,read.bytes,transfer->request.output,transfer->bytes))
+                    return fail("PICA vertex source depends on an earlier staged FCRAM transfer");
+            }
+        }
+        PicaVertexShaderPlan shaded;
+        if(!StagePicaVertexShader(regs,uploads,fetched,shaded,result.error))return false;
+        PicaRasterPlan raster;
+        if(!StagePicaRasterizer(regs,uploads,shaded,*stage.ReadVram(),raster,result.error,
+                               kMaxQueuePixelTests-stage.pixel_tests))return false;
+        if(raster.pixels_tested>kMaxQueuePixelTests-stage.pixel_tests)
+            return fail("PICA raster work exceeds the whole-queue host bound");
+        for(const auto& patch:raster.patches)
+            if(patch.offset>kGpuVramBytes || patch.bytes.size()>kGpuVramBytes-patch.offset)
+                return fail("PICA raster patch exceeds device VRAM");
+        // Finish allocations before applying to disposable state. Any exception
+        // or later failure causes the complete queue transaction to be discarded.
+        stage.current->push_back(std::move(raster));
+        auto* destination=stage.MutableVram();
+        const auto& staged=stage.current->back();
+        for(const auto& patch:staged.patches)
+            if(!destination->Write(patch.offset,patch.bytes))
+                return fail("PICA raster staging invariant failed");
+        ++stage.draw_count;stage.pixel_tests+=staged.pixels_tested;
+        ++result.draws;result.vertices+=static_cast<std::uint32_t>(fetched.vertices.size());
+        result.shader_instructions+=shaded.instruction_count;
+        result.triangles+=staged.triangles;result.pixels_tested+=staged.pixels_tested;
+        result.pixels_covered+=staged.pixels_covered;result.pixels_written+=staged.pixels_written;
+        return true;
+    }
+};
 
 std::uint32_t ReadWord(std::span<const std::uint8_t> data, std::uint32_t offset) noexcept {
     return std::uint32_t(data[offset]) | (std::uint32_t(data[offset+1]) << 8) |
@@ -68,8 +135,11 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
     std::array<bool,kPacketCount> stop_after{};
     std::array<std::unique_ptr<PicaListPlan>,kPacketCount> plans{};
     std::array<std::unique_ptr<DisplayTransferPlan>,kPacketCount> transfers{};
+    std::array<std::vector<PicaRasterPlan>,kPacketCount> draws{};
     std::array<PicaGpuRegisters,kPacketCount> transfer_registers{};
     std::array<std::unique_ptr<MemoryFillPlan>,kPacketCount> fills{};
+    QueueDrawStage draw_stage{memory,shared_->vram.get(),transfers};
+    const PicaDrawHandler draw_handler{&draw_stage,QueueDrawStage::Draw};
     auto staged_registers=shared_->register_words;
     const auto* staged_uploads=&shared_->pica_uploads;
     std::uint32_t total_irqs=0;
@@ -114,8 +184,9 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                     registers[0x638]=size/8;
                     registers[0x63A]=((address-0x14000000U+0x20000000U)>>3)&0x0FFFFFFFU;
                     registers[0x63C]=1;
+                    draw_stage.packet=n;draw_stage.current=&draws[n];
                     if(!StagePicaStartupList(list,registers,
-                            *staged_uploads,*plan)) {
+                            *staged_uploads,*plan,&draw_handler)) {
                         std::ostringstream error;
                         error<<plan->result.error<<" at list byte 0x"<<std::hex
                              <<plan->result.byte_offset<<" register 0x"<<plan->result.register_id;
@@ -137,7 +208,13 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                     request.channels[1]={ReadWord(bytes,packet+16),ReadWord(bytes,packet+20),ReadWord(bytes,packet+24),static_cast<std::uint16_t>(controls>>16)};
                     auto plan=std::make_unique<MemoryFillPlan>();
                     const char* error=nullptr;
-                    if (!StageMemoryFill(request,shared_->vram.get(),staged_registers,*plan,error)) return stop(error);
+                    if (!StageMemoryFill(request,draw_stage.ReadVram(),staged_registers,*plan,error)) return stop(error);
+                    for(const auto& channel:plan->channels) {
+                        if(!channel.triggered)continue;
+                        auto* destination=draw_stage.MutableVram();
+                        if(!destination || !destination->Write(channel.offset,channel.output))
+                            return stop("MemoryFill VRAM staging invariant failed");
+                    }
                     staged_registers=plan->registers;
                     total_irqs+=plan->irqs;
                     fills[n]=std::move(plan);
@@ -150,7 +227,7 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                         ReadWord(bytes,packet+12),ReadWord(bytes,packet+16),ReadWord(bytes,packet+20)};
                     auto plan=std::make_unique<DisplayTransferPlan>();
                     const char* error=nullptr;
-                    if (!StageDisplayTransfer(request,shared_->vram.get(),*plan,error)) return stop(error);
+                    if (!StageDisplayTransfer(request,draw_stage.ReadVram(),*plan,error)) return stop(error);
                     for (std::uint32_t prior=0;prior<n;++prior) {
                         if (transfers[prior] && transfers[prior]->output_vram) {
                             const auto& earlier=*transfers[prior];
@@ -173,6 +250,10 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
                             memory.SpansAlias(request.output,plan->bytes,
                                               static_cast<std::uint32_t>(response),sizeof(command)))
                             return stop("DisplayTransfer destination aliases mutable queue or IPC state");
+                    } else {
+                        auto* destination=draw_stage.MutableVram();
+                        if(!destination || !destination->Write(request.output-kGpuVramVirtualBase,plan->output))
+                            return stop("DisplayTransfer VRAM staging invariant failed");
                     }
                     // Device VRAM never resolves through unrelated CPU mappings.
                     // GPU::Execute programs the unscaled dimensions, then actual
@@ -258,6 +339,10 @@ Result GspGpuService::TriggerCommandQueue(IpcRouter& router, Kernel& kernel,
             // The pinned GPU::Execute CacheFlush case performs no extra action.
             std::atomic_thread_fence(std::memory_order_seq_cst);
             if(plans[n]) {
+                for(const auto& draw:draws[n])
+                    for(const auto& patch:draw.patches)
+                        if(!shared_->vram || !shared_->vram->Write(patch.offset,patch.bytes))
+                            return stop("PICA draw commit invariant failed after dequeue; no P3D delivered");
                 shared_->register_words=plans[n]->registers;
                 shared_->pica_uploads=plans[n]->uploads;
                 shared_->last_pica_result=plans[n]->result;

@@ -78,6 +78,99 @@ void DeviceWritePreparation(){
     CHECK(m.PrepareDeviceWrite(0xFFFFFFFF,0)&&m.CommitDeviceWrite(0xFFFFFFFF,{}));
     CHECK(m.Map(0x17000000,64,MemoryPermission::Write));CHECK(m.PrepareDeviceWrite(0x17000000,16)&&m.CommitDeviceWrite(0x17000000,data));
 }
+
+struct RgbCropPattern { std::vector<std::uint8_t> tiled,expected; };
+RgbCropPattern MakeRgbCrop(unsigned input_width,unsigned input_height,unsigned width,unsigned height) {
+    RgbCropPattern pattern; pattern.tiled.resize(input_width*input_height*4);
+    std::vector<std::uint8_t> linear(input_width*input_height*3);
+    // Author source bytes in tile-index order and independently deinterleave
+    // each local index. Expected output is a crop of the logical BGR image;
+    // it never uses the implementation's forward Morton-address formula.
+    for (unsigned tile=0;tile<(input_width/8)*(input_height/8);++tile)
+        for (unsigned q=0;q<64;++q) {
+            const unsigned x=8*(tile%(input_width/8))+(q&1)+((q>>1)&2)+((q>>2)&4);
+            const unsigned y=8*(tile/(input_width/8))+((q>>1)&1)+((q>>2)&2)+((q>>3)&4);
+            const std::array<std::uint8_t,4> abgr{
+                static_cast<std::uint8_t>(3+17*x+29*y),
+                static_cast<std::uint8_t>(30+3*x+5*y),
+                static_cast<std::uint8_t>(210-x-2*y),
+                static_cast<std::uint8_t>(11+11*x+7*y)};
+            for (unsigned channel=0;channel<4;++channel) pattern.tiled[4*(tile*64+q)+channel]=abgr[channel];
+            for (unsigned channel=0;channel<3;++channel) linear[3*(y*input_width+x)+channel]=abgr[channel+1];
+        }
+    for (unsigned y=0;y<height;++y)
+        pattern.expected.insert(pattern.expected.end(),linear.begin()+3*y*input_width,
+                                linear.begin()+3*(y*input_width+width));
+    return pattern;
 }
-int main(){OriginalAndNonzeroPixels();StrictBoundsAndNoPartialPlan();DeviceWritePreparation();
- if(failures)return EXIT_FAILURE;std::cout<<"PASS: real VRAM data, RGBA4 detiling, strict bounds and allocation-free device commits\n";return EXIT_SUCCESS;}
+
+bool SamePlan(const DisplayTransferPlan& a,const DisplayTransferPlan& b) {
+    return a.request.input==b.request.input && a.request.output==b.request.output &&
+           a.request.input_size==b.request.input_size && a.request.output_size==b.request.output_size &&
+           a.request.flags==b.request.flags && a.width==b.width && a.height==b.height &&
+           a.bytes==b.bytes && a.input_bytes==b.input_bytes && a.output_vram==b.output_vram && a.output==b.output;
+}
+
+void UnscaledRgbCropBytesAndAtomicBounds() {
+    auto bank=GpuVramBank::ReferenceZero();
+    constexpr std::uint32_t source=kGpuVramVirtualBase+0x20000,destination=kGpuVramVirtualBase+0x300000;
+    const auto request=[&](unsigned iw,unsigned ih,unsigned ow,unsigned oh) {
+        return DisplayTransferRequest{source,destination,(ih<<16)|iw,(oh<<16)|ow,0x1004};
+    };
+    DisplayTransferPlan plan; const char* error=nullptr;
+    for (const auto dims:std::array<std::array<unsigned,4>,4>{{{16,16,9,9},{24,16,19,11},{8,8,1,1},{256,400,240,320}}}) {
+        const auto pattern=MakeRgbCrop(dims[0],dims[1],dims[2],dims[3]);
+        CHECK(bank->Write(source-kGpuVramVirtualBase,pattern.tiled));
+        const auto before=std::vector<std::uint8_t>(bank->bytes().begin(),bank->bytes().end());
+        const auto q=request(dims[0],dims[1],dims[2],dims[3]);
+        CHECK(StageDisplayTransfer(q,bank.get(),plan,error) && !error);
+        CHECK(plan.width==dims[2] && plan.height==dims[3] && plan.output_vram);
+        CHECK(plan.input_bytes==pattern.tiled.size() && plan.bytes==dims[2]*dims[3]*3);
+        CHECK(plan.output==pattern.expected && std::equal(before.begin(),before.end(),bank->bytes().begin()));
+        if (dims[2]>=9 && dims[3]>=9) {
+            // Literal neighboring pixels prove no horizontal averaging and
+            // alpha omission; the last triplet crosses both tile boundaries.
+            CHECK((std::vector<std::uint8_t>(plan.output.begin(),plan.output.begin()+6)==
+                   std::vector<std::uint8_t>{30,210,11,33,209,22}));
+            const auto row=3*dims[2],crossing=3*(8*dims[2]+8);
+            CHECK(plan.output[row]==35 && plan.output[row+1]==208 && plan.output[row+2]==18);
+            CHECK(plan.output[crossing]==94 && plan.output[crossing+1]==186 && plan.output[crossing+2]==155);
+        }
+    }
+    // Entire declared input and exact produced output are validated separately.
+    // Adjacent spans and an output ending exactly at the bank end are valid.
+    auto edge=request(8,8,8,8);
+    edge.input=kGpuVramVirtualBase+kGpuVramBytes-256; edge.output=edge.input-192;
+    CHECK(StageDisplayTransfer(edge,bank.get(),plan,error));
+    edge.input=source; edge.output=kGpuVramVirtualBase+kGpuVramBytes-192;
+    CHECK(StageDisplayTransfer(edge,bank.get(),plan,error));
+    edge.output=source+256; CHECK(StageDisplayTransfer(edge,bank.get(),plan,error));
+    const auto saved=plan;
+    const auto before=std::vector<std::uint8_t>(bank->bytes().begin(),bank->bytes().end());
+    std::vector<DisplayTransferRequest> rejected;
+    auto good=request(16,16,9,9);
+    for (auto address:{0U,kGpuVramPhysicalBase,kGpuVramVirtualBase-8,source+1,
+                      kGpuVramVirtualBase+kGpuVramBytes-128,0xFFFFFFF8U}) {
+        auto q=good;q.input=address;rejected.push_back(q);
+    }
+    for (auto address:{0U,0x14000000U,destination+1,source+1016,source-8,
+                      kGpuVramVirtualBase+kGpuVramBytes-240,0xFFFFFFF8U}) {
+        auto q=good;q.output=address;rejected.push_back(q);
+    }
+    for (auto dims:std::array<std::array<unsigned,4>,8>{{{0,16,1,1},{16,0,1,1},{15,16,9,9},
+            {16,15,9,9},{16,16,0,9},{16,16,9,0},{16,16,17,9},{16,16,9,17}}})
+        rejected.push_back(request(dims[0],dims[1],dims[2],dims[3]));
+    rejected.push_back(request(520,512,1,1)); // Small crop cannot bypass the input-span work cap.
+    rejected.push_back(request(65535,65535,65535,65535));
+    for (auto flags:{0x1005U,0x1006U,0x1024U,0x1404U,0x02001004U}) {
+        auto q=good;q.flags=flags;rejected.push_back(q);
+    }
+    CHECK(!StageDisplayTransfer(good,nullptr,plan,error) && error && SamePlan(plan,saved));
+    for (const auto& q:rejected) {
+        CHECK(!StageDisplayTransfer(q,bank.get(),plan,error) && error);
+        CHECK(SamePlan(plan,saved) && std::equal(before.begin(),before.end(),bank->bytes().begin()));
+    }
+}
+}
+int main(){OriginalAndNonzeroPixels();StrictBoundsAndNoPartialPlan();DeviceWritePreparation();UnscaledRgbCropBytesAndAtomicBounds();
+ if(failures)return EXIT_FAILURE;std::cout<<"PASS: real VRAM data, RGBA4 detiling, unscaled BGR crop, strict bounds and atomic device staging\n";return EXIT_SUCCESS;}

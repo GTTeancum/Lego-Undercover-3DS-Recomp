@@ -1,3 +1,188 @@
+# October 28, 2026 — native color draws and framebuffer crop
+
+## Current outcome and next stop
+
+The native runtime now completes the original draw that stopped checkpoint
+`5563791c095e1ff8c76f8d79cdd3cf76764322c5` at dispatch round 843. It also completes
+the next unsupported framebuffer transfer, reached at round 1109. No original
+game instructions, uploaded shader program, AOT pages, assets, or input files
+were patched to obtain this progress.
+
+The latest ordinary original-game run, with the existing launch profile and
+`--host-event-limit 16384`, reports:
+
+```
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=8 dispatch_rounds=1203
+last_ipc_session=fs:USER request_header=0x080c00c2
+guest_now_ns=501570401
+request_words=080c00c2 00000004 00000001 00000001 00004002 0e022d3c
+```
+
+This is `OpenArchive` for archive ID 4 (SaveData), an Empty path of declared size
+1 in static buffer 0. The captured payload byte is `0x3c`, not NUL; the Empty
+path type governs its semantics, so it must not be interpreted as a filename.
+The current filesystem implementation supports a specific
+shared-extdata OpenArchive path, not a title save-data archive. The next task is
+to implement a distinct, contained title-save backend and its real missing-save
+and handle semantics. Do not widen the shared-extdata ID check or invent a
+successful save mount. The private checkpoint includes a pinned-reference brief
+and the observed request/path capture.
+
+The default 4,096-event diagnostic budget first stopped at round 1087 with
+`HostEventLimit`. Raising only that finite host budget to 16,384 exposed the real
+subsequent transfer and filesystem stops. This is a diagnostic budget change,
+not a CPU timing fix, skipped operation, or hardware speed measurement.
+
+No visible game scene, menu, music playback, or gameplay is demonstrated. The
+verified startup color buffers are black; native drawing and device transfers
+are now real operations, but these results do not establish useful presentation.
+
+## Implemented drawing path
+
+`src/services/pica_rasterizer.{h,cpp}` adds an independently authored, bounded
+software color stage. It consumes the existing fetched/shaded vertex outputs and
+known register state, maps output semantics, assembles fresh triangle lists or
+strips, performs viewport conversion and pixel coverage, interpolates colors with
+perspective correction, applies the supported TEV operations and blending, and
+stages channel-masked tiled RGBA8 writes.
+
+Supported TEV operands are primary color, stage constants, and previous stage;
+operations are unscaled Replace and Modulate with the implemented direct
+operands. Additive blending supports Zero, One, SourceAlpha, and
+OneMinusSourceAlpha factors. LogicCopy is supported when blending is disabled.
+The framebuffer uses 8-by-8 Morton tiles, ABGR bytes, and the supported vertical
+orientation. Unknown consumed fields and unsupported states stop explicitly.
+
+Coverage and arithmetic follow the pinned Azahar software model. Arithmetic
+uses separate binary32 rounding boundaries, with explicit finite normal/zero
+checks and nearest host rounding. This is not measured hardware float24 or
+subpixel parity. User clipping, clip-volume crossings, scissor tests, indexed
+fetch, geometry shaders, textures, fog, other fragment tests/formats, unsupported
+blend/TEV operations, and the other framebuffer orientation remain guarded.
+Unused register storage is not evidence that a consumed field is known.
+
+The decoder supplies an optional draw staging callback only when the GSP queue
+owns a device transaction. Calling the decoder alone still rejects draw
+execution. Primitive state begins empty according to the reference and resets
+on topology/restart writes. A nonempty draw requires another explicit reset
+before a later draw; retained strip/fan or partial-list state is not fabricated.
+
+The queue keeps a lazy independent copy of established VRAM for preflight.
+Earlier device writes are visible to later draws, and later transfers can read
+staged draw output. FCRAM dependencies that are not forwarded remain explicit
+stops. A later bad list, packet, or IRQ preflight discards all staged draw bytes
+and state. On success, actual device patches commit before the associated P3D
+interrupt. A draw does not invent an IRQ when its list did not request one.
+Existing synchronous timing and event semantics remain in force.
+
+Host bounds are 4,096 fetched vertices and 1 MiB of source reads per draw; the
+existing shader bounds remain. A raster framebuffer is at most 1 MiB, each draw
+has at most 4 Mi candidate-pixel tests, and a complete eligible queue accepts at
+most 16 draws and 16 Mi candidate-pixel tests. Remaining queue raster work is
+preflighted before fragment loops. These are containment limits, not hardware
+capacity claims.
+
+## Unscaled framebuffer transfer
+
+`DisplayTransfer` flag `0x1004` now supports a left/top crop from tiled RGBA8
+physical VRAM to linear RGB8 physical VRAM. It preserves the input tile-row
+stride, drops alpha, and copies BGR channels without filtering or horizontal
+halving. Odd or partial-tile output dimensions are valid. Source and output
+spans are bounded independently; alignment, overlap, capacity, and atomic
+staging checks remain mandatory.
+
+The observed packet is source `0x1f084800`, input 256 by 400, destination
+`0x1f038400`, output 240 by 320, flags `0x1004`. It produces 230,400 bytes and
+requests a real PPF completion. Existing scaled `0x01001004` and RGBA4 `0x4400`
+paths remain supported. No screen-clear substitution is used in either stage.
+
+## Verification and evidence
+
+All 77 runtime suites pass locally, including the two new raster/draw suites and
+expanded transfer coverage. Authored nonzero fixtures check triangle coverage,
+shared-edge ownership, perspective interpolation, TEV and blending, masks,
+framebuffer tile boundaries, work limits, late-failure atomicity, real queue
+commit and waiter/IRQ behavior, draw/transfer ordering, and complete rollback.
+Transfer fixtures include odd crops and the original 256-by-400 to 240-by-320
+shape, with independent bytes that distinguish copying from averaging.
+
+Independent private raster checks preserve all four original shader colors,
+including alpha `0x3f7fffff`, and calculate every covered sample. The original
+first draw covers 192,000 pixels with two triangles and 384,000 candidate-pixel
+tests. Nearest-byte color conversion produces alpha 255, followed by TEV alpha
+238. Every byte of the 6,291,456-byte VRAM bank is compared for both the captured
+input and an arbitrary seeded background, including all masked/uncovered bytes.
+The seeded first-draw case changes 573,732 RGB bytes. The captured original case
+changes zero because its target was already black; this is not evidence of a
+substitute no-op.
+
+The initial integrated capture verifies all 121 queue traces, the actual first
+draw's queue retirement and P3D event, and atomic rejection at the subsequently
+unsupported transfer. It records seven committed draws totaling 28 vertices,
+504 shader instructions, 14 triangles, and 1,228,800 covered pixels. Final
+proofs rerun the raster and transfer stages against the final production build,
+and the final integrated capture demonstrates the transfer commit before the
+new filesystem stop. That final capture verifies all 147 queue traces and
+records 11 draws, 44 vertices, 792 shader instructions, 22 triangles, and
+1,766,400 covered pixels. Both observed `0x1004` transfers (queues 121 and 147)
+match the full-VRAM oracle and exact dequeue/PPF bytes. Exact proof paths,
+hashes, counters, source identity, and
+hosted GCC/Clang/sanitizer outcomes are in the private continuation receipt.
+
+Several generated executables in the recovered cloud build cache had invalid
+headers or modes; they were regenerated and checked before the final local
+suite. The existing filesystem permission test ran with normal process
+permissions so its isolated child could drop privileges. No test was disabled
+or weakened. Hosted workflows rebuild public source in clean environments.
+
+Original code.bin, ExHeader, and RomFS still match their saved SHA-256 values.
+The original 599-page AOT archive and authenticated three-block supplement are
+unchanged. Public Git contains only source, authored tests, and documentation;
+game inputs, raw GPU captures, audio, and private proofs stay in the recovery
+checkpoint. Source is preserved by the real GitHub revision and hosted source
+snapshot; the private archive carries source identity metadata and evidence.
+
+## Reproduction and continuation
+
+Use the saved private input manifest and the real repository history. From the
+recovery directory with `repo/`, the separately saved game inputs, prepared
+RomFS, and restored AOT pages in their documented locations:
+
+```bash
+cmake -S repo -B build-current -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_TESTING=ON \
+  -DLEGO_AOT_DIR="$PWD/restored-aot/generated2" \
+  -DLEGO_SUPPLEMENT_CODE_BIN="$PWD/recovered-inputs/LEGO-Chase-Recovery/code.bin"
+cmake --build build-current --parallel 4
+ctest --test-dir build-current --output-on-failure
+python3 evidence/run_original.py continuation build-current/LEGOChaseNative \
+  --host-event-limit 16384
+```
+
+Rebuild native diagnostic helpers using the private checkpoint instructions;
+compiled artifacts are deliberately excluded. Private replay and capture tools
+verify immutable original inputs and distinguish offline staging from live
+queue commit. New runs use fresh owned test-state directories. Do not reuse
+unknown saves or substitute a cleared image for actual draw execution.
+
+Primary reference: [Azahar at 86a9f9236ae42bb5a2b995dbc933d599d8ea07ac](https://github.com/azahar-emu/azahar/tree/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac),
+`pica/primitive_assembly.cpp`, `pica/output_vertex.cpp`, PICA register definitions,
+`renderer_software/sw_rasterizer.cpp`, `sw_clipper.cpp`, `sw_framebuffer.cpp`,
+`sw_texturing.cpp`, `sw_blitter.cpp`, and common color/vector helpers. The private
+reference manifests record exact URLs and content hashes.
+
+Continue in the assistant cloud workspace with ordinary build tooling. Keep
+chat replies to one screen. Do not launch Codex tasks, operate the user's PC,
+or change Dot's project. Preserve checkpoints and advance the next verified
+blocker without repeated approval prompts.
+
+---
+
+## Prior checkpoint record — attributes and staged vertex execution
+
+The following section is historical evidence for the predecessor checkpoint;
+its draw stop and missing-raster descriptions have been superseded above.
+
 # October 28, 2026 continuation update
 
 ## Verified restoration and current stop

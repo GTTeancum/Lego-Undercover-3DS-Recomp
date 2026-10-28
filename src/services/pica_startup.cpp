@@ -39,6 +39,7 @@ bool NonUploadSpecial(std::uint32_t id) noexcept {
 }
 struct Executor {
     PicaListPlan& p;
+    const PicaDrawHandler* draws{};
     bool Fail(const char* error) noexcept {p.result.error=error;return false;}
     std::uint32_t& Reg(std::uint32_t id) noexcept {return p.registers[0x400+id];}
     bool MirrorVs() noexcept {return !(Reg(0x244)&1U) && (Reg(0x229)&3U)==0;}
@@ -115,12 +116,15 @@ struct Executor {
         // Reaching 15 selects an unsupported drawing path; it never wraps to 0.
         Increment(0x232);++p.result.attribute_vectors;return true;
     }
-    bool Write(std::uint32_t id,std::uint32_t value,std::uint32_t mask) noexcept {
+    bool Write(std::uint32_t id,std::uint32_t value,std::uint32_t mask) {
         p.result.register_id=id;
         if(id>=kPicaInternalWords) return Fail("PICA register outside supported internal bank");
         // These have genuine side effects even when data/mask is zero. Reject the
         // complete plan, not just the action while pretending its store succeeded.
-        if(id==0x22E||id==0x22F) return Fail("PICA draw execution is unimplemented");
+        const bool draw=id==0x22E||id==0x22F;
+        if(draw && (!draws || !draws->stage)) return Fail("PICA draw execution is unimplemented");
+        if(draw && !p.uploads.primitive_empty)
+            return Fail("PICA draw requires an explicit primitive restart");
         if(id==0x23C||id==0x23D) return Fail("PICA command-list chaining is unimplemented");
         if(In(id,0xE8,0xEF))return Fail("PICA fog lookup upload is unimplemented");
         auto& attributes=p.uploads.default_attributes;
@@ -142,7 +146,12 @@ struct Executor {
         word=(word&~expanded)|(value&expanded);
         p.uploads.register_known_bytes[id]|=static_cast<std::uint8_t>(mask);
         p.uploads.registers_written.set(id);++p.result.writes;
-        if(id==0x10) {
+        if(draw) {
+            if(!draws->stage(draws->context,id,p.registers,p.uploads,p.result))return false;
+            // Retaining an incomplete list or the last strip/fan vertices is
+            // unsupported. A subsequent topology/restart write clears the guard.
+            if(Reg(0x228))p.uploads.primitive_empty=false;
+        } else if(id==0x10) {
             // Pinned HLE's any-byte comparator, not claimed hardware IRQ parity.
             if(AnyByteMatch(word,Reg(0x20))) {
                 ++p.result.irqs;
@@ -156,9 +165,10 @@ struct Executor {
         } else if(In(id,0x233,0x235)) {
             return AttributeWord(value);
         } else if(id==0x25E) {
-            p.uploads.topology=(word>>8)&3U; // Reconfigure an empty assembler.
+            p.uploads.topology=(word>>8)&3U;
+            p.uploads.primitive_empty=true;
         } else if(id==0x25F) {
-            // No draw/vertex submission is supported; assembler remains empty.
+            p.uploads.primitive_empty=true;
         } else if(id==0x280||id==0x2B0) {
             auto& shader=id==0x280?p.uploads.gs:p.uploads.vs;
             shader.booleans=static_cast<std::uint16_t>(word);shader.booleans_written=true;
@@ -209,8 +219,8 @@ struct Executor {
 } // namespace
 bool StagePicaStartupList(std::span<const std::uint8_t> bytes,
                           const PicaGpuRegisters& initial,const PicaUploadState& uploads,
-                          PicaListPlan& plan) noexcept {
-    plan.registers=initial;plan.uploads=uploads;plan.result={};Executor ex{plan};
+                          PicaListPlan& plan,const PicaDrawHandler* draws) {
+    plan.registers=initial;plan.uploads=uploads;plan.result={};Executor ex{plan,draws};
     if(bytes.size()>kPicaMaxListBytes || (bytes.size()&7U))
         return ex.Fail("PICA list size violates supported aligned host bounds");
     std::size_t offset=0;

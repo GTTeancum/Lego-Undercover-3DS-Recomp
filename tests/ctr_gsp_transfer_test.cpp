@@ -121,6 +121,57 @@ void ResponseAndSharedAliases(){
     // Relocate the response into the same destination region: reply would corrupt pixels.
     f.kernel.current_thread()->tls_address=kOutput;f.Packet(0,kOutput+128);f.Stop();
 }
+void UnscaledDeviceBytesPpfAndRollback() {
+    constexpr std::uint32_t source=kGpuVramVirtualBase+0x2000,destination=kGpuVramVirtualBase+0x4000;
+    constexpr std::uint32_t input_size=0x00080008,output_size=0x00020003;
+    // Authored8x8 Morton words, with distinct alpha/B/G/R and adjacent pixels.
+    // The3x2 crop visits literal local indices0,1,4,2,3,6; alpha is discarded.
+    const std::vector<std::uint8_t> expected{
+        32,128,192,33,127,193,36,124,196,
+        34,126,194,35,125,195,38,122,198};
+    const auto prepare=[&](Fixture& f) {
+        std::vector<std::uint8_t> input(256);
+        for (unsigned q=0;q<64;++q) {
+            input[4*q]=static_cast<std::uint8_t>(q+1);
+            input[4*q+1]=static_cast<std::uint8_t>(32+q);
+            input[4*q+2]=static_cast<std::uint8_t>(128-q);
+            input[4*q+3]=static_cast<std::uint8_t>(192+q);
+        }
+        CHECK(f.bank->Write(source-kGpuVramVirtualBase,input));
+        const std::vector<std::uint8_t> sentinel(64,0xA5);
+        CHECK(f.bank->Write(destination-kGpuVramVirtualBase,sentinel));
+        const std::array<std::uint32_t,8> packet{3,source,destination,input_size,output_size,0x1004,0,0};
+        for (unsigned word=0;word<8;++word) f.Word(f.queue()+0x20+4*word,packet[word]);
+        f.Word(f.queue(),0x100);
+    };
+    const auto bank_bytes=[](const Fixture& f) {
+        const auto bytes=f.bank->bytes(); return std::vector<std::uint8_t>(bytes.begin(),bytes.end());
+    };
+    Fixture f;prepare(f);
+    auto expected_bank=bank_bytes(f),expected_page=f.Page(); auto expected_regs=f.Regs();
+    const auto old_private=f.Bytes(); const auto old_uploads=f.module->pica_uploads();
+    CHECK(!f.memory.IsMapped(source) && !f.memory.IsMapped(destination));
+    CHECK(f.kernel.WaitSynchronization1(f.event,-1).blocked);
+    f.Put(); CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==0 && f.cpu.r[15]==0x259480);
+    std::copy(expected.begin(),expected.end(),expected_bank.begin()+(destination-kGpuVramVirtualBase));
+    CHECK(bank_bytes(f)==expected_bank); // Source, trailing sentinel and every other VRAM byte remain intact.
+    expected_page[f.queue()]=1;expected_page[f.queue()+1]=0;expected_page[1]=1;expected_page[12]=4;
+    CHECK(f.Page()==expected_page);
+    expected_regs[0x300]=(source-kGpuVramVirtualBase+kGpuVramPhysicalBase)>>3;
+    expected_regs[0x301]=(destination-kGpuVramVirtualBase+kGpuVramPhysicalBase)>>3;
+    expected_regs[0x302]=output_size;expected_regs[0x303]=input_size;expected_regs[0x304]=0x1004;
+    expected_regs[0x306]&=~1U;
+    CHECK(f.Regs()==expected_regs && f.module->pica_uploads()==old_uploads && f.Bytes()==old_private);
+    CHECK(f.kernel.current_thread()->status==ThreadStatus::Ready && f.kernel.current_thread()->pending_wake);
+    CHECK(!f.object->signaled() && f.kernel.now_ns()==0); // The real waiter consumed the single PPF signal.
+    f.Put();CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.Page()==expected_page && bank_bytes(f)==expected_bank);
+
+    Fixture rejected;prepare(rejected);
+    rejected.Packet(1,kOutput,0x7F);rejected.Word(rejected.queue(),0x200);
+    const auto pending_bank=bank_bytes(rejected);
+    rejected.Stop(); // An unsupported later packet rolls back bytes, registers, dequeue and PPF.
+    CHECK(bank_bytes(rejected)==pending_bank && !rejected.object->signaled());
+}
 void ExplicitBootPolicy(){
     Kernel k;GuestMemory m;const a32::Registry registry{};NativeRunner strict(registry,m,k);Handle h;
     CHECK(strict.ipc().ConnectToService(k,"gsp::Gpu",&h)==0);auto session=std::dynamic_pointer_cast<ClientSessionObject>(k.handles().Get(h));auto gsp=std::dynamic_pointer_cast<GspGpuService>(session->service);CHECK(gsp&&!gsp->vram_bank());
@@ -130,4 +181,4 @@ void ExplicitBootPolicy(){
     auto module=std::make_shared<GspGpuService>();CHECK(!module->ConfigureVram(nullptr));std::shared_ptr<IpcService> endpoint;CHECK(module->CreateSessionHandler(&endpoint)==0);CHECK(!module->ConfigureVram(GpuVramBank::ReferenceZero()));
 }
 }
-int main(){BytesThenPpfAndReservations();GuardsAndAtomicity();RingStopAndLifetime();MixedSubmitTransferBatches();ResponseAndSharedAliases();ExplicitBootPolicy();if(failures)return EXIT_FAILURE;std::cout<<"PASS: real DisplayTransfer bytes before PPF, private VRAM provenance, atomic queue and real event ownership\n";return EXIT_SUCCESS;}
+int main(){BytesThenPpfAndReservations();GuardsAndAtomicity();RingStopAndLifetime();MixedSubmitTransferBatches();ResponseAndSharedAliases();UnscaledDeviceBytesPpfAndRollback();ExplicitBootPolicy();if(failures)return EXIT_FAILURE;std::cout<<"PASS: real DisplayTransfer bytes before PPF, private VRAM provenance, unscaled device crop, atomic queue and real event ownership\n";return EXIT_SUCCESS;}

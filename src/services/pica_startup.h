@@ -72,14 +72,27 @@ struct PicaUploadState {
     // flags stage/rollback with the rest of the upload state; allocation zeros
     // never establish fields consumed by a vertex/shader stage.
     std::array<std::uint8_t,kPicaInternalWords> register_known_bytes{};
-    std::uint32_t topology{}; // Empty primitive assembler; all draw paths stop.
+    std::uint32_t topology{};
+    // The reference starts with an empty assembler. Topology/restart writes
+    // empty it again. This bounded slice does not retain vertices across draws;
+    // a nonempty submission requires another explicit reset before the next.
+    bool primitive_empty{true};
     bool operator==(const PicaUploadState&) const = default;
 };
 struct PicaListResult {
     const char* error{};
     std::uint32_t byte_offset{},register_id{};
     std::uint32_t packets{},writes{},program_words{},swizzle_words{},uniform_vectors{},lut_words{},procedural_words{},attribute_vectors{},irqs{};
+    std::uint32_t draws{},vertices{},shader_instructions{},triangles{},pixels_tested{},pixels_covered{},pixels_written{};
     bool autostopped{};
+};
+// Optional device staging callback. It must keep all memory effects in disposable
+// storage owned by the caller; the caller discards that storage on any list or
+// later queue failure. The decoder alone never enables or acknowledges a draw.
+struct PicaDrawHandler {
+    void* context{};
+    bool (*stage)(void*,std::uint32_t,const PicaGpuRegisters&,
+                  const PicaUploadState&,PicaListResult&){};
 };
 struct PicaListPlan {
     PicaGpuRegisters registers{};
@@ -91,5 +104,5 @@ struct PicaListPlan {
 bool StagePicaStartupList(std::span<const std::uint8_t> bytes,
                           const PicaGpuRegisters& initial,
                           const PicaUploadState& uploads,
-                          PicaListPlan& plan) noexcept;
+                          PicaListPlan& plan,const PicaDrawHandler* draws=nullptr);
 } // namespace lego::ctr

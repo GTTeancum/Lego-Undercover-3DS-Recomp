@@ -4,11 +4,13 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-The current source reconstructs original-game startup in a native, headless runtime. It does not yet render a game frame or provide playable gameplay. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md) for the verified state, reproduction commands, and next work.
+The current source reconstructs original-game startup in a native, headless runtime and now executes bounded PICA color draws. No visible game scene, menu, or playable gameplay is demonstrated. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md) for the verified state, reproduction commands, and next work.
 
-The October 28 restoration verified the saved game inputs and matched all 490 source files in checkpoint `d83daf2` to GitHub. The new PICA default-attribute implementation gets through the attribute uploads in the original GPU command list. That same list then reaches the unimplemented draw trigger; the whole queue remains uncommitted. The original startup still stops at dispatch round 843.
+The latest October 28 continuation completes the original GPU draw at dispatch round 843 and the unscaled framebuffer transfer reached at round 1109. With an explicitly larger diagnostic event budget, the unchanged original game advances to round 1203, where `fs:USER` requests `OpenArchive` for save data (archive ID 4). That filesystem operation is the next unsupported behavior.
 
-Native vertex loading and a bounded vertex-shader executor are also implemented. A private replay of the original first draw verifies all four vertices and all 80 shader output components against independent source-byte and arithmetic checks. Primitive assembly, rasterization and draw completion are still missing.
+The new renderer connects the existing native vertex loader and shader executor to triangle assembly, perspective color interpolation, texture-disabled TEV, alpha blending, and masked writes into tiled RGBA8 VRAM. Draw bytes, registers, queue retirement, and interrupts remain part of one staged queue transaction. DisplayTransfer `0x1004` now converts a cropped tiled RGBA8 buffer to linear RGB8 without horizontal averaging.
+
+Independent private checks verify every pixel of the original 192,000-pixel first draw and all 6 MiB of VRAM on both captured and arbitrary seeded backgrounds. The original target was already black; the seeded checks establish actual blend and mask behavior. All 77 local runtime suites pass. Hosted checks and private original-game evidence are recorded separately in the continuation receipt.
 
 ## Historical recovery records
 
