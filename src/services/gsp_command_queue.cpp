@@ -57,7 +57,19 @@ struct QueueDrawStage {
         if(!StagePicaVertexShader(regs,uploads,fetched,shaded,result.error))return false;
         PicaRasterPlan raster;
         if(!StagePicaRasterizer(regs,uploads,shaded,*stage.ReadVram(),raster,result.error,
-                               kMaxQueuePixelTests-stage.pixel_tests))return false;
+                               kMaxQueuePixelTests-stage.pixel_tests,&stage.memory))return false;
+        // Texture staging follows the same physical-memory policy as vertex
+        // fetch. A prior FCRAM transfer is not reflected in the VRAM snapshot.
+        for(const auto& read:raster.texture_reads) {
+            if(read.physical_address<0x20000000U || read.physical_address>=0x28000000U)continue;
+            const auto va=read.physical_address-0x20000000U+0x14000000U;
+            for(std::uint32_t prior=0;prior<stage.packet;++prior) {
+                const auto& transfer=stage.transfers[prior];
+                if(transfer && !transfer->output_vram && stage.memory.SpansAlias(
+                        va,read.bytes,transfer->request.output,transfer->bytes))
+                    return fail("PICA texture source depends on an earlier staged FCRAM transfer");
+            }
+        }
         if(raster.pixels_tested>kMaxQueuePixelTests-stage.pixel_tests)
             return fail("PICA raster work exceeds the whole-queue host bound");
         for(const auto& patch:raster.patches)

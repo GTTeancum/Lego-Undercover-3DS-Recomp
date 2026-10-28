@@ -6,13 +6,13 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 The current source reconstructs original-game startup in a native, headless runtime and now executes bounded PICA color draws. No visible game scene, menu, or playable gameplay is demonstrated. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md) for the verified state, reproduction commands, and next work.
 
-The latest October 28 continuation adds explicit per-title SaveData opening and completes the observed private-memory cleanup sequence. The unchanged original game advances from dispatch round 1203 to **1469**, where execution reaches a missing translated ARM block at **0x00133788**. Extending authenticated build-time AOT coverage is the next task.
+The latest October 28 continuation adds one authenticated six-instruction ARM block, bounded texture0 sampling, and D24S8 depth testing/writes. Original-game startup advances from dispatch round **1469 to 1529**. The pending GPU command list now gets past its first textured draw at byte **0x3F0** and stops at a later draw at **0x668** that requires homogeneous triangle clipping. That is the next task. The queue remains uncommitted when the later draw is rejected.
 
-`--save-data-root DIR` selects an existing container, separate from shared extdata. Missing title saves return the real NotFormatted result without creating files; existing directories receive distinct u64 handles. The memory runtime now removes complete recorded aliases while restoring source read/write access, and accepts a bounded private Protect request when the entire span already has the requested permissions.
+Texture0 supports tiled RGBA8, base level zero, clamp-to-edge and matching nearest or linear min/mag filters. Depth supports D24S8 Z buffering with stencil preserved. Texture sources use bounded private-memory or ordered VRAM snapshots, and color/depth updates remain part of the complete queue transaction. Filtering and depth precision are explicitly bounded emulator approximations.
 
-All **78 local runtime suites pass**. Private original-game checks verify the missing-save reply, the exact alias teardown with all 8192 bytes preserved, and the following Protect with all 1024 reservation-epoch tokens unchanged. Ordinary and diagnostic runs match CPU state and startup output. Full diagnostic-audio equivalence remains incomplete because two capture files were truncated; their failed artifacts and explicit scope limits are retained. Exact-commit hosted checks are recorded separately.
+All **79 local runtime suites pass**. The captured first draw and a seeded-VRAM variant match independently calculated complete 6 MiB outputs, including all depth results, stencil bytes and untouched regions. This original draw has zero final alpha, so it preserves color; authored nonuniform textures and nonzero alpha separately test filtering and visible color blending. Exact-commit hosted checks are recorded separately.
 
-The preceding rendering milestone remains intact: bounded native PICA draws and cropped RGBA8-to-RGB8 transfers execute, with independent first-rectangle and seeded-VRAM checks. **No visible game scene, menu, or gameplay is demonstrated.**
+The earlier SaveData, memory-cleanup, color-draw and cropped-transfer milestones remain in place. Their evidence and limitations are retained in the chronological handoff. **No visible game scene, menu, or gameplay is demonstrated.**
 
 ## Historical recovery records
 

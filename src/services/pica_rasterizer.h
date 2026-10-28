@@ -1,4 +1,5 @@
 #pragma once
+#include "services/pica_texture.h"
 #include "services/pica_vertex_shader.h"
 #include <cstdint>
 #include <vector>
@@ -19,6 +20,8 @@ struct PicaRasterPatch {
 struct PicaRasterPlan {
     std::uint32_t framebuffer_address{},width{},height{};
     std::uint32_t triangles{},pixels_tested{},pixels_covered{},pixels_written{};
+    std::uint32_t depthbuffer_address{},depth_pixels_written{};
+    std::vector<PicaTextureReadSpan> texture_reads;
     std::vector<PicaRasterPatch> patches;
     bool operator==(const PicaRasterPlan&) const = default;
 };
@@ -29,10 +32,13 @@ struct PicaRasterPlan {
 // provenance. Unsupported or unknown state stops, with no output-plan mutation.
 // Supported geometry stays inside homogeneous clip space and maps inside the
 // target; clipping intersections and framebuffer clipping remain explicit stops.
-// The color slice is tiled RGBA8, disabled textures/fog/depth/stencil/alpha tests,
-// unscaled primary/constant/previous Replace/Modulate TEV, and additive blending
+// The color slice is tiled RGBA8, optional bounded texture0, disabled fog,
+// stencil and alpha tests, and optional D24S8 Z testing/writes. TEV supports
+// unscaled primary/texture0/constant/previous Replace/Modulate and additive blending
 // with factors0/1/source-alpha/one-minus-source-alpha (or logic Copy).
 // Coverage and binary32 interpolation follow the pinned software reference.
+// Depth and texture filtering are bounded emulator models, not measurements of
+// hardware precision. Texture/color/depth feedback overlap remains unsupported.
 //
 // Reads the supplied VRAM snapshot and returns staged color-buffer bytes. Source
 // VRAM, registers, uploaded state and shader outputs remain unchanged. The queue
@@ -45,5 +51,6 @@ bool StagePicaRasterizer(const PicaGpuRegisters& registers,
                          const PicaVertexShaderPlan& shader,
                          const GpuVramBank& vram,
                          PicaRasterPlan& plan,const char*& error,
-                         std::uint32_t pixel_test_budget=kPicaRasterMaxPixelTests);
+                         std::uint32_t pixel_test_budget=kPicaRasterMaxPixelTests,
+                         GuestMemory* texture_memory=nullptr);
 } // namespace lego::ctr

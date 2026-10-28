@@ -1,3 +1,145 @@
+# October 28, 2026 — authenticated AOT entry, texture0 and depth
+
+## Current result and next task
+
+The missing ARM entry at **0x00133788** is now a reviewed, six-instruction
+build-time supplement. All six words are checked against the authenticated
+private executable; the original 599 AOT pages remain unchanged. The merged
+registry contains four supplements and verifies **545130** instruction words.
+No original instruction arrays are committed and no runtime decoder is added.
+
+The unchanged original game advances from dispatch round **1469 to 1529**.
+Its next GPU request originally stopped at the first textured draw, list byte
+**0x3F0**. Texture0 sampling and depth testing now stage that draw successfully.
+The same command list proceeds to a later draw at **0x668**, where it needs
+homogeneous triangle clipping:
+
+```text
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=3 dispatch_rounds=1529
+host_ipc_error=PICA raster clipping is required outside the supported homogeneous volume at list byte 0x668 register 0x22e
+guest_now_ns=635131145
+```
+
+**Next task: implement the observed clipping behavior after reviewing the
+later draw's actual shader outputs and the pinned clipper semantics.** Do not
+clamp positions, discard geometry or acknowledge a failed draw to force progress.
+The later failure discards the complete pending queue, including the earlier
+staged color/depth writes. The new depth result is proven by private offline
+replay; it is not a claim that this rejected queue committed or presented a frame.
+No host event cap was hit or increased. There is no visible game scene, menu,
+audible playback or gameplay demonstration.
+
+## Implemented texture and depth slice
+
+`pica_texture` stages an immutable, bounded texture0 source. It accepts ordinary
+2D tiled RGBA8, power-of-two dimensions from 8 through 1024, base level zero,
+zero LOD bias, clamp-to-edge in both axes, and matching nearest or linear min/mag
+filters. Other units, procedural textures, fog, mipmaps, wrap modes, formats and
+projective/cube/shadow modes remain guarded. Consumed fields must have known-byte
+provenance; missing data never becomes a fallback color.
+
+Source bytes come from the ordered disposable VRAM snapshot or a completely
+readable cacheless-private FCRAM span under the existing physical-to-linear-memory
+policy. Device callbacks and shared-memory sources are excluded. The complete
+physical read span is retained so the queue rejects a texture dependent on an
+earlier uncommitted FCRAM transfer. Source overlap with either active framebuffer
+and color/depth framebuffer overlap are rejected pending feedback semantics.
+
+Ordinary texture0 UV uses output semantics 12/13, preserving component provenance
+and perspective interpolation. RGBA8 decoding uses the primary reference's tiled
+layout and storage orientation. Bilinear filtering uses explicit binary32
+rounding and a documented byte-color rounding rule. The pinned accelerated
+renderer selects host linear filtering; its software sampler leaves filtering
+unimplemented. This is a deterministic emulator approximation, not measured
+PICA filtering precision.
+
+The fragment stage now supports D24S8 Z buffering and the eight standard depth
+comparisons. It interpolates Z/W with biased coverage weights, applies the known
+viewport scale/offset, clamps to [0,1], and truncates the binary32-scaled 24-bit
+value. Depth writes preserve each stencil byte. The observed depth-read mask 2
+and depth-write masks 0/2 are supported; other active permission masks remain
+explicit stops. W buffering, other depth formats, stencil and alpha tests remain
+unsupported. Depth precision follows the declared software model rather than a
+hardware-equivalence claim.
+
+All color and depth patches remain private until the whole GSP queue, its reply
+and interrupt effects pass existing preflight. Later failures preserve complete
+live register/upload/VRAM/event/time state. A subsequent draw in a valid queue
+sees earlier staged VRAM fills, texture data and depth/color writes.
+
+## Verification
+
+All **79 unique local CMake suites pass**, with exact configured names checked
+against JUnit and no skips. The new sampler suite and extended raster/queue suites
+use authored data to verify nonuniform Morton-addressed colors, bilinear goldens,
+perspective UV, TEV/blending/alpha masks, all depth comparisons, independent Z/W
+interpolation, stencil preservation, memory policy, feedback rejection, ordered
+VRAM writes, FCRAM dependency rejection and whole-queue rollback.
+
+Five unrelated generated test executables initially lacked execute bits and
+could not start. Only their modes were restored from 0644 to 0755; all five byte
+hashes were unchanged. The complete 79-suite rerun passed with unchanged source,
+native executable and CTR library. No test was removed or disabled.
+
+Private original evidence establishes:
+
+- A complete ordinary/capture match at the pre-fix texture stop: normalized
+  arguments/stdout, CPU state, IPC, fresh save state and all **323072** audio bytes
+  for **20190** reported records. All 250 GSP request/response records are complete.
+- The rejected queue is one command-list packet. Its exact first-draw prefix,
+  shader state, 144 vertex-source bytes and all 1024 texture bytes are retained.
+  GPU/GSP state, full VRAM, uploads, events and time are unchanged on rejection.
+- Six original vertices execute 108 shader instructions. All 120 selected output
+  components agree with an independent exact-rational shader oracle.
+- First-draw replay evaluates **76800** covered pixels using an independent
+  binary32 depth calculation. The full original 6 MiB VRAM output matches, with
+  76800 passing depth writes and 230400 changed depth bytes. A separate seeded
+  case has 67857 passes and 8943 failures; its complete 6 MiB output also matches.
+  Color, stencil, masked components and every outside byte are preserved.
+
+The captured texture is uniform and this draw's final alpha is zero. Consequently,
+its color output cannot establish nontrivial filtering or visible rendering.
+The authored nonuniform sampler and colored-alpha integration cases provide
+those separate checks. An initial private oracle had a stale disabled-depth
+precondition; the failed check and receipt were retained, the condition corrected
+to the captured enabled mask, and the same native outputs were verified without
+rerunning either case.
+
+The previous milestone's two truncated Protect diagnostic-audio artifacts remain
+incomplete historical evidence. A successful new capture does not repair them.
+Hosted GCC, Clang and ASan/UBSan results are collected for the exact published
+revision separately from private original-game execution.
+
+Key private receipts beneath `evidence/`:
+
+- `aot-00133788-review-private.json`, `aot-00133788-build.json`.
+- `texture-depth-build0.json`, `texture-depth-tests1.{log,xml,json}`.
+- `texture-capture-v_mntn5l/ordinary-capture-comparison.json` and `rejected-queue-proof.json`.
+- `texture-shader-replay-k7t1kw7c/shader-proof.json`.
+- `texture-draw-replay-hjuoftux/draw-proof.json`.
+- `texture-depth-native-wrfwvroq/receipt.json` and `stdout.txt`.
+- `texture-references/{primary-manifest,design-brief,depth-brief}.json`.
+
+Native SHA-256: `4f7722a4fffc7001fafadc5c28a5b2401f6ab33edeb652006d482390abd55b9e`.
+CTR library SHA-256: `625ce22111f84fd48712d7760d594341e84dee77ec3842db2665aadb03e53d6c`.
+
+## Reproduction
+
+Use the existing private input restoration and native build recipe, including
+`LEGO_AOT_DIR` and `LEGO_SUPPLEMENT_CODE_BIN`. The latter regenerates the reviewed
+supplement privately; neither original game inputs nor generated original-word
+source belongs in Git. The finite launch remains:
+
+```bash
+python3 evidence/run_original.py continuation build-current/LEGOChaseNative \
+  --fresh-save-data --host-event-limit 16384
+```
+
+Preserve the original-game and precision limitations above when resuming. The
+preceding SaveData/private-memory and rendering records below are historical.
+
+---
+
 # October 28, 2026 — SaveData and private-memory cleanup
 
 ## Current result

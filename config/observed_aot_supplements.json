@@ -2,6 +2,11 @@
   "format": "lego_observed_aot_supplements_v1",
   "blocks": [
     {
+      "entry": "0x00133788",
+      "end": "0x001337A0",
+      "evidence": "Observed thread 1 MissingBlock at startup round 1469. Six decoded A32 instructions end at an unconditional return to the already recorded LR destination. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
       "entry": "0x00249B80",
       "end": "0x00249B94",
       "evidence": "Original thread 7 indirect dispatch after CFG language reads reaches an unrecorded five-instruction leaf. End is exclusive. Generate only from authenticated private code.bin."

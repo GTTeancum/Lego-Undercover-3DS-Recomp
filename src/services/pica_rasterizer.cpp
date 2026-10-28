@@ -79,6 +79,8 @@ struct Vertex {
     std::int32_t x{},y{}; // 12.4 raster coordinates, within the supported framebuffer.
     float inverse_w{};
     std::array<float,4> color_over_w{};
+    std::array<float,2> texture_over_w{};
+    float z_over_w{};
 };
 struct Triangle {
     std::array<std::size_t,3> vertex{};
@@ -111,11 +113,11 @@ struct TevStage {
     std::uint8_t rgb_op{},alpha_op{};
     Color constant{};
 };
-Color Tev(const Color& primary,const std::array<TevStage,6>& stages) {
+Color Tev(const Color& primary,const Color& texture,const std::array<TevStage,6>& stages) {
     Color previous{};
     for (const auto& stage:stages) {
         const auto source=[&](unsigned id)->const Color& {
-            return id==0?primary:(id==14?stage.constant:previous);
+            return id==0?primary:(id==3?texture:(id==14?stage.constant:previous));
         };
         Color next{};
         for (unsigned channel=0;channel<4;++channel) {
@@ -137,23 +139,46 @@ unsigned BlendFactor(unsigned factor,const Color& source) {
     }
 }
 
+bool Overlaps(std::uint32_t a,std::uint32_t a_bytes,std::uint32_t b,std::uint32_t b_bytes) {
+    return std::uint64_t(a)<std::uint64_t(b)+b_bytes && std::uint64_t(b)<std::uint64_t(a)+a_bytes;
+}
+bool DepthPass(unsigned function,std::uint32_t incoming,std::uint32_t stored) {
+    switch (function) {
+    case 0:return false;
+    case 1:return true;
+    case 2:return incoming==stored;
+    case 3:return incoming!=stored;
+    case 4:return incoming<stored;
+    case 5:return incoming<=stored;
+    case 6:return incoming>stored;
+    case 7:return incoming>=stored;
+    default:return false;
+    }
+}
+
 struct Rasterizer {
     const PicaGpuRegisters& registers;
     const PicaUploadState& uploads;
     const PicaVertexShaderPlan& shader;
     const GpuVramBank& vram;
     const char*& error;
+    GuestMemory* texture_memory{};
     PicaRasterPlan staged;
+    PicaTexturePlan texture;
     std::array<TevStage,6> tev{};
     std::vector<Vertex> vertices;
     std::vector<Triangle> triangles;
     std::array<std::uint32_t,7> mappings{};
     unsigned output_count{},topology{},cull{},write_mask{};
     bool blend{},write_gate{};
+    bool texture_enabled{},depth_test{},depth_write{};
+    unsigned depth_function{};
     std::array<unsigned,4> factors{}; // RGB src/dst, alpha src/dst.
     float half_x{},half_y{};
+    float depth_scale{},depth_offset{};
     std::int32_t corner_x{},corner_y{};
     std::uint32_t framebuffer_bytes{},vram_offset{};
+    std::uint32_t depth_vram_offset{};
     std::uint32_t pixel_test_budget{kPicaRasterMaxPixelTests};
 
     bool Fail(const char* message) {error=message;return false;}
@@ -189,14 +214,19 @@ struct Rasterizer {
         }
         if (!Field(0x80,0x407)||!Field(0xE0,7))
             return Fail("PICA raster texture/procedural/fog enables are unknown");
-        if ((Reg(0x80)&0x407U)||(Reg(0xE0)&7U))
-            return Fail("PICA rasterizer requires disabled textures, procedural textures and fog");
+        if ((Reg(0x80)&0x406U)||(Reg(0xE0)&7U))
+            return Fail("PICA rasterizer supports texture0 only, with procedural textures and fog disabled");
+        texture_enabled=(Reg(0x80)&1U)!=0;
         if (!Field(0x100,0x103)||!Field(0x104,1)||!Field(0x105,1)||
             !Field(0x107,0x1F01)||!Field(0x113,15)||!Field(0x115,3))
             return Fail("PICA raster fragment/depth/stencil/write state is unknown");
-        if ((Reg(0x100)&3U)||(Reg(0x104)&1U)||(Reg(0x105)&1U)||
-            (Reg(0x107)&0x1001U)||(Reg(0x115)&3U))
-            return Fail("PICA rasterizer does not support fragment modes, alpha/depth/stencil tests or depth writes");
+        if ((Reg(0x100)&3U)||(Reg(0x104)&1U)||(Reg(0x105)&1U))
+            return Fail("PICA rasterizer does not support fragment modes, alpha or stencil tests");
+        depth_test=(Reg(0x107)&1U)!=0;
+        const auto depth_gate=Reg(0x115)&3U;
+        if ((Reg(0x107)&0x1000U) && depth_gate!=0 && depth_gate!=2)
+            return Fail("PICA raster depth-write permission is outside the supported mask");
+        depth_write=(Reg(0x107)&0x1000U) && depth_gate==2;
         write_mask=(Reg(0x107)>>8)&15U;write_gate=(Reg(0x113)&15U)!=0;
         blend=(Reg(0x100)&0x100U)!=0;
         if (blend) {
@@ -235,7 +265,46 @@ struct Rasterizer {
         if (!math.valid || half_x<=0 || half_y<=0 || corner_x<0 || corner_y<0 ||
             end_x>4095.9375f || end_y>4095.9375f)
             return Fail("PICA raster viewport is outside the supported finite fixed-point range");
-        return TevConfiguration();
+        if (!TevConfiguration() || !DepthConfiguration()) return false;
+        if (texture_enabled) {
+            if (!StagePicaTexture0(registers,uploads,texture_memory,vram,texture,error)) return false;
+            if (Overlaps(texture.read.physical_address,texture.read.bytes,
+                         staged.framebuffer_address,framebuffer_bytes) ||
+                ((depth_test||depth_write) && Overlaps(texture.read.physical_address,texture.read.bytes,
+                         staged.depthbuffer_address,framebuffer_bytes)))
+                return Fail("PICA texture source overlaps a color or depth framebuffer");
+            staged.texture_reads.push_back(texture.read);
+        }
+        return true;
+    }
+
+    bool DepthConfiguration() {
+        if (!depth_test && !depth_write) return true;
+        if (!Field(0x116,3)||!Field(0x11C,0x0FFFFFFFU)||
+            !Field(0x4D,0xFFFFFFU)||!Field(0x4E,0xFFFFFFU)||!Field(0x6D,1))
+            return Fail("PICA raster depth format, buffer or viewport state is unknown");
+        if ((Reg(0x116)&3U)!=3 || !(Reg(0x6D)&1U))
+            return Fail("PICA raster depth supports D24S8 Z buffering only");
+        if (depth_test) {
+            if (!Field(0x107,0x70U)||!Field(0x114,3))
+                return Fail("PICA raster depth comparison or read permission is unknown");
+            if ((Reg(0x114)&3U)!=2)
+                return Fail("PICA raster depth-read permission is outside the supported mask");
+            depth_function=(Reg(0x107)>>4)&7U;
+        }
+        depth_scale=Float24(Reg(0x4D));depth_offset=Float24(Reg(0x4E));
+        if (!NormalOrZero(depth_scale)||!NormalOrZero(depth_offset))
+            return Fail("PICA raster depth viewport uses unsupported numeric state");
+        const auto address=std::uint64_t(Reg(0x11C)&0x0FFFFFFFU)*8;
+        if (address<kGpuVramPhysicalBase ||
+            address+framebuffer_bytes>std::uint64_t(kGpuVramPhysicalBase)+kGpuVramBytes)
+            return Fail("PICA raster depth framebuffer exceeds device VRAM");
+        staged.depthbuffer_address=static_cast<std::uint32_t>(address);
+        if (Overlaps(staged.depthbuffer_address,framebuffer_bytes,
+                     staged.framebuffer_address,framebuffer_bytes))
+            return Fail("PICA raster color and depth framebuffers overlap");
+        depth_vram_offset=staged.depthbuffer_address-kGpuVramPhysicalBase;
+        return true;
     }
 
     bool TevConfiguration() {
@@ -267,8 +336,10 @@ struct Rasterizer {
                         if (!Field(base,0xF00)) return Fail("PICA raster initial TEV source is unknown");
                         source=(Reg(base)>>8)&15U;
                     }
-                    if (source!=0 && source!=14 && source!=15)
+                    if (source!=0 && source!=3 && source!=14 && source!=15)
                         return Fail("PICA raster TEV source requires an unsupported texture, light or buffer");
+                    if (source==3 && !texture_enabled)
+                        return Fail("PICA raster TEV requires enabled texture0");
                     if (source==14 && !Field(base+3,alpha?0xFF000000U:0x00FFFFFFU))
                         return Fail("PICA raster TEV constant component is unknown");
                     sources[operand]=static_cast<std::uint8_t>(source);
@@ -283,12 +354,12 @@ struct Rasterizer {
         for (const auto& shaded:shader.vertices) {
             // Unmapped output semantics have the reference's hardware-tested
             // value1. A mapped but unwritten shader component remains unknown.
-            std::array<float,12> slots;slots.fill(1);
-            std::array<bool,12> known;known.fill(true);
+            std::array<float,14> slots;slots.fill(1);
+            std::array<bool,14> known;known.fill(true);
             for (unsigned attribute=0;attribute<output_count;++attribute)
                 for (unsigned lane=0;lane<4;++lane) {
                     const auto semantic=(mappings[attribute]>>(lane*8))&31U;
-                    if (semantic>=12) continue; // Textures/lighting do not consume other semantics.
+                    if (semantic>=14) continue; // Only ordinary texture0 UV is consumed.
                     slots[semantic]=std::bit_cast<float>(shaded.attributes[attribute][lane]);
                     known[semantic]=(shaded.attribute_components[attribute]&(1U<<lane))!=0;
                 }
@@ -299,6 +370,14 @@ struct Rasterizer {
             if (w<=0 || x < -w || x>w || y < -w || y>w || z < -w || z>0)
                 return Fail("PICA raster clipping is required outside the supported homogeneous volume");
             Arithmetic math;Vertex vertex;vertex.inverse_w=math.Divide(1,w);
+            if (depth_test||depth_write) vertex.z_over_w=math.Mul(z,vertex.inverse_w);
+            if (texture_enabled) {
+                for (unsigned component=0;component<2;++component) {
+                    if (!known[12+component] || !NormalOrZero(slots[12+component]))
+                        return Fail("PICA raster texture coordinate is unknown or unsupported");
+                    vertex.texture_over_w[component]=math.Mul(slots[12+component],vertex.inverse_w);
+                }
+            }
             const auto screen_x=math.Add(math.Mul(math.Add(math.Mul(x,vertex.inverse_w),1),half_x),static_cast<float>(corner_x));
             const auto screen_y=math.Add(math.Mul(math.Add(math.Mul(y,vertex.inverse_w),1),half_y),static_cast<float>(corner_y));
             const auto fixed_x=math.Mul(screen_x,16),fixed_y=math.Mul(screen_y,16);
@@ -350,6 +429,12 @@ struct Rasterizer {
         PicaRasterPatch patch;patch.offset=vram_offset;
         const auto source=vram.bytes().subspan(vram_offset,framebuffer_bytes);
         patch.bytes.assign(source.begin(),source.end());
+        PicaRasterPatch depth_patch;
+        if (depth_test||depth_write) {
+            depth_patch.offset=depth_vram_offset;
+            const auto depth_source=vram.bytes().subspan(depth_vram_offset,framebuffer_bytes);
+            depth_patch.bytes.assign(depth_source.begin(),depth_source.end());
+        }
         for (const auto& triangle:triangles) {
             const auto& a=vertices[triangle.vertex[0]];const auto& b=vertices[triangle.vertex[1]];
             const auto& c=vertices[triangle.vertex[2]];
@@ -376,8 +461,40 @@ struct Rasterizer {
                         return Fail("PICA raster interpolated primary color is outside the byte range");
                     primary[channel]=static_cast<std::uint8_t>(quantized);
                 }
-                const auto combined=Tev(primary,tev);
+                Color sampled{};
+                if (texture_enabled) {
+                    std::array<float,2> coordinate{};
+                    for (unsigned component=0;component<2;++component) {
+                        const std::array<float,3> values{a.texture_over_w[component],
+                            b.texture_over_w[component],c.texture_over_w[component]};
+                        coordinate[component]=math.Mul(math.Dot(values,barycentric),reciprocal);
+                    }
+                    if (!math.valid) return Fail("PICA raster texture interpolation exceeds finite arithmetic");
+                    if (!SamplePicaTexture(texture,coordinate[0],coordinate[1],sampled,error)) return false;
+                }
+                const auto combined=Tev(primary,sampled,tev);
                 const auto offset=PixelOffset(x,y,staged.width,staged.height);
+                if (depth_test||depth_write) {
+                    const std::array<float,3> z{a.z_over_w,b.z_over_w,c.z_over_w};
+                    volatile float rounded_sum=static_cast<float>(weights[0]+weights[1]+weights[2]);
+                    const auto interpolated_z=math.Divide(math.Dot(z,barycentric),rounded_sum);
+                    const auto viewport_z=math.Add(math.Mul(interpolated_z,depth_scale),depth_offset);
+                    if (!math.valid) return Fail("PICA raster depth interpolation exceeds finite arithmetic");
+                    const auto scaled=math.Mul(std::clamp(viewport_z,0.0f,1.0f),16777215.0f);
+                    if (!math.valid || scaled<0 || scaled>16777215.0f)
+                        return Fail("PICA raster depth conversion exceeds the 24-bit range");
+                    const auto incoming=static_cast<std::uint32_t>(scaled);
+                    const auto stored=std::uint32_t(depth_patch.bytes[offset]) |
+                        (std::uint32_t(depth_patch.bytes[offset+1])<<8) |
+                        (std::uint32_t(depth_patch.bytes[offset+2])<<16);
+                    if (depth_test && !DepthPass(depth_function,incoming,stored)) continue;
+                    if (depth_write) {
+                        for (unsigned byte=0;byte<3;++byte)
+                            depth_patch.bytes[offset+byte]=static_cast<std::uint8_t>(incoming>>(byte*8));
+                        // D24S8 byte3 is stencil. Stencil testing/writes remain disabled.
+                        ++staged.depth_pixels_written;
+                    }
+                }
                 Color destination{};for (unsigned channel=0;channel<4;++channel) destination[channel]=patch.bytes[offset+3-channel];
                 if (write_gate && write_mask) {
                     for (unsigned channel=0;channel<4;++channel) {
@@ -396,6 +513,7 @@ struct Rasterizer {
             }
         }
         if (staged.pixels_written) staged.patches.push_back(std::move(patch));
+        if (staged.depth_pixels_written) staged.patches.push_back(std::move(depth_patch));
         return true;
     }
 };
@@ -403,9 +521,11 @@ struct Rasterizer {
 
 bool StagePicaRasterizer(const PicaGpuRegisters& registers,const PicaUploadState& uploads,
                          const PicaVertexShaderPlan& shader,const GpuVramBank& vram,
-                         PicaRasterPlan& plan,const char*& error,std::uint32_t pixel_test_budget) {
+                         PicaRasterPlan& plan,const char*& error,std::uint32_t pixel_test_budget,
+                         GuestMemory* texture_memory) {
     error=nullptr;
     Rasterizer raster{registers,uploads,shader,vram,error};
+    raster.texture_memory=texture_memory;
     raster.pixel_test_budget=std::min(pixel_test_budget,kPicaRasterMaxPixelTests);
     if (!raster.Configuration() || !raster.Transform() || !raster.Assemble() || !raster.Pixels()) return false;
     plan=std::move(raster.staged);

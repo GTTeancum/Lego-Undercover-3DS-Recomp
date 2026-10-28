@@ -14,6 +14,7 @@ int failures{};
 constexpr auto kRw=MemoryPermission::Read|MemoryPermission::Write;
 constexpr std::uint32_t kPage=0x10000000,kList=0x14000000,kVertices=0x14002000;
 constexpr std::uint32_t kFramebuffer=0x1000,kTransfer=0x4000;
+constexpr std::uint32_t kTexture=0x6000,kDepth=0x8000,kTextureVa=0x14003000;
 using Packet=std::array<std::uint32_t,8>;
 
 // A complete, authored two-MOV shader and four-corner strip. No game commands,
@@ -82,6 +83,30 @@ struct Fixture {
                 CHECK(memory.Write32(kVertices+32*v+4*component,std::bit_cast<std::uint32_t>(values[component])));
         }
     }
+    void TexturedDepth(bool private_texture=false) {
+        // The existing authored MOV output1 now supplies ordinary texture UV.
+        // Unmapped primary-color components retain the established value1.
+        Set(0x51,0x1F1F0D0C);
+        for(unsigned vertex=0;vertex<4;++vertex) {
+            CHECK(memory.Write32(kVertices+32*vertex+8,std::bit_cast<std::uint32_t>(-0.5f)));
+            CHECK(memory.Write32(kVertices+32*vertex+16,std::bit_cast<std::uint32_t>(0.5f)));
+            CHECK(memory.Write32(kVertices+32*vertex+20,std::bit_cast<std::uint32_t>(0.5f)));
+        }
+        Set(0x80,1);Set(0x82,0x00100010);Set(0x83,6);Set(0x84,0);Set(0x8E,0);
+        Set(0x85,(private_texture?kTextureVa-0x14000000U+0x20000000U:kGpuVramPhysicalBase+kTexture)/8);
+        Set(0xC0,0x00030003); // Replace RGB and alpha with texture0.
+        std::vector<std::uint8_t> texture(1024);
+        for(unsigned i=0;i<texture.size();i+=4) {
+            texture[i]=0x80;texture[i+1]=0x30;texture[i+2]=0x20;texture[i+3]=0x10;
+        }
+        if(private_texture)CHECK(memory.LoadBytes(kTextureVa,texture));
+        else CHECK(bank->Write(kTexture,texture));
+        Set(0x107,0x1741); // RGB writes, Less depth test and depth writes.
+        Set(0x114,2);Set(0x115,2);Set(0x116,3);Set(0x11C,(kGpuVramPhysicalBase+kDepth)/8);
+        std::vector<std::uint8_t> depth(256,0xFF);
+        for(unsigned i=3;i<depth.size();i+=4)depth[i]=0x5A;
+        CHECK(bank->Write(kDepth,depth));
+    }
     void Draw(unsigned mask=15){Set(0x22E,0,mask);}
     void Restart(){Set(0x25F,0,0);}
     void Irq(){Set(0x10,0x12345678);}
@@ -111,6 +136,19 @@ struct Fixture {
         for(unsigned pixel=0;pixel<64;++pixel)
             for(unsigned c=0;c<4;++c)equal&=bytes[kFramebuffer+4*pixel+c]==expected[c];
         CHECK(equal);
+    }
+    void DepthPixels()const {
+        const auto bytes=bank->bytes();bool equal=true;
+        for(unsigned pixel=0;pixel<64;++pixel) {
+            const auto offset=kDepth+4*pixel;
+            equal&=bytes[offset]==0xFF && bytes[offset+1]==0xFF && bytes[offset+2]==0x7F && bytes[offset+3]==0x5A;
+        }
+        CHECK(equal); // Z=1/2 truncates to0x7fffff, preserving stencil0x5a.
+    }
+    std::vector<std::uint8_t> PrivateBytes(unsigned address,unsigned count) {
+        std::vector<std::uint8_t> out(count);
+        for(unsigned i=0;i<count;++i)CHECK(memory.Read8(address+i,&out[i]));
+        return out;
     }
 };
 
@@ -155,9 +193,51 @@ void FillForwardingAndPrivateSourceGuard() {
     stale.PacketAt(0,{3,kGpuVramVirtualBase+kTransfer,kVertices,0x80008,0x80008,0x4400,0,0});
     stale.Stop("earlier staged FCRAM transfer");
 }
+
+void TextureSnapshotAndDepthWrites() {
+    Fixture f;f.TexturedDepth();f.Draw();f.Irq();f.Submit(1,2);
+    // Before the draw, a staged fill replaces the texture with RGBA(128,96,64,255).
+    // Reading live VRAM instead of the ordered snapshot would give a different color.
+    f.PacketAt(0,{2,kGpuVramVirtualBase+kTexture,0x806040FF,
+                  kGpuVramVirtualBase+kTexture+1024,0,0,0,0x201});
+    const auto before=f.Vram();f.Success();f.Pixels({0x55,0x40,0x60,0x80});f.DepthPixels();
+    CHECK(f.gpu->last_pica_result().pixels_written==64 && f.gpu->last_pica_result().draws==1);
+    CHECK(f.Page()[1]==2 && f.Page()[12]==0 && f.Page()[13]==5 && f.event->signaled());
+    const auto after=f.Vram();bool outside=true,texture=true;
+    constexpr std::array<std::uint8_t,4> filled{0xFF,0x40,0x60,0x80};
+    for(unsigned i=0;i<after.size();++i) {
+        const bool changed=(i>=kFramebuffer&&i<kFramebuffer+256) ||
+                           (i>=kDepth&&i<kDepth+256) || (i>=kTexture&&i<kTexture+1024);
+        if(!changed)outside&=after[i]==before[i];
+        if(i>=kTexture&&i<kTexture+1024)texture&=after[i]==filled[(i-kTexture)%4];
+    }
+    CHECK(outside && texture);
+}
+
+void TextureFcramDependenciesAndRollback() {
+    Fixture overlap;overlap.TexturedDepth(true);overlap.Draw();overlap.Irq();overlap.Submit(1,2);
+    overlap.PacketAt(0,{3,kGpuVramVirtualBase+kTransfer,kTextureVa+768,0x80008,0x80008,0x4400,0,0});
+    const auto before_texture=overlap.PrivateBytes(kTextureVa,1024);
+    overlap.Stop("PICA texture source depends on an earlier staged FCRAM transfer");
+    CHECK(overlap.PrivateBytes(kTextureVa,1024)==before_texture);
+
+    Fixture disjoint;disjoint.TexturedDepth(true);disjoint.Draw();disjoint.Irq();disjoint.Submit(1,2);
+    disjoint.PacketAt(0,{3,kGpuVramVirtualBase+kTransfer,kTextureVa+1024,0x80008,0x80008,0x4400,0,0});
+    const auto source=disjoint.PrivateBytes(kTextureVa,1024);
+    disjoint.Success();disjoint.Pixels({0x55,74,75,75});disjoint.DepthPixels();
+    CHECK(disjoint.PrivateBytes(kTextureVa,1024)==source);
+    CHECK(disjoint.PrivateBytes(kTextureVa+1024,128)==std::vector<std::uint8_t>(128,0xA5));
+    CHECK(disjoint.Page()[1]==2 && disjoint.Page()[12]==4 && disjoint.Page()[13]==5);
+
+    Fixture packet;packet.TexturedDepth();packet.Draw();packet.Irq();packet.Submit(0,2);
+    packet.PacketAt(1,{0x7F,0,0,0,0,0,0,0});packet.Stop("queue packet");
+    Fixture relay;relay.TexturedDepth();relay.Draw();relay.Irq();relay.Submit();
+    relay.Word(0,0x3400);relay.Stop("relay");
+}
 } // namespace
 
 int main(){RealPixelsThenIrq();WholeQueueRollback();OrderedDrawsAndTransfers();FillForwardingAndPrivateSourceGuard();
+    TextureSnapshotAndDepthWrites();TextureFcramDependenciesAndRollback();
     if(failures)return EXIT_FAILURE;
-    std::cout<<"PASS: native draw bytes, ordered device staging, restart, IRQ and complete-queue rollback\n";
+    std::cout<<"PASS: native draw/texture/depth bytes, ordered device staging, restart, IRQ and complete-queue rollback\n";
 }

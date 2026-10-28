@@ -128,6 +128,7 @@ struct Fixture {
         auto bytes=Frame();
         for (const auto& patch:plan.patches) {
             const std::uint64_t end=std::uint64_t(patch.offset)+patch.bytes.size();
+            if (end<=offset || patch.offset>=std::uint64_t(offset)+bytes.size()) continue;
             if (patch.offset<offset || end>std::uint64_t(offset)+bytes.size()) { CHECK(false); continue; }
             std::copy(patch.bytes.begin(),patch.bytes.end(),bytes.begin()+(patch.offset-offset));
         }
@@ -244,10 +245,10 @@ void KnownStateAndUnsupportedModes() {
     Fixture f; f.Triangle(); if (!f.Success()) return;
     // Preserve a nonempty prior output through every failure, including known
     // but unsupported state. No source register, upload, shader, or VRAM mutates.
-    const std::array<std::pair<unsigned,std::uint32_t>,18> modes{{
+    const std::array<std::pair<unsigned,std::uint32_t>,16> modes{{
         {0x47,1},{0x65,1},{0x80,1},{0x80,1U<<10},{0xE0,5},
-        {0x100,0x101},{0x104,1},{0x105,1},{0x107,0x701},{0x107,0x1700},
-        {0x115,1},{0x117,1U<<16},{0xC0,3},
+        {0x100,0x101},{0x104,1},{0x105,1},{0x107,0x701},
+        {0x117,1U<<16},{0xC0,3},
         {0xC1,1},{0xC2,2},{0xC4,1},{0x101,0x76760001},{0x101,0x76720000}
     }};
     for (const auto& [id,value]:modes) { const auto old=f.Get(id); f.Set(id,value); f.Stop(); f.Set(id,old); }
@@ -316,13 +317,141 @@ void AggregateRasterWorkBound() {
     CHECK(f.error && (std::string_view(f.error).find("work")!=std::string_view::npos ||
                       std::string_view(f.error).find("pixel")!=std::string_view::npos));
 }
+
+constexpr unsigned kTextureOffset=0x3000,kDepthOffset=0x5000;
+
+void TextureFixture(Fixture& f) {
+    f.Set(0x80,1); f.Set(0x82,0x00080008); f.Set(0x83,6); f.Set(0x84,0);
+    f.Set(0x85,(kGpuVramPhysicalBase+kTextureOffset)/8); f.Set(0x8E,0);
+    f.Set(0x4F,3); f.Set(0x52,0x1F1F0D0C); f.shader.output_count=3;
+    f.Set(0xC0,0x00030003); f.Set(0xC2,0);
+    std::vector<std::uint8_t> image(256);
+    for (unsigned y=0;y<8;++y) for (unsigned x=0;x<8;++x)
+        StoreColor(image,ByteOffset(8,8,x,y),{static_cast<std::uint8_t>(32*x),48,96,255});
+    CHECK(f.bank->Write(kTextureOffset,image));
+    for (auto& vertex:f.shader.vertices) {
+        vertex.attributes[2]={Bits(0.5f),Bits(0.5f),0,0};
+        vertex.attribute_components[2]=3;
+        vertex.outputs[2]=vertex.attributes[2]; vertex.output_components[2]=3;
+    }
+}
+
+void TexturePerspectiveTevAndFeedback() {
+    constexpr FloatColor white{1,1,1,1};
+    Fixture f; f.OnePixel(white,white,white,1,2,4); TextureFixture(f);
+    f.Set(0x100,0); f.Set(0x107,0xF00);
+    for (unsigned vertex=0;vertex<3;++vertex)
+        f.shader.vertices[vertex].attributes[2][0]=Bits(vertex==1?1.0f:0.0f);
+    if (!f.Success()) return;
+    // At the sole covered center, perspective U=128/703. Bilinear sampling the
+    // authored red ramp yields31; affine UV interpolation would yield48.
+    f.Expect({{1,1}},{31,48,96,255});
+    CHECK(f.plan.texture_reads.size()==1);
+    CHECK((f.plan.texture_reads[0]==PicaTextureReadSpan{kGpuVramPhysicalBase+kTextureOffset,256}));
+    f.shader.vertices[0].attribute_components[2]&=~2U; f.Stop();
+    f.shader.vertices[0].attribute_components[2]=3;
+    f.Set(0x85,(kGpuVramPhysicalBase+f.offset)/8); f.Stop();
+    f.Set(0x85,(kGpuVramPhysicalBase+kTextureOffset)/8);
+
+    // Nontrivial texture alpha participates in both TEV lanes, blending and the
+    // destination alpha mask. Every texel is authored RGBA(128,64,192,128).
+    std::vector<std::uint8_t> image(256);
+    for (unsigned i=0;i<64;++i) StoreColor(image,4*i,{128,64,192,128});
+    CHECK(f.bank->Write(kTextureOffset,image));
+    for (auto& vertex:f.shader.vertices) vertex.attributes[1]={Bits(0.75f),Bits(0.25f),Bits(1),Bits(1)};
+    f.Set(0xC8,0x000F000F); f.Set(0xCA,0x00010001);
+    f.Set(0x100,0x100); f.Set(0x107,0x700);
+    if (!f.Success()) return;
+    f.Expect({{1,1}},{57,27,126,91});
+}
+
+std::vector<std::uint8_t> DepthFixture(Fixture& f,std::uint32_t value=0xFFFFFFU) {
+    f.Set(0x107,0x1751); f.Set(0x114,2); f.Set(0x115,2); f.Set(0x116,3);
+    f.Set(0x11C,(kGpuVramPhysicalBase+kDepthOffset)/8);
+    std::vector<std::uint8_t> bytes(f.width*f.height*4);
+    for (unsigned i=0;i<f.width*f.height;++i) {
+        for (unsigned b=0;b<3;++b) bytes[4*i+b]=static_cast<std::uint8_t>(value>>(8*b));
+        bytes[4*i+3]=static_cast<std::uint8_t>(i^0xA5U);
+    }
+    CHECK(f.bank->Write(kDepthOffset,bytes)); return bytes;
+}
+std::vector<std::uint8_t> StagedDepth(const Fixture& f) {
+    const auto source=f.bank->bytes().subspan(kDepthOffset,f.width*f.height*4);
+    std::vector<std::uint8_t> result(source.begin(),source.end());
+    for (const auto& patch:f.plan.patches)
+        if (patch.offset==kDepthOffset) { CHECK(patch.bytes.size()==result.size()); result=patch.bytes; }
+    return result;
+}
+
+void DepthWritesComparisonsAndStencil() {
+    const std::vector<Pixel> six{{1,1},{2,1},{3,1},{1,2},{2,2},{1,3}};
+    Fixture f; f.Triangle(); auto expected=DepthFixture(f);
+    if (!f.Success()) return;
+    CHECK(f.plan.depthbuffer_address==kGpuVramPhysicalBase+kDepthOffset);
+    CHECK(f.plan.depth_pixels_written==6 && f.plan.patches.size()==2);
+    for (const auto& p:six) {
+        const auto offset=ByteOffset(8,8,p[0],p[1]);
+        expected[offset]=255;expected[offset+1]=255;expected[offset+2]=127;
+    }
+    CHECK(StagedDepth(f)==expected); // Uncovered depth and every stencil byte survive.
+    f.Expect(six,{78,46,92,91});
+
+    constexpr std::array<std::uint32_t,3> depths{0x7FFFFE,0x7FFFFF,0x800000};
+    constexpr std::array<std::array<bool,8>,3> passes{{
+        {false,true,false,true,false,false,true,true},
+        {false,true,true,false,false,true,false,true},
+        {false,true,false,true,true,true,false,false}}};
+    for (unsigned relation=0;relation<3;++relation) {
+        const auto unchanged=DepthFixture(f,depths[relation]);
+        for (unsigned comparison=0;comparison<8;++comparison) {
+            f.Set(0x107,0x701|(comparison<<4)); // Compare without writing depth.
+            if (!f.Success()) return;
+            CHECK(f.plan.pixels_written==(passes[relation][comparison]?6U:0U));
+            CHECK(f.plan.depth_pixels_written==0 && StagedDepth(f)==unchanged);
+        }
+    }
+    const auto old=DepthFixture(f);
+    f.Set(0x115,0); if (!f.Success()) return;
+    CHECK(f.plan.pixels_written==6 && f.plan.depth_pixels_written==0 && StagedDepth(f)==old);
+    f.Set(0x115,2); f.Set(0x107,0x1000); f.Set(0x113,0); f.Set(0x114,0);
+    if (!f.Success()) return;
+    CHECK(f.plan.pixels_written==0 && f.plan.depth_pixels_written==6 && f.plan.patches.size()==1);
+    CHECK(StagedDepth(f)==expected); // Depth writes also work without testing/color writes.
+}
+
+void DepthInterpolationAndRejection() {
+    constexpr FloatColor white{1,1,1,1};
+    Fixture f; f.OnePixel(white,white,white,1,2,4); auto expected=DepthFixture(f);
+    f.shader.vertices[0].attributes[0][2]=Bits(-0.25f);
+    f.shader.vertices[1].attributes[0][2]=Bits(-1.0f);
+    f.shader.vertices[2].attributes[0][2]=Bits(-3.0f);
+    if (!f.Success()) return;
+    // Z/w is affine: weights(511,256,256) applied to(.25,.5,.75), divided by1023.
+    // Explicit binary32 viewport/quantization produces0x700C02. Perspective
+    // interpolation of Z/w would give a different result when clip W differs.
+    const auto offset=ByteOffset(8,8,1,1);
+    expected[offset]=0x02; expected[offset+1]=0x0C; expected[offset+2]=0x70;
+    CHECK(StagedDepth(f)==expected && f.plan.depth_pixels_written==1);
+    for (const auto [id,value]:std::array<std::pair<unsigned,std::uint32_t>,6>{{
+            {0x116,2},{0x6D,0},{0x114,1},{0x115,1},
+            {0x11C,(kGpuVramPhysicalBase+f.offset)/8},{0x4D,0x7F0000}}}) {
+        const auto before=f.Get(id); f.Set(id,value); f.Stop(); f.Set(id,before);
+    }
+    for (unsigned id:{0x116U,0x114U,0x11CU,0x4DU}) {
+        const auto known=f.uploads.register_known_bytes[id]; f.uploads.register_known_bytes[id]=0;
+        f.Stop(); f.uploads.register_known_bytes[id]=known;
+    }
+    // A texture may not sample the depth buffer while the draw writes it.
+    TextureFixture(f); f.Set(0x85,(kGpuVramPhysicalBase+kDepthOffset)/8); f.Stop();
+}
 } // namespace
 
 int main() {
     TriangleCoverageAndSharedEdge(); TevBlendAndChannelMasks(); BiasedInterpolationAndPerspective();
     TiledAddressesAndViewportOffset(); WindingStripAndDegenerates(); KnownStateAndUnsupportedModes();
     InvalidSpansNumericInputsAndLateFailure(); AggregateRasterWorkBound();
+    TexturePerspectiveTevAndFeedback(); DepthWritesComparisonsAndStencil(); DepthInterpolationAndRejection();
     if (failures) return EXIT_FAILURE;
-    std::cout << "PASS: authored raster coverage, shared edges, perspective colors, TEV/blend/masks, tiled bytes, culling and atomic bounds\n";
+    std::cout << "PASS: authored coverage, perspective color/UV, texture TEV/blending, D24S8 comparisons/stencil preservation, tiled bytes and atomic bounds\n";
     return EXIT_SUCCESS;
 }
