@@ -25,6 +25,16 @@ bool FsUserService::CanHandle(const IpcCommandBuffer& command) const noexcept {
     if (!initialized_) return false;
     if (command[0] == IpcMakeHeader(0x0862, 1, 0)) return true;
     if (command[0] == IpcMakeHeader(0x0863, 0, 0)) return true;
+    if (command[0] == IpcMakeHeader(0x084C,9,2)) {
+        // Bounded first-time FormatSaveData: only the initialized program's
+        // Empty path and canonical bool are supported. Bucket counts are
+        // parsed/bounded but ignored by the pinned local archive backend.
+        return shared_->save_archives.CanFormat() && command[1]==4 && command[2]==1 &&
+               command[3]==1 && command[4]>0 && command[4]<=kSaveDataFormatMaxBytes/512U &&
+               command[5]<=kSaveDataFormatMaxEntries && command[6]<=kSaveDataFormatMaxEntries &&
+               command[7]<=kSaveDataFormatMaxBuckets && command[8]<=kSaveDataFormatMaxBuckets &&
+               command[9]<=1 && command[10]==0x00004002;
+    }
     if (command[0] == IpcMakeHeader(0x0803,8,4)) {
         // Observed SelfNCCH/Empty/Binary RomFS path. Other archive types/modes
         // are still host stops, even though pinned SelfNCCH ignores open mode.
@@ -58,7 +68,7 @@ bool FsUserService::CanHandle(const IpcCommandBuffer& command) const noexcept {
 
 }
 
-Result FsUserService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& memory, ThreadObject&,
+Result FsUserService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& memory, ThreadObject& thread,
                              IpcCommandBuffer& command) {
     if (!CanHandle(command)) return kResultNotFound;
     const auto id = IpcCommandId(command[0]);
@@ -83,6 +93,41 @@ Result FsUserService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& mem
         command[0] = IpcMakeHeader(id, 2, 0);
         command[1] = kResultSuccess;
         command[2] = priority;
+        return kResultSuccess;
+    }
+    if (id == 0x084C) {
+        const auto address=command[11];
+        const auto reply64=std::uint64_t(thread.tls_address)+kIpcCommandBufferOffset;
+        if (std::uint64_t(address)+1>0x100000000ULL || !memory.IsReadable(address,1) ||
+            reply64+sizeof(command)>0x100000000ULL ||
+            !memory.IsReadable(static_cast<std::uint32_t>(reply64),sizeof(command)) ||
+            !memory.IsWritable(static_cast<std::uint32_t>(reply64),sizeof(command)))
+            return kResultInvalidPointer;
+        // Empty transport is opaque, not a NUL filename or a selected host path.
+        // Keep both it and the eventual response on private guest backing.
+        if (!memory.IsCachelessPrivateRange(address,1) ||
+            !memory.IsCachelessPrivateRange(static_cast<std::uint32_t>(reply64),sizeof(command))) {
+            router.RequestHostStop("SaveData format requires private path and reply backing");
+            return kResultSuccess;
+        }
+        Result result;
+        try {
+            // Router writability alone could admit a device callback or a later
+            // allocation of reservation metadata. Prepare before filesystem
+            // publication so the synchronous ordinary reply cannot do either.
+            if (!memory.PrepareDeviceWrite(static_cast<std::uint32_t>(reply64),sizeof(command))) {
+                router.RequestHostStop("SaveData format reply preparation failed");
+                return kResultSuccess;
+            }
+            const SaveDataFormatInfo info{command[4]*512U,command[5],command[6],command[9]!=0};
+            result=shared_->save_archives.FormatMissing(program_id_,info);
+        } catch (const std::exception& error) {
+            router.RequestHostStop(error.what());
+            return kResultSuccess;
+        }
+        command.fill(0);
+        command[0]=IpcMakeHeader(id,1,0);
+        command[1]=result;
         return kResultSuccess;
     }
     if (id == 0x0803) {

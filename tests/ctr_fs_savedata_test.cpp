@@ -2,6 +2,8 @@
 #include "runtime/ctr_svc_bridge.h"
 #include <array>
 #include <chrono>
+#include <csignal>
+#include <cstring>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -10,6 +12,7 @@
 #include <vector>
 #if defined(__unix__) || defined(__APPLE__)
 #include <sys/wait.h>
+#include <sys/resource.h>
 #include <unistd.h>
 #endif
 
@@ -99,6 +102,10 @@ struct Fixture {
     static IpcCommandBuffer Request(std::uint32_t address=input) {
         return {0x080C00C2,4,1,1,0x4002,address};
     }
+    static IpcCommandBuffer FormatRequest(std::uint32_t address=input) {
+        // Authored 4 KiB/5-directory/7-file metadata, with ignored bucket counts.
+        return {0x084C0242,4,1,1,8,5,7,3,4,1,0x4002,address};
+    }
     void Unsupported(const IpcCommandBuffer& request) {
         const auto saves=endpoint->save_archives().size(),shared=endpoint->archives().size();
         const auto handles=kernel.handles().OpenHandleCount();
@@ -123,6 +130,17 @@ struct Fixture {
         CHECK(kernel.handles().OpenHandleCount()==handles && kernel.threads().size()==threads && kernel.now_ns()==0);
         CHECK(endpoint->save_archives().size()==saves+(expected_result==0) && endpoint->archives().size()==shared);
         return archive;
+    }
+    void FormatReply(const IpcCommandBuffer& request,Result result=kResultSuccess) {
+        const auto handles=kernel.handles().OpenHandleCount(),threads=kernel.threads().size();
+        const auto saves=endpoint->save_archives().size(),shared=endpoint->archives().size();
+        Put(request); const auto before=cpu;
+        CHECK(Call().kind==a32::ExitKind::Fallthrough && cpu.r[0]==0 && cpu.r[15]==before.r[15]+4);
+        CHECK((Read()==IpcCommandBuffer{0x084C0040,result}) && !router.unsupported_request());
+        for (unsigned i=1;i<15;++i) CHECK(cpu.r[i]==before.r[i]);
+        CHECK(cpu.cpsr==before.cpsr && cpu.fpscr==before.fpscr);
+        CHECK(kernel.handles().OpenHandleCount()==handles && kernel.threads().size()==threads && kernel.now_ns()==0);
+        CHECK(endpoint->save_archives().size()==saves && endpoint->archives().size()==shared);
     }
 };
 
@@ -339,15 +357,221 @@ void HostFailureStopsWithoutReplyOrAllocation() {
     CHECK(f.Reply(Fixture::Request(),0)==(kSaveDataArchiveHandleTag|1));
 }
 #endif
+
+void FormatCapability() {
+    Fixture f;
+#if defined(__linux__)
+    CHECK(f.endpoint->save_archives().CanFormat());
+#else
+    CHECK(!f.endpoint->save_archives().CanFormat());
+    f.Unsupported(Fixture::FormatRequest());
+    CHECK(fs::is_empty(f.Root()));
+#endif
+}
+
+#if defined(__linux__)
+constexpr std::array<std::uint8_t,16> kAuthoredFormatMetadata{
+    0,0x10,0,0,5,0,0,0,7,0,0,0,1,0,0,0};
+void CheckFormatMetadata(const fs::path& title) {
+    const auto bytes=Bytes(title.parent_path()/"00000001.metadata");
+    CHECK(bytes.size()==kAuthoredFormatMetadata.size());
+    if (bytes.size()==kAuthoredFormatMetadata.size())
+        CHECK(std::memcmp(bytes.data(),kAuthoredFormatMetadata.data(),bytes.size())==0);
+}
+
+void FirstFormatAndTitleBinding() {
+    // Exercise each supported publication boundary: missing high, low or data.
+    for (unsigned existing=0;existing<3;++existing) {
+        Fixture f;
+        auto parent=f.Root();
+        const std::array<const char*,2> names{"00040000","000ad500"};
+        for (unsigned i=0;i<existing;++i) { parent/=names[i];fs::create_directory(parent); }
+        Write(parent/"keep.bin","existing neighboring bytes");
+        CHECK(f.Reply(Fixture::Request(),kResultFsNotFormatted)==0);
+        f.FormatReply(Fixture::FormatRequest());
+        CHECK(fs::is_directory(Title(f.Root())) && fs::is_empty(Title(f.Root())));
+        CheckFormatMetadata(Title(f.Root()));
+        CHECK(Bytes(parent/"keep.bin")=="existing neighboring bytes");
+        CHECK(f.endpoint->save_archives().size()==0 && fs::is_empty(f.SharedRoot()));
+        CHECK(f.Reply(Fixture::Request(),0)==(kSaveDataArchiveHandleTag|1));
+        Write(Title(f.Root())/"save.bin","already saved");
+        f.Unsupported(Fixture::FormatRequest());
+        CHECK(Bytes(Title(f.Root())/"save.bin")=="already saved");
+        CheckFormatMetadata(Title(f.Root()));
+    }
+
+    TempDir temp; SaveDataArchiveMounts backend;
+    const SaveDataFormatInfo info{4096,5,7,true};
+    CHECK(!backend.CanFormat());
+    bool stopped=false;
+    try { backend.FormatMissing(kProgram,info); } catch (const std::logic_error&) { stopped=true; }
+    CHECK(stopped && fs::is_empty(temp.root));
+    CHECK(backend.ConfigureRoot(temp.root) && backend.CanFormat());
+    stopped=false;
+    try { backend.FormatMissing(0,info); } catch (const std::logic_error&) { stopped=true; }
+    CHECK(stopped && fs::is_empty(temp.root));
+    for (const auto& invalid:std::array<SaveDataFormatInfo,4>{{
+            {0,5,7,true},{kSaveDataFormatMaxBytes+512U,5,7,true},
+            {4096,kSaveDataFormatMaxEntries+1,7,true},{4096,5,kSaveDataFormatMaxEntries+1,true}}}) {
+        stopped=false;
+        try { backend.FormatMissing(kProgram,invalid); } catch (const std::logic_error&) { stopped=true; }
+        CHECK(stopped && fs::is_empty(temp.root));
+    }
+    CHECK(backend.FormatMissing(kProgram,info)==0);
+    constexpr std::uint64_t other=0xABCDEF120034ABCDULL;
+    CHECK(backend.FormatMissing(other,info)==0 && backend.size()==0);
+    const auto other_title=temp.root/"abcdef12"/"0034abcd"/"data"/"00000001";
+    CheckFormatMetadata(Title(temp.root)); CheckFormatMetadata(other_title);
+    CHECK(fs::is_empty(Title(temp.root)) && fs::is_empty(other_title));
+    std::uint64_t handle=0;
+    CHECK(backend.Open(other,&handle)==0 && backend.Find(handle)->program_id==other);
+}
+
+struct FailingReplyDevice final : DeviceMemory {
+    std::array<std::uint8_t,0x1000> bytes{};
+    mutable unsigned reads{};
+    unsigned writes{};
+    std::uint32_t size() const noexcept override { return bytes.size(); }
+    bool CanRead(std::uint32_t offset,std::uint32_t length) const noexcept override {
+        return offset<=bytes.size() && length<=bytes.size()-offset;
+    }
+    bool CanWrite(std::uint32_t offset,std::uint32_t length) const noexcept override { return CanRead(offset,length); }
+    bool Read(std::uint32_t offset,std::span<std::uint8_t> output) const noexcept override {
+        ++reads;
+        if (offset>bytes.size() || output.size()>bytes.size()-offset) return false;
+        std::memcpy(output.data(),bytes.data()+offset,output.size()); return true;
+    }
+    bool Write(std::uint32_t,std::span<const std::uint8_t>) noexcept override { ++writes;return false; }
+    std::uint64_t Epoch(std::uint32_t) const noexcept override { return 0; }
+};
+
+void FormatRequestAndReplyPreflight() {
+    Fixture unconfigured(false); unconfigured.Unsupported(Fixture::FormatRequest());
+    CHECK(fs::is_empty(unconfigured.Root()));
+    Fixture f(true,false); f.Unsupported(Fixture::FormatRequest()); f.NewSession();
+    for (const auto& [word,value]:std::array<std::pair<unsigned,std::uint32_t>,12>{{
+            {0,0x084C0240},{1,7},{2,2},{3,2},{4,0},{4,0xFFFFFFFF},
+            {5,kSaveDataFormatMaxEntries+1},{6,kSaveDataFormatMaxEntries+1},
+            {7,kSaveDataFormatMaxBuckets+1},{8,kSaveDataFormatMaxBuckets+1},{9,2},{10,0x4802}}}) {
+        auto request=Fixture::FormatRequest();request[word]=value;f.Unsupported(request);
+        CHECK(fs::is_empty(f.Root()));
+    }
+    for (const auto address:{0U,0x08000000U,Fixture::input+1}) {
+        const auto request=Fixture::FormatRequest(address); f.Put(request);
+        CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==kResultInvalidPointer);
+        CHECK(f.Read()==request && fs::is_empty(f.Root()));
+    }
+    const auto request=Fixture::FormatRequest();
+    for (unsigned mode=0;mode<2;++mode) {
+        GuestMemory protected_memory;
+        const auto size=mode?sizeof(IpcCommandBuffer)-4:sizeof(IpcCommandBuffer);
+        CHECK(protected_memory.Map(f.cb(),size,mode?RW:MemoryPermission::Read));
+        CHECK(protected_memory.Map(Fixture::input,1,MemoryPermission::Read));
+        CHECK(protected_memory.LoadBytes(Fixture::input,std::array<std::uint8_t,1>{0x7D}));
+        CHECK(protected_memory.LoadBytes(f.cb(),{reinterpret_cast<const std::uint8_t*>(request.data()),size}));
+        f.Put(request);
+        CHECK(f.Call(&protected_memory).kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==kResultInvalidPointer);
+        CHECK(fs::is_empty(f.Root()) && f.Read()==request);
+    }
+    // A callback can claim writability and still reject the eventual reply.
+    // The format handler must stop before filesystem publication or any write.
+    for (bool shared_reply:{false,true}) {
+        GuestMemory alternate;
+        CHECK(alternate.Map(Fixture::input,1,MemoryPermission::Read));
+        CHECK(alternate.LoadBytes(Fixture::input,std::array<std::uint8_t,1>{0x7D}));
+        const auto base=f.cb()&~0xFFFU,offset=f.cb()&0xFFFU;
+        auto device=std::make_shared<FailingReplyDevice>();
+        auto shared=std::make_shared<ServiceSharedMemoryObject>();
+        const auto data=std::span(reinterpret_cast<const std::uint8_t*>(request.data()),sizeof(request));
+        if (shared_reply) {
+            CHECK(shared->Write(offset,data)); CHECK(alternate.MapSharedServicePage(base,shared,RW));
+        } else {
+            std::memcpy(device->bytes.data()+offset,data.data(),data.size());
+            CHECK(alternate.MapDeviceMemory(base,device,RW));
+        }
+        f.Put(request); const auto before=f.cpu;
+        CHECK(f.Call(&alternate).kind==a32::ExitKind::Svc && f.router.unsupported_request());
+        CHECK(f.cpu.r==before.r && fs::is_empty(f.Root()) && device->writes==0);
+        const auto after=shared_reply?shared->bytes():std::span<const std::uint8_t>(device->bytes);
+        CHECK(std::memcmp(after.data()+offset,data.data(),data.size())==0);
+    }
+    auto path_device=std::make_shared<FailingReplyDevice>();
+    CHECK(f.memory.MapDeviceMemory(0x18000000,path_device,MemoryPermission::Read));
+    f.Unsupported(Fixture::FormatRequest(0x18000000));
+    CHECK(path_device->reads==0 && path_device->writes==0 && fs::is_empty(f.Root()));
+    // Empty's byte is not required to be NUL; the one-byte end-of-space span is valid.
+    CHECK(f.memory.Map(0xFFFFFFFF,1,MemoryPermission::Read));
+    CHECK(f.memory.LoadBytes(0xFFFFFFFF,std::array<std::uint8_t,1>{0xFF}));
+    f.FormatReply(Fixture::FormatRequest(0xFFFFFFFF)); CheckFormatMetadata(Title(f.Root()));
+}
+
+void FormatContainmentAndExistingData() {
+    const SaveDataFormatInfo info{4096,5,7,true};
+    for (unsigned blocked=0;blocked<3;++blocked) {
+        TempDir temp,outside; SaveDataArchiveMounts backend;
+        CHECK(backend.ConfigureRoot(temp.root));
+        auto parent=temp.root;
+        const std::array<const char*,3> names{"00040000","000ad500","data"};
+        for (unsigned i=0;i<blocked;++i) { parent/=names[i];fs::create_directory(parent); }
+        Write(outside.root/"sentinel","unchanged");
+        fs::create_directory_symlink(outside.root,parent/names[blocked]);
+        CHECK(backend.FormatMissing(kProgram,info)==kResultFsInvalidPath && backend.size()==0);
+        fs::remove(parent/names[blocked]);Write(parent/names[blocked],"not a directory");
+        CHECK(backend.FormatMissing(kProgram,info)==kResultFsInvalidPath);
+        CHECK(Bytes(parent/names[blocked])=="not a directory" && Bytes(outside.root/"sentinel")=="unchanged");
+        CHECK(!fs::exists(Title(outside.root)));
+    }
+    Fixture empty_data;fs::create_directories(Title(empty_data.Root()).parent_path());
+    empty_data.Unsupported(Fixture::FormatRequest());
+    CHECK(fs::is_empty(Title(empty_data.Root()).parent_path()));
+    TempDir temp,outside;
+    const auto selected=temp.root/"container",moved=temp.root/"moved";
+    fs::create_directory(selected);Write(outside.root/"sentinel","outside");
+    SaveDataArchiveMounts backend;CHECK(backend.ConfigureRoot(selected));
+    fs::rename(selected,moved);fs::create_directory_symlink(outside.root,selected);
+    CHECK(backend.FormatMissing(kProgram,info)==0);
+    CheckFormatMetadata(Title(moved));
+    CHECK(!fs::exists(Title(outside.root)) && Bytes(outside.root/"sentinel")=="outside");
+}
+
+void PartialMetadataFailureRollsBack() {
+    Fixture f;
+    const auto child=::fork();
+    if (child<0) throw std::runtime_error("fork failed");
+    if (child==0) {
+        // Force a real partial metadata write, after all parent staging exists.
+        // Limit and signal disposition affect only this isolated child.
+        struct rlimit limit{};
+        if (::getrlimit(RLIMIT_FSIZE,&limit)!=0 || limit.rlim_max<8) _exit(90);
+        limit.rlim_cur=8;
+        if (::setrlimit(RLIMIT_FSIZE,&limit)!=0 || std::signal(SIGXFSZ,SIG_IGN)==SIG_ERR) _exit(90);
+        const auto request=Fixture::FormatRequest();f.Put(request);const auto before=f.cpu;
+        const auto handles=f.kernel.handles().OpenHandleCount();
+        const bool good=f.Call().kind==a32::ExitKind::Svc && f.router.unsupported_request() &&
+            !f.router.last_host_error().empty() && f.Read()==request && f.cpu.r==before.r &&
+            f.endpoint->save_archives().size()==0 && f.kernel.handles().OpenHandleCount()==handles &&
+            fs::is_empty(f.Root());
+        _exit(good?0:91);
+    }
+    int status=0;CHECK(::waitpid(child,&status,0)==child && WIFEXITED(status) && WEXITSTATUS(status)==0);
+    CHECK(fs::is_empty(f.Root()) && f.endpoint->save_archives().size()==0);
+    f.FormatReply(Fixture::FormatRequest());CheckFormatMetadata(Title(f.Root()));
+}
+#endif
 } // namespace
 
 int main() {
     BackendConfigurationAndBinding(); MissingReplyAndIgnoredEmptyByte(); ExistingSaveAndSessionIsolation();
     RequestAndReplyPreflight(); DistinctSharedExtdataAndUnsupportedSaveFiles(); NoFollowAndPinnedContainer();
+    FormatCapability();
 #if defined(__unix__) || defined(__APPLE__)
     HostFailureStopsWithoutReplyOrAllocation();
 #endif
+#if defined(__linux__)
+    FirstFormatAndTitleBinding(); FormatRequestAndReplyPreflight();
+    FormatContainmentAndExistingData(); PartialMetadataFailureRollsBack();
+#endif
     if (failures) return EXIT_FAILURE;
-    std::cout << "PASS: explicit per-title SaveData, NotFormatted reply, typed archive isolation and atomic contained opens\n";
+    std::cout << "PASS: per-title SaveData opens, bounded first-time formatting/metadata, private reply preflight and contained atomic publication\n";
     return EXIT_SUCCESS;
 }

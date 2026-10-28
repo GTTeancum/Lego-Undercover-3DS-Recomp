@@ -1,3 +1,126 @@
+# October 28, 2026 — first-time SaveData formatting
+
+## Current result and next task
+
+The unchanged original game now completes its explicit **FormatSaveData**
+request against a fresh configured title container. The operation creates a
+real per-title data directory and deterministic **16-byte format metadata**.
+The game then reopens that archive successfully and advances from dispatch
+round **1626 to 5118**, reaching guest time **1772111212 ns**.
+
+The next stop is **fs:USER OpenFile**, request header **0x080201C2**, against the
+opened SaveData archive with **read/write/create** flags. The stop remains
+`UnsupportedIpc`, PC `0x0025947C`, detail `0x32`, now on thread 10.
+
+**Next task: implement the observed SaveData OpenFile operation with its
+requested read/write/create behavior.** The complete request, bounded UTF-16
+path transport and current archive binding are retained privately. Keep the
+captured filename, payload bytes and game content out of the public repository.
+File opening and application save contents are not yet implemented for this
+archive; the real format metadata is not a fabricated application save.
+
+A lossless private export of the latest captured framebuffer shows a
+save-preparation notice on the lower screen, while the top screen remains
+black. Both captured LCD force-black controls are disabled. This establishes
+the actual headless framebuffer contents at the stop. It does not establish
+host-window presentation, a game scene, a usable menu, audible playback or
+playable gameplay.
+
+The finite launch settings, original code/RomFS/ExHeader inputs and four
+authenticated build-time AOT supplements are unchanged. GPU code is unchanged
+and no GPU replay was performed for this filesystem milestone. Hosted CI
+results are recorded separately for the exact published revision; the local
+results below do not claim a new hosted result.
+
+## Supported format behavior
+
+The bounded implementation accepts the observed SaveData/Empty request shape
+only after validating the initialized client program binding, configured root,
+transport backing, format size/count bounds and complete private reply backing.
+Empty-path transport is opaque; its incidental contents do not select a title
+or become a host filesystem path.
+
+The backend uses descriptor-relative traversal beneath the pinned save root.
+It prepares the complete first missing title subtree, writes the deterministic
+metadata, and publishes the subtree with Linux `renameat2(RENAME_NOREPLACE)`.
+All fallible preparation finishes before publication. Existing title data,
+including an empty existing data directory, remains an explicit unsupported
+replacement case. Hosts without the required atomic operation do not receive
+a weaker fallback.
+
+The metadata records requested capacity, directory/file counts and the
+duplicate-data flag with explicitly zeroed padding. These fields describe the
+bounded backend's format model; they do not claim hardware allocation,
+hash-bucket behavior, duplicate save copies or power-loss durability. Formatting
+creates no application file contents and allocates no archive mount. A later
+successful OpenArchive creates one title-bound SaveData mount, isolated from
+SharedExtData and without allocating a kernel handle.
+
+## Verification and retained evidence
+
+The complete **79-suite local gate passes**, including the expanded SaveData
+suite. Authored cases cover exact replies and metadata, all three supported
+missing-subtree publication boundaries, subsequent archive opening, title
+isolation, existing-data preservation, symlink/root replacement guards, reply
+preflight and a real partial metadata-write failure with staging cleanup.
+
+An earlier full gate could not launch four unrelated executables after their
+execute-mode bits changed. That failed gate is preserved. The final gate uses
+fresh byte-identical executable copies with the original test arguments,
+properties and working directories; all 79 names pass in both console and
+JUnit records. The preparation working-directory correction is retained as a
+separate artifact. Source and binary bytes remained frozen; no test was
+removed or weakened.
+
+Exactly **one ordinary game run and one selective FS capture** were performed.
+The capture brackets the actual missing OpenArchive response, FormatSaveData
+success and subsequent successful OpenArchive. It verifies real guest reply
+writes, initialized title binding, mount/kernel-handle counts and complete
+owned filesystem inventories before and after each selected call. The missing
+archive initially has no storage; format publishes only the title directories
+and metadata; reopening adds exactly one SaveData mount. All three calls leave
+the kernel handle count unchanged. **All 82 FS proof checks pass.**
+
+Complete normalized launch arguments/stdout, final CPU/IPC state, SaveData and
+SharedExtData inventories, and all **918464 audio bytes / 57402 records** match
+ordinary execution. Both audio streams have their complete headers and reported
+tails, with successful close status. The final capture retains the complete
+unknown IPC request and bounded transport, GPU registers, GSP state, all
+**6 MiB of VRAM**, and both LCD force-black words. No graphics queue is replayed.
+
+The continuous launcher's final summary print raised a Python `TypeError`
+after the build, single capture and strict comparison had completed and been
+saved successfully. The original helper and its top-level failed receipt remain
+unchanged. A separate read-only verification passes **105 checks**, including
+the completed stages, original failure, frozen sources and executable copies.
+A separately named portable verifier retains that correction evidence and
+checks **74 files and all 40 capture members**. Its subsequent read-only
+verification also passes. No guest rerun, captured-byte repair or replacement
+of the original failure record was used.
+
+Private receipts currently available:
+
+- `format-save-build.json` for the frozen production build.
+- `format-save-tests.{json,log,xml}` for the preserved initial gate.
+- `format-save-launch-preparation-failure.json` for the preparation correction.
+- `format-save-final-tests.{json,log,xml}` for the complete passing gate.
+- `format-save-native-g1npvcda/` for the one ordinary run.
+- `format-save-capture-pgg23eef/` for the strict comparison, FS proof, separate
+  post-launch verification and portable integrity record.
+- `format_save_capture/` for the frozen private helpers, original failed
+  launch receipt and separately authored read-only verification helpers.
+- `screenshot-format-save/` for the final framebuffer export and its provenance.
+
+Native SHA-256:
+`e9cf04813867cf4ed9c9be6d93d2a68b016e38f991115fc4cabf51baa1705cd2`.
+CTR library SHA-256:
+`79350f1bad5bb56b8746d422e7a119d64066c3e4fb22eb871545f4e2071fad3b`.
+This follows the published compressed-texture/clipping milestone
+`31819b131a677b0407774770fdc040b7d59cb038`. All earlier chronological sections,
+including incomplete historical Protect audio evidence, remain unchanged below.
+
+---
+
 # October 28, 2026 — compressed textures and homogeneous clipping
 
 ## Current result and next task

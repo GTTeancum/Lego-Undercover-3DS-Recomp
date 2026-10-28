@@ -2,6 +2,15 @@
 #include "services/fs_shared_archive.h"
 
 namespace lego::ctr {
+// Host support bounds for format metadata, not claims about hardware capacity.
+inline constexpr std::uint32_t kSaveDataFormatMaxBytes = 64U * 1024U * 1024U;
+inline constexpr std::uint32_t kSaveDataFormatMaxEntries = 4096;
+inline constexpr std::uint32_t kSaveDataFormatMaxBuckets = 8192;
+struct SaveDataFormatInfo {
+    std::uint32_t total_size{}, number_directories{}, number_files{};
+    bool duplicate_data{};
+};
+
 // Separate title-save backend. The explicitly selected, existing container is
 // pinned; a program selects <high8>/<low8>/data/00000001 using lowercase hex.
 // Configuring/opening creates no directories, metadata or application files.
@@ -19,6 +28,12 @@ public:
     // A configured missing title returns NotFormatted and zero. An unconfigured
     // backend or unbound program is unsupported, not an invented guest result.
     Result Open(std::uint64_t program_id, std::uint64_t* out_handle);
+    [[nodiscard]] bool CanFormat() const noexcept;
+    // Creates a complete missing high/low/data subtree using an atomic exclusive
+    // rename. Existing data directories (even empty ones) require a later format
+    // policy and stop; no existing save is removed, replaced or mounted here.
+    // Requires Linux renameat2(RENAME_NOREPLACE); no weaker fallback is used.
+    Result FormatMissing(std::uint64_t program_id, const SaveDataFormatInfo& info);
 private:
     struct NativeDirectory;
     struct Entry {
