@@ -83,7 +83,7 @@ void FailurePreservesInitialAndGuards() {
         l.Packet(0xaf,type<<8);l.Packet(0xb7,0xffffffff);f.Stop(l);
         CHECK(f.plan.result.register_id==0xb7&&f.uploads.procedural.color_map.written.none());
     }
-    for(unsigned guard:{0x22eU,0x22fU,0x23cU,0x23dU,0x232U,0x233U,0x234U,0x235U,0xe8U,0xefU}) {
+    for(unsigned guard:{0x22eU,0x22fU,0x23cU,0x23dU,0xe8U,0xefU}) {
         Fixture f;List l;l.Packet(0xaf,0x400);l.Packet(0xb0,0xdecafbad);l.Packet(guard,0,0);f.Stop(l);
         CHECK(f.plan.result.register_id==guard&&f.uploads.procedural.color.written.none());
     }

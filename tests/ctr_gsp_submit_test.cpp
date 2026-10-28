@@ -124,6 +124,23 @@ void SignalRetainedObjectWakesActualWaiter(){
         CHECK(k.current_thread()->status==ThreadStatus::Ready&&k.current_thread()->pending_wake&&k.current_thread()->wait_result==0);
         CHECK(k.now_ns()==0);CHECK(e->signaled()==(reset==1));}
 }
+void AttributeCommitAndQueueRollback(){
+    Fixture f;
+    f.List({2,0x000f0232,0x345678de,0x002f0233,0xf012789a,0xbc123456});
+    f.Put();CHECK(f.Call().kind==a32::ExitKind::Fallthrough);
+    CHECK((f.module->pica_uploads().default_attributes.raw24[2]==
+           std::array<std::uint32_t,4>{0x123456,0x789abc,0xdef012,0x345678}));
+    CHECK(f.module->pica_uploads().default_attributes.written[2]);
+    CHECK(f.module->last_pica_result().attribute_vectors==1 && f.Word(f.queue())==1);
+    CHECK(!f.object->signaled());
+    // A later unsupported GSP packet rolls back the entire queue, including the
+    // earlier valid attribute submission and its requested completion interrupt.
+    f.List({4,0x000f0232,0x345678de,0x002f0233,0xf012789a,0xbc123456,0x12345678,0x000f0010});
+    f.Packet(1,kSource,32,0x7f);f.Word(f.queue(),0x200);f.Stop();
+    CHECK(!f.module->pica_uploads().default_attributes.written[4]);
+    CHECK(f.module->pica_uploads().default_attributes.written.count()==1);
+    CHECK(*f.module->register_word(0x4018c8)==3);
+}
 } // namespace
-int main(){ExecuteAndSignal();OwnershipAndRelay();FailureAtomicity();AliasesAndOutputGuards();ProceduralUploadCommitAndBatchRollback();SignalRetainedObjectWakesActualWaiter();
+int main(){ExecuteAndSignal();OwnershipAndRelay();FailureAtomicity();AliasesAndOutputGuards();ProceduralUploadCommitAndBatchRollback();SignalRetainedObjectWakesActualWaiter();AttributeCommitAndQueueRollback();
  if(failures)return EXIT_FAILURE;std::cout<<"PASS: actual staged submit, P3D relay/event, ownership, wait, aliases and atomic failure\n";return EXIT_SUCCESS;}

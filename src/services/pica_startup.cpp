@@ -34,7 +34,7 @@ bool In(std::uint32_t x,std::uint32_t lo,std::uint32_t hi) noexcept { return x>=
 // optimized and debug paths. This startup slice rejects repeated batches here,
 // rather than silently choosing a policy for unobserved ambiguous cases.
 bool NonUploadSpecial(std::uint32_t id) noexcept {
-    return id==0x10 || id==0x25E || id==0x25F || id==0x280 || id==0x2B0 ||
+    return id==0x10 || id==0x232 || id==0x25E || id==0x25F || id==0x280 || id==0x2B0 ||
            id==0x2BD || In(id,0x281,0x284) || In(id,0x2B1,0x2B4);
 }
 struct Executor {
@@ -42,6 +42,16 @@ struct Executor {
     bool Fail(const char* error) noexcept {p.result.error=error;return false;}
     std::uint32_t& Reg(std::uint32_t id) noexcept {return p.registers[0x400+id];}
     bool MirrorVs() noexcept {return !(Reg(0x244)&1U) && (Reg(0x229)&3U)==0;}
+    void Increment(std::uint32_t id) noexcept {
+        ++Reg(id);
+        // A carry through an unknown lower byte can change known upper bytes.
+        // Keep only the consecutive known low bytes (all four if fully known).
+        auto& known=p.uploads.register_known_bytes[id];
+        std::uint8_t low{};
+        for(unsigned byte=0;byte<4 && (known&(1U<<byte));++byte)
+            low|=static_cast<std::uint8_t>(1U<<byte);
+        known=low;
+    }
     bool ProceduralWord(std::uint32_t raw) noexcept {
         // Pinned TexturingRegs: index is bits 0..7, selector bits 8..11.
         // LUT data ports consume the RAW command parameter even with mask=0;
@@ -86,6 +96,25 @@ struct Executor {
         if(vs&&MirrorVs()) {p.uploads.gs.floats[index]=dst;p.uploads.gs.floats_written.set(index);}
         ++p.result.uniform_vectors;return true;
     }
+    bool AttributeWord(std::uint32_t raw) noexcept {
+        auto& attributes=p.uploads.default_attributes;
+        auto& index=Reg(0x232);
+        // Write preflights the selected index and queue bounds before any port
+        // effect. All three ports feed the same queue, independent of port ID.
+        attributes.packed[attributes.packed_count++]=raw;
+        if(attributes.packed_count<3)return true;
+        const auto& b=attributes.packed;
+        auto& dst=attributes.raw24[index];
+        dst={b[2]&0xFFFFFFU,((b[1]&0xFFFFU)<<8)|(b[2]>>24),
+             ((b[0]&0xFFU)<<16)|(b[1]>>16),b[0]>>8};
+        for(std::size_t component=0;component<dst.size();++component)
+            attributes.floats[index][component]=Float24Bits(dst[component]);
+        attributes.packed_count=0;
+        attributes.written.set(index);
+        // Pinned PicaCore::SubmitImmediate advances a full u32 for defaults.
+        // Reaching 15 selects an unsupported drawing path; it never wraps to 0.
+        Increment(0x232);++p.result.attribute_vectors;return true;
+    }
     bool Write(std::uint32_t id,std::uint32_t value,std::uint32_t mask) noexcept {
         p.result.register_id=id;
         if(id>=kPicaInternalWords) return Fail("PICA register outside supported internal bank");
@@ -93,10 +122,25 @@ struct Executor {
         // complete plan, not just the action while pretending its store succeeded.
         if(id==0x22E||id==0x22F) return Fail("PICA draw execution is unimplemented");
         if(id==0x23C||id==0x23D) return Fail("PICA command-list chaining is unimplemented");
-        if(In(id,0x232,0x235))return Fail("PICA default/immediate attributes are unimplemented");
         if(In(id,0xE8,0xEF))return Fail("PICA fog lookup upload is unimplemented");
+        auto& attributes=p.uploads.default_attributes;
+        if(id==0x232 && mask!=15 && !attributes.index_known)
+            return Fail("PICA default-attribute index is unknown");
+        if(In(id,0x233,0x235)) {
+            // Azahar 86a9f923 PicaCore consumes raw packed words. Its masking
+            // TODO does not establish hardware partial-mask behavior: support
+            // only explicit full-word data writes in this bounded slice.
+            if(mask!=15)return Fail("PICA default-attribute data requires a full write mask");
+            if(!attributes.index_known)return Fail("PICA default-attribute index is unknown");
+            if(Reg(0x232)==15)return Fail("PICA immediate attribute rendering is unimplemented");
+            if(Reg(0x232)>=kPicaDefaultAttributeCount)
+                return Fail("PICA default-attribute index outside supported 0..14");
+            if(attributes.packed_count>=attributes.packed.size())
+                return Fail("PICA packed-attribute queue exceeds capacity");
+        }
         auto& word=Reg(id);const auto expanded=ByteMask(mask);
         word=(word&~expanded)|(value&expanded);
+        p.uploads.register_known_bytes[id]|=static_cast<std::uint8_t>(mask);
         p.uploads.registers_written.set(id);++p.result.writes;
         if(id==0x10) {
             // Pinned HLE's any-byte comparator, not claimed hardware IRQ parity.
@@ -104,6 +148,13 @@ struct Executor {
                 ++p.result.irqs;
                 p.result.autostopped=Reg(0x34)!=0;
             }
+        } else if(id==0x232) {
+            // Pinned index writes reset the packed queue even when mask=0.
+            // A partial write is accepted only after the whole index is known.
+            if(mask==15)attributes.index_known=true;
+            attributes.packed_count=0;
+        } else if(In(id,0x233,0x235)) {
+            return AttributeWord(value);
         } else if(id==0x25E) {
             p.uploads.topology=(word>>8)&3U; // Reconfigure an empty assembler.
         } else if(id==0x25F) {
@@ -120,6 +171,11 @@ struct Executor {
         } else if(id==0x2BD) {
             // Reference uses the raw argument here, not the merged word.
             if(MirrorVs())Reg(0x28D)=(Reg(0x28D)&0xFFFF0000U)|(value&65535U);
+            auto& known=p.uploads.register_known_bytes[0x28D];
+            if(!(p.uploads.register_known_bytes[0x244]&1U) ||
+               !(p.uploads.register_known_bytes[0x229]&1U))
+                known&=0xCU; // The mirror decision itself is not established.
+            else if(MirrorVs()) known|=3U;
         } else if(In(id,0x291,0x298)||In(id,0x2C1,0x2C8)) {
             return FloatWord(id>=0x2C1,value); // Upload ports consume raw data.
         } else if(In(id,0x29C,0x2A3)||In(id,0x2CC,0x2D3)) {
@@ -128,7 +184,7 @@ struct Executor {
             auto& shader=vs?p.uploads.vs:p.uploads.gs;
             shader.program[offset]=value;shader.program_written.set(offset);
             if(vs&&MirrorVs()) {p.uploads.gs.program[offset]=value;p.uploads.gs.program_written.set(offset);}
-            ++offset;++p.result.program_words;
+            Increment(vs?0x2CB:0x29B);++p.result.program_words;
         } else if(In(id,0x2A6,0x2AD)||In(id,0x2D6,0x2DD)) {
             // Pinned PicaCore swizzle ports consume the raw parameter (not the
             // byte-masked register mirror), incrementing a full-width offset.
@@ -138,7 +194,7 @@ struct Executor {
             auto& shader=vs?p.uploads.vs:p.uploads.gs;
             shader.swizzle[offset]=value;shader.swizzle_written.set(offset);
             if(vs&&MirrorVs()) {p.uploads.gs.swizzle[offset]=value;p.uploads.gs.swizzle_written.set(offset);}
-            ++offset;++p.result.swizzle_words;
+            Increment(vs?0x2D5:0x2A5);++p.result.swizzle_words;
         } else if(In(id,0xB0,0xB7)) {
             return ProceduralWord(value);
         } else if(In(id,0x1C8,0x1CF)) {

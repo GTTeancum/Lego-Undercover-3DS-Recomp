@@ -2,11 +2,20 @@
 
 Recovery repository for an AI-assisted native recompilation effort targeting **LEGO City Undercover: The Chase Begins** (Nintendo 3DS).
 
-## Recovery state
+## Current rebuilt state
 
-The original local working tree was lost. This repository is being rebuilt from surviving project artifacts and checkpoints. The latest documented baseline is **Recovery J**, followed by the additive **Focus K01** diagnostic work.
+The current source reconstructs original-game startup in a native, headless runtime. It does not yet render a game frame or provide playable gameplay. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md) for the verified state, reproduction commands, and next work.
 
-Documented Recovery J state included:
+The October 28 restoration verified the saved game inputs and matched all 490 source files in checkpoint `d83daf2` to GitHub. The new PICA default-attribute implementation gets through the attribute uploads in the original GPU command list. That same list then reaches the unimplemented draw trigger; the whole queue remains uncommitted. The original startup still stops at dispatch round 843.
+
+Native vertex loading and a bounded vertex-shader executor are also implemented. A private replay of the original first draw verifies all four vertices and all 80 shader output components against independent source-byte and arithmetic checks. Primitive assembly, rasterization and draw completion are still missing.
+
+## Historical recovery records
+
+The original local working tree was lost. Historical **Recovery J** and **Focus K01** documents describe that earlier tree; their renderer and gameplay claims are not evidence that those systems exist in the current rebuilt source.
+
+Those historical records described:
+
 - 604 generated AOT translation files.
 - Native runtime, 3DS service support, renderer, audio, desktop/input integration and tests.
 - Native Linux execution reaching interactive Cherry Tree Hills.
@@ -36,4 +45,4 @@ No copyrighted game image, RomFS, extracted assets, `code.bin`, saves, or captur
 
 ## Current goal
 
-Recover the latest surviving source package as faithfully as possible before resuming development. Do not regenerate or replace recovered files when an original surviving copy can be located.
+Advance the unchanged original game toward genuine rendering, usable menus, and gameplay. Continue from verified surviving source and private input backups, preserve reproducible checkpoints, and implement missing behavior without fabricating GPU completion or game output.

@@ -36,6 +36,8 @@ function(lego_add_ctr_runtime target_name)
         "${LEGO_RECOMP_ROOT}/src/services/gsp_display_transfer.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/gsp_memory_fill.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/pica_startup.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/pica_vertex_fetch.cpp"
+        "${LEGO_RECOMP_ROOT}/src/services/pica_vertex_shader.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/cfg_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/ptm_service.cpp"
         "${LEGO_RECOMP_ROOT}/src/services/y2r_user_service.cpp"

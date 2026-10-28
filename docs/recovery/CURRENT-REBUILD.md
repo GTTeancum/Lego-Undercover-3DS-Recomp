@@ -1,3 +1,223 @@
+# October 28, 2026 continuation update
+
+## Verified restoration and current stop
+
+The saved checkpoint `d83daf2a1a39ac6478dd8b7993af6827102de59a` was restored and
+matched against the current Git history: all 490 source blobs and modes match.
+The checkpoint verifier passed all 836 manifest files. The executable, ExHeader,
+599-page AOT archive (603 regular files), both prepared RomFS parts, and combined
+769,179,648-byte RomFS matched their recorded hashes. No new game upload or CCI
+extraction was needed. Original game bytes and generated AOT pages are unchanged.
+
+A clean GCC native build with the authenticated three-block supplement reproduced
+the previous `round843 / pc0x0025947c / attributes0x232 at byte0x380` stop exactly.
+After adding default-attribute support, the unchanged original run now reports:
+
+```
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=1 dispatch_rounds=843
+last_ipc_session=gsp::Gpu request_header=0x000c0000
+host_ipc_error=PICA draw execution is unimplemented at list byte 0x4e8 register 0x22e
+```
+
+This advances processing within the same 1,376-byte GPU list. It does not advance
+the guest past the queue request: the existing complete-queue rejection policy
+keeps every staged attribute/register/IRQ change uncommitted. No rendered frame,
+logo, title screen, menu, music playback, or gameplay is demonstrated.
+
+## New default-attribute implementation
+
+`src/services/pica_startup.{h,cpp}` now models the three-word packed float24 FIFO,
+raw component values, corresponding IEEE32 container bits, known/written state,
+full-width cursor, and stored default attributes 0 through 14. All three data ports
+feed the same FIFO; partial vectors persist across successful list boundaries.
+Index writes reset the FIFO; masked and zero-mask index writes are supported after
+a complete index has established its value. Completing attribute14 advances to15
+without wrapping. Index15 vertex submission remains an explicit rendering stop.
+
+Containment policy: new data ports require full byte mask0xF; an unknown selected
+index, unsupported index, or corrupt FIFO count stops before data-port effects.
+The pinned emulator's upload-mask TODO does not establish hardware partial-mask
+semantics. The supported 0..14 range follows that emulator; Citro3D's public API
+exposes twelve default attributes. None of this claims complete hardware timing
+or float24 arithmetic fidelity. Draw, chain, and fog guards remain in force.
+
+Focused GCC checks passed: `ctr_pica_attributes_test`, `ctr_pica_startup_test`,
+`ctr_pica_proctex_test`, `ctr_pica_swizzle_test`, `ctr_pica_vertex_fetch_test`,
+`ctr_pica_vertex_shader_test`, and `ctr_gsp_submit_test`. They cover independently specified
+packed values, cursor/FIFO behavior, known-state/bounds policies, and a later
+GSP-packet failure preserving already committed state and suppressing staged IRQs.
+The native original-game run is separate evidence from these ROM-free tests.
+
+## Native vertex loading
+
+`src/services/pica_vertex_fetch.{h,cpp}` adds a staged, read-only non-indexed
+vertex loader and vertex-shader input mapping. It decodes signed bytes, unsigned
+bytes, signed shorts and float32 arrays, including component alignment, padding
+descriptors, separate loader offsets/strides, uploaded default attributes and
+input-register permutations. Per-byte register knowledge prevents allocated zero
+storage or mask-zero writes from establishing unknown configuration fields.
+
+Reads are restricted to readable private linear FCRAM or an explicitly supplied
+VRAM bank. Shared/device callbacks, unknown configuration, duplicate loaders,
+retained attributes, indexed draws and geometry shaders remain unsupported.
+The explicit host bounds are 4,096 vertices and 1 MiB of source reads per stage.
+Failure preserves the caller's previous output plan and all source state.
+
+The original first draw uses four vertices with a 32-byte stride: float3 position,
+two padding descriptors, unsigned-byte4 color, and four uploaded defaults. The
+new loader performs eight attribute reads totaling 64 bytes. These are shader
+inputs from a discarded command-list prefix; they do not constitute draw execution.
+
+## Native vertex-shader execution and original-data proof
+
+`src/services/pica_vertex_shader.{h,cpp}` adds the bounded MOV, MUL, DPHI, MADI,
+CALLU and END instruction families. The stage tracks known components through
+input, temporary and output registers, applies operand swizzles/signs and write
+masks, follows conditional calls, and compacts enabled outputs in register order.
+Unknown program words, descriptors, uniforms or consumed components are explicit
+failures; no missing instruction is replaced with an implicit END. A selected
+boolean's byte must be established, even if the upload-observed flag is set.
+
+The numerical model follows the pinned reference's float32 containers, with a
+separate rounding boundary for each multiply and addition. It does not claim
+hardware float24 precision. Arithmetic requires nearest host rounding and finite
+normal/zero operands/results; subnormal, underflow and nonfinite arithmetic stop.
+MOV preserves raw bits. Relative addressing, geometry shaders, unsupported
+opcodes, ambiguous call boundaries and calls deeper than three remain unsupported.
+Host bounds are 1,024 executed instructions per vertex and 1,048,576 per plan.
+Source state is immutable and a failed stage preserves the prior output plan.
+
+The complete private original capture verified all 78 queue traces. Its first-draw
+prefix contains the four default uploads and the four vertices described above;
+the rejected queue and diagnostic replay leave registers, uploads, shared GSP
+memory, VRAM, requester event state and guest time unchanged. The final VRAM image
+matches the previous depth-fill-only capture. An earlier diagnostic attempt had
+one empty trace file and is explicitly marked failed/superseded; the complete
+capture uses checked atomic JSON writes and sequence-completeness verification.
+
+An offline helper then calls the actual production shader stage using those
+captured vertices and the unchanged uploaded shader program/descriptors/uniforms.
+Each vertex executes 18 instructions; all four produce five output vectors.
+All 80 output component bit patterns match an independent exact-rational oracle
+that rounds after every operation to binary32, ties to even. It independently
+checks 72 executed instructions, 144 multiplies and 96 additions. This is genuine
+shader execution in a read-only replay, not a committed GPU draw or rendered frame.
+
+The private checkpoint contains `evidence/captured-final-1z19nwkg/capture`, its
+`attribute-proof.json`, `evidence/shader-replay-x5bf1hxx/shader-proof.json`, the
+raw captures, authored replay/verification tools, and focused build/test receipts.
+Hosted checks and exact publication identity are recorded in the downloadable
+continuation receipt after publication. No raw captures are in public Git.
+
+## Immediate next work
+
+Implement primitive assembly and rasterization, starting from the already verified
+first-draw shader outputs. The captured configuration calls for a triangle strip,
+output-semantic mapping, clipping/viewport conversion, texture-disabled TEV
+combining, alpha blending and masked RGB writes into the tiled RGBA8 framebuffer.
+The viewport is 480 by 400; the framebuffer is 512 by 400. Depth/stencil writes
+and tests are disabled for this draw. The private
+`evidence/first-draw-raster-requirements.json` records decoded fields and their
+known-byte provenance; treat it as configuration evidence, not pixel results.
+
+The current recovered source has register/upload storage, vertex loading, bounded
+shader execution, fills and display transfers, but no complete draw pipeline.
+Do not acknowledge a draw or retire the queue until the required work is implemented.
+Private capture evidence must distinguish staged prefix attributes from live state.
+
+## Fresh recovery and reproduction
+
+Extract the new source/evidence archive into a new owned directory after its
+`verify_checkpoint.py` check passes. The archive contains `repo/` as an exact
+source snapshot, without Git metadata. For continued development, clone this
+GitHub repository with its real history, check out the receipt's commit, and
+compare its tree with `SOURCE-INDEX.json`; do not manufacture snapshot ancestry.
+Use the saved snapshot if GitHub is unavailable, while preserving the recorded
+commit/tree identity for later reconciliation.
+
+Materialize the separately saved inputs named in `evidence/recovery-inputs.json`
+under `recovered-inputs/LEGO-Chase-Recovery/`, retaining their subfolders. Verify
+code, ExHeader and AOT hashes from `evidence/restored-inputs.json`; the RomFS
+restoration tool verifies each part and the combined hash. No original CCI
+extraction or user re-upload is needed. Current helper layout:
+
+```
+repo/
+evidence/
+recovered-inputs/LEGO-Chase-Recovery/code.bin
+recovered-inputs/LEGO-Chase-Recovery/Prepared-Launch/exheader.bin
+recovered-inputs/LEGO-Chase-Recovery/Prepared-RomFS/romfs-parts.json
+recovered-inputs/LEGO-Chase-Recovery/Prepared-RomFS/LEGO-Chase-USA-romfs.bin.part001
+recovered-inputs/LEGO-Chase-Recovery/Prepared-RomFS/LEGO-Chase-USA-romfs.bin.part002
+restored-aot/generated2/
+romfs.bin
+build-current/
+```
+
+After checking the recorded AOT archive hash, extract its regular `generated2/`
+members into `restored-aot/`, rejecting absolute paths, parent traversal and links.
+Run these commands from the containing recovery directory with Python 3.12,
+CMake, Ninja, a C++20 compiler, Clang and `llvm-objdump` installed. Clang/LLVM are
+used only to regenerate the authenticated three-block AOT supplement at build time:
+
+```bash
+python3 repo/tools/restore_romfs_parts.py \
+  recovered-inputs/LEGO-Chase-Recovery/Prepared-RomFS/romfs-parts.json romfs.bin
+cmake -S repo -B build-current -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_TESTING=ON \
+  -DLEGO_AOT_DIR="$PWD/restored-aot/generated2" \
+  -DLEGO_SUPPLEMENT_CODE_BIN="$PWD/recovered-inputs/LEGO-Chase-Recovery/code.bin"
+cmake --build build-current --parallel 4
+ctest --test-dir build-current --output-on-failure
+python3 evidence/run_original.py restored-native build-current/LEGOChaseNative
+python3 evidence/startup_capture/build_capture.py --vertex-fetch
+python3 evidence/run_original.py restored-capture evidence/startup_capture/LEGOChaseCapture --capture
+```
+
+Verify the fresh printed capture directory with `verify_capture.py --require-vertex`
+and pass its first-draw candidate JSON to `run_shader_replay.py`; exact commands
+and scope are in `evidence/startup_capture/README.md`. The archived complete capture
+can also be replayed offline without rerunning the game. The native stop remains
+expected exit 3 at round 843. Each run wrapper creates fresh owned state; it does
+not reuse unknown saves. Old absolute paths in receipts are provenance, not
+mandatory locations. Compiled executables/libraries/objects and generated AOT are
+rebuilt; capture bytes, startup audio records, tools and verification are retained.
+
+## Reference pins
+
+- Azahar `86a9f9236ae42bb5a2b995dbc933d599d8ea07ac`,
+  `src/video_core/pica/pica_core.cpp`: default-index reset, FIFO ports, full-width
+  cursor increment, and default/immediate split.
+- Same pin, `src/video_core/pica/packed_attribute.h`: four float24 values in three
+  words; `src/video_core/pica_types.h`: lossless container conversion.
+- Same pin, `src/video_core/pica/vertex_loader.cpp`, `regs_pipeline.h`,
+  `regs_shader.h` and `shader_unit.cpp`: array layout, padding, component formats
+  and shader input-register mapping. The new loader is an independent bounded
+  implementation, with unsupported reference cases rejected explicitly.
+- [Azahar pinned source](https://github.com/azahar-emu/azahar/tree/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac),
+  `src/video_core/shader/shader_interpreter.cpp`, `pica_types.h` and
+  `pica/shader_unit.cpp`: arithmetic ordering, conditional calls and output mapping.
+- [nihstro pinned instruction format](https://github.com/neobrain/nihstro/blob/f4d8659decbfe5d234f04134b5002b82dc515a44/include/nihstro/shader_bytecode.h):
+  opcode families, operand widths, swizzle fields and flow-control encoding.
+- Citro3D `9f21cf7b380ce6f9e01a0420f19f0763e5443ca7`, `source/base.c` and
+  `source/immediate.c`: independent fixed-attribute upload and packing behavior.
+
+## Operating and recovery rules
+
+Continue in assistant cloud scratch with ordinary compiler/build tooling. Do not
+invoke Codex or operate the user's PC or Dot. Keep user-facing replies brief.
+Preserve private game data and raw captures outside public Git. Use the real Git
+history and non-forced publication; never replace it with snapshot ancestry.
+Save an updated handoff and a recoverable private source/evidence checkpoint after
+meaningful work. The prepared inputs below remain the recovery source of truth.
+
+The following October7 handoff is preserved as the verified predecessor, including
+input hashes and launch flags. Its old attribute stop and scratch paths are historical;
+the current stop is the draw request above. Use the new checkpoint receipt for
+current paths, source revision, checks and saved evidence.
+
+---
+
 # LEGO Chase Begins — canonical continuation handoff
 
 October 7, 2026. Continue in assistant scratch, NOT the user's PC or Work.

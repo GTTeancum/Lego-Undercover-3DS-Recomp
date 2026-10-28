@@ -7,6 +7,7 @@
 namespace lego::ctr {
 inline constexpr std::size_t kPicaGpuWords = 0x732;
 inline constexpr std::size_t kPicaInternalWords = 0x300;
+inline constexpr std::size_t kPicaDefaultAttributeCount = 15; // Index 15 selects immediate rendering.
 inline constexpr std::uint32_t kPicaMaxListBytes = 1024 * 1024; // Host work cap, not hardware.
 using PicaGpuRegisters = std::array<std::uint32_t,kPicaGpuWords>;
 
@@ -44,19 +45,40 @@ struct PicaProceduralUpload {
     PicaLookupUpload<256> color, color_difference;
     bool operator==(const PicaProceduralUpload&) const = default;
 };
+// Non-drawing default vertex inputs from the pinned reference's packed float24
+// ports. Raw component bits remain available alongside its IEEE32 containers.
+// Allocation zeros do not establish attributes or a selected index. Consumers
+// must check written; the full-width index lives in register 0x232. A full index
+// write establishes index_known, and successful partial vectors persist across
+// lists. Immediate-mode vertices and rendering are deliberately not represented.
+struct PicaDefaultAttributeUpload {
+    std::array<std::array<std::uint32_t,4>,kPicaDefaultAttributeCount> raw24{};
+    std::array<std::array<std::uint32_t,4>,kPicaDefaultAttributeCount> floats{};
+    std::bitset<kPicaDefaultAttributeCount> written{};
+    std::array<std::uint32_t,3> packed{};
+    std::uint32_t packed_count{};
+    bool index_known{};
+    bool operator==(const PicaDefaultAttributeUpload&) const = default;
+};
 struct PicaUploadState {
     PicaShaderUpload gs,vs;
     std::array<std::array<std::uint32_t,256>,24> lighting{};
     std::array<std::bitset<256>,24> lighting_written{};
     PicaProceduralUpload procedural{};
+    PicaDefaultAttributeUpload default_attributes{};
     std::bitset<kPicaInternalWords> registers_written{};
+    // Low four bits identify bytes established by command masks. A mask-zero
+    // write is observable above but establishes no register value here. These
+    // flags stage/rollback with the rest of the upload state; allocation zeros
+    // never establish fields consumed by a vertex/shader stage.
+    std::array<std::uint8_t,kPicaInternalWords> register_known_bytes{};
     std::uint32_t topology{}; // Empty primitive assembler; all draw paths stop.
     bool operator==(const PicaUploadState&) const = default;
 };
 struct PicaListResult {
     const char* error{};
     std::uint32_t byte_offset{},register_id{};
-    std::uint32_t packets{},writes{},program_words{},swizzle_words{},uniform_vectors{},lut_words{},procedural_words{},irqs{};
+    std::uint32_t packets{},writes{},program_words{},swizzle_words{},uniform_vectors{},lut_words{},procedural_words{},attribute_vectors{},irqs{};
     bool autostopped{};
 };
 struct PicaListPlan {
