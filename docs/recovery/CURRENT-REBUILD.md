@@ -1,3 +1,131 @@
+# October 28, 2026 — compressed textures and homogeneous clipping
+
+## Current result and next task
+
+The unchanged original game now passes the GPU request that blocked dispatch
+round **1529**. ETC1/ETC1A4 texture sampling and positive-W homogeneous clipping
+allow the observed draw at **0x12C0** to execute. The ordinary native run reaches
+dispatch round **1626**, guest time **652361036 ns**, and then stops on
+**fs:USER FormatSaveData**, request header **0x084C0242**. The stop is
+`UnsupportedIpc`, PC `0x0025947C`, detail `0x32`, thread 9.
+
+**Next task: implement the observed FormatSaveData operation after verifying its
+complete captured request and pinned filesystem semantics.** It requests the
+per-title SaveData archive. The configured fresh save container remains empty
+at this stop; no format operation or automatic save creation has been added.
+Preserve the distinction between unconfigured storage, a configured missing
+save, and an explicitly requested format. The final capture retains all twelve
+request words and the readable path transport. Use that complete private
+evidence and the next-blocker brief rather than the earlier partial trace.
+
+This milestone advances beyond the previously rejected GPU queue. It does not
+establish a visible scene, menu, audible playback or playable gameplay. The
+finite launch settings, original code/RomFS/ExHeader inputs and four authenticated
+build-time AOT supplements are unchanged. The final selective capture verifies
+accepted queue completion and complete equivalence with ordinary execution.
+Hosted CI results are recorded separately for the exact published revision.
+
+## Compressed texture behavior
+
+Texture0 now supports ETC1 (format 12) and ETC1A4 (format 13) alongside RGBA8
+and IA8. The independently authored decoder follows the pinned PICA little-endian
+4-by-4 block layout within 8-by-8 tiles, including individual and differential
+color modes, both partition orientations, modifier tables and selector order.
+ETC1 is opaque; ETC1A4 decodes independent four-bit alpha before filtering.
+Undefined differential endpoints stop without replacing output colors or
+wrapping into another compression mode.
+
+The staged source retains its encoded byte extent: ETC1 uses one half byte per
+texel and ETC1A4 one byte per texel. The complete encoded span drives source
+preflight, queue read dependencies and framebuffer feedback checks. Existing
+ordinary-2D, base-level-zero, power-of-two size, clamp-to-edge, matching filter,
+known-state and numeric guards remain in force. Sampling reads only the staged
+private-memory source or ordered disposable VRAM snapshot.
+
+## Canonical clipping behavior
+
+Position, preclamped primary color and enabled ordinary texture0 UV are
+validated before assembly. A primitive entirely outside one canonical plane
+still takes the arithmetic-free rejection path. Remaining positive-W crossings
+are clipped against the six strict planes before perspective division. Each
+generated intersection interpolates the consumed attributes and snaps exactly
+to its active plane. Equality stays inside; no epsilon is added.
+
+Each input primitive can produce at most nine polygon vertices and seven fan
+triangles. Boundary endpoints are reused, duplicate adjacent/closing vertices
+are removed, and transformed storage and generated triangles have explicit
+growth limits. The reported input-triangle count retains its earlier meaning.
+Fan triangles preserve culling and shared-edge behavior, and every bounding box
+counts against the existing draw and queue pixel-work budgets before fragments
+execute. All surviving screen coordinates must fit the configured framebuffer.
+Nonpositive W, unknown components, unsupported intermediate arithmetic, user
+clipping, scissor tests and framebuffer clipping remain explicit stops.
+
+No input register, shader output or source buffer is modified. A failure leaves
+the caller's previous output plan unchanged, and queue ownership still governs
+the eventual color/depth commit. The strict clipping and binary32 interpolation
+are declared emulator models, not measurements of PICA float24 or filter
+precision.
+
+## Verification and current evidence
+
+The complete **79-suite local gate passes**, with all configured names present
+in both the console log and JUnit output. Logs and XML were flushed and checked
+after writing, and source/native/library identities remained unchanged during
+the build and test gate. Authored cases cover compressed color/alpha decoding,
+tile/subblock addressing, exact encoded read spans, source dependencies,
+feedback rejection and queue rollback. Clipping cases check visible coverage,
+shared-edge blending, strip winding, exact boundary handling, fan work budgets,
+variable-W color/UV/depth goldens and late-failure output preservation.
+
+An initial ETC1A4-only replay verifies the complete **4096-byte** encoded source,
+all **4096 texel centers** and **409 fractional/clamp probes**: all **18020 RGBA
+output bytes** match an independent oracle. Its six original vertices and all
+**120 selected shader output components** are verified. That earlier replay
+correctly stops at the then-existing clipping guard and preserves VRAM. It is
+retained as an intermediate result with that exact scope.
+
+The combined clipping replay then executes the same original draw successfully.
+Its **two input triangles become three fan triangles**, with **8841 candidate
+pixel tests** and **3852 pixel writes**. The independent scalar oracle matches
+all **6291456 VRAM bytes** and the complete **409600-byte color patch**. Exactly
+**2110 RGB bytes** change; depth, stencil, destination alpha and uncovered bytes
+remain unchanged. All 120 shader components are again checked. The resulting
+VRAM SHA-256 is
+`75ad28f89a2ee1bad8ebb3d8638adc66c685407a055187ac6406066bac7f161c`.
+This is an offline staged-draw proof. The final selective capture separately
+ties that draw and the complete live queue to their committed results.
+
+The selective capture observes **264 GPU requests** while logging only queue
+**250** and final state. Queue 250 is accepted with **eight draws, 406 vertices,
+7308 shader instructions and 136 input triangles**. Its **316041 candidate
+pixel tests** produce **157452 covered/written pixels** across the complete
+list. The disposable execution matches the actual committed GPU registers,
+uploaded state, VRAM and queue result; the seventh draw matches the independent
+clipped oracle above. Complete normalized launch arguments/stdout, final CPU/IPC
+state and all **332096 audio bytes / 20754 records** match the ordinary run.
+No diagnostic image or buffer change is presented as a displayed game frame.
+
+Private receipts currently available:
+
+- `etc1-clip-build.json` and `etc1-clip-tests.{json,log,xml}`.
+- `etc1-replay-9k2158r8/{proof,receipt}.json` for the earlier sampler/guard proof.
+- `clip-intersections-replay-za2edw5z/{proof,receipt}.json` for the complete-byte clipped draw proof.
+- `etc1-clip-native-qm7bewl9/{receipt.json,stdout.txt}` for the ordinary run to FormatSaveData.
+- `etc1-clip-capture-z_od9jgr/` for accepted-queue, complete-run comparison and portable integrity proofs.
+- `next-format-save-data-blocker.json` for the observed next filesystem request and pinned semantics.
+
+Native SHA-256:
+`a1d7ad1f33b50eceba636dd3a97857be201e5df388e8df7a25041c6b140c0631`.
+CTR library SHA-256:
+`3ae63778db70cd4f76df932dabaa508d41a190a7445e14d1fe5cb5766568e187`.
+This work follows the separately published IA8 milestone
+`81b1414463b281dbbf9dcd633f95219b659d63a8`. Its captures, sampler proof and all
+earlier evidence limitations remain preserved below. The earlier incomplete
+Protect audio artifacts are unchanged.
+
+---
+
 # October 28, 2026 — IA8 texture sampling
 
 ## Current result and next task

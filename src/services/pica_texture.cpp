@@ -35,29 +35,87 @@ bool NormalOrZero(float value) noexcept {
 }
 float Mul(float a,float b) noexcept {volatile float out=a*b;return out;}
 float Add(float a,float b) noexcept {volatile float out=a+b;return out;}
-std::uint32_t TexelBytes(PicaTextureFormat format) noexcept {
+std::uint32_t TileBytes(PicaTextureFormat format) noexcept {
     switch (format) {
-    case PicaTextureFormat::RGBA8: return 4;
-    case PicaTextureFormat::IA8: return 2;
+    case PicaTextureFormat::RGBA8: return 256;
+    case PicaTextureFormat::IA8: return 128;
+    case PicaTextureFormat::ETC1: return 32;
+    case PicaTextureFormat::ETC1A4: return 64;
     }
     return 0;
 }
 
-Color Texel(const PicaTexturePlan& plan,std::uint32_t x,std::uint32_t y) noexcept {
+std::uint64_t Little64(const std::uint8_t* source) noexcept {
+    std::uint64_t value{};
+    for (unsigned byte=0;byte<8;++byte) value|=std::uint64_t(source[byte])<<(8*byte);
+    return value;
+}
+
+bool DecodeEtc1(std::uint64_t block,unsigned x,unsigned y,Color& color) noexcept {
+    // Independently authored from the ETC1 bit layout. PICA stores the word
+    // little-endian (unlike the Khronos upload byte stream). Flip changes the
+    // partition axis only; selectors and ETC1A4 alpha remain column-major.
+    constexpr std::array<std::array<int,2>,8> modifiers{{
+        {2,8},{5,17},{9,29},{13,42},{18,60},{24,80},{33,106},{47,183}}};
+    const bool second=((block>>32)&1U)?y>=2:x>=2;
+    const bool differential=((block>>33)&1U)!=0;
+    std::array<int,3> base{};
+    for (unsigned channel=0;channel<3;++channel) {
+        if (differential) {
+            const auto first=static_cast<int>((block>>(59-8*channel))&31U);
+            const auto encoded_delta=static_cast<int>((block>>(56-8*channel))&7U);
+            const auto delta=encoded_delta<4?encoded_delta:encoded_delta-8;
+            const auto next=first+delta;
+            // ETC1 defines the whole block as undefined when any differential
+            // endpoint leaves [0,31]. Do not wrap it or infer an ETC2 mode.
+            if (next<0 || next>31) return false;
+            const auto value=second?next:first;
+            base[channel]=(value<<3)|(value>>2);
+        } else {
+            const auto shift=(second?56U:60U)-8*channel;
+            base[channel]=static_cast<int>((block>>shift)&15U)*17;
+        }
+    }
+    const auto index=4*x+y;
+    const auto table=static_cast<unsigned>((block>>(second?34U:37U))&7U);
+    auto modifier=modifiers[table][(block>>index)&1U];
+    if ((block>>(index+16))&1U) modifier=-modifier;
+    for (unsigned channel=0;channel<3;++channel)
+        color[channel]=static_cast<std::uint8_t>(std::clamp(base[channel]+modifier,0,255));
+    return true;
+}
+
+bool Texel(const PicaTexturePlan& plan,std::uint32_t x,std::uint32_t y,Color& color) noexcept {
     // Clamp/wrap acts on logical coordinates before the storage Y inversion.
     const auto stored_y=plan.height-1-y;
     const auto tile=(stored_y/8)*(plan.width/8)+x/8;
+    const auto tile_bytes=TileBytes(plan.format);
+    if (plan.format==PicaTextureFormat::ETC1 || plan.format==PicaTextureFormat::ETC1A4) {
+        const bool has_alpha=plan.format==PicaTextureFormat::ETC1A4;
+        const auto subblock=(x%8)/4+2*((stored_y%8)/4);
+        const auto offset=tile*tile_bytes+subblock*(has_alpha?16U:8U);
+        const auto px=x%4,py=stored_y%4;
+        Color decoded{};
+        if (!DecodeEtc1(Little64(plan.bytes.data()+offset+(has_alpha?8:0)),px,py,decoded))
+            return false;
+        decoded[3]=has_alpha?static_cast<std::uint8_t>(
+            ((Little64(plan.bytes.data()+offset)>>(4*(4*px+py)))&15U)*17):255;
+        color=decoded;
+        return true;
+    }
     std::uint32_t morton{};
     for (unsigned bit=0;bit<3;++bit) {
         morton|=((x>>bit)&1U)<<(2*bit);
         morton|=((stored_y>>bit)&1U)<<(2*bit+1);
     }
-    const auto offset=(tile*64+morton)*TexelBytes(plan.format);
+    const auto offset=tile*tile_bytes+morton*(tile_bytes/64);
     if (plan.format==PicaTextureFormat::IA8) {
         const auto intensity=plan.bytes[offset+1];
-        return {intensity,intensity,intensity,plan.bytes[offset]};
+        color={intensity,intensity,intensity,plan.bytes[offset]};
+    } else {
+        color={plan.bytes[offset+3],plan.bytes[offset+2],plan.bytes[offset+1],plan.bytes[offset]};
     }
-    return {plan.bytes[offset+3],plan.bytes[offset+2],plan.bytes[offset+1],plan.bytes[offset]};
+    return true;
 }
 
 struct Axis {
@@ -94,9 +152,9 @@ bool StagePicaTexture0(const PicaGpuRegisters& registers,const PicaUploadState& 
     if ((reg(0x83)&0x71007700U) || (reg(0x84)&0x0F0F1FFFU))
         return fail("PICA texture0 requires ordinary 2D, base level0 and clamp-to-edge");
     const auto format=static_cast<PicaTextureFormat>(reg(0x8E)&15U);
-    const auto texel_bytes=TexelBytes(format);
-    if (!texel_bytes)
-        return fail("PICA texture0 format is outside the supported RGBA8/IA8 slice");
+    const auto tile_bytes=TileBytes(format);
+    if (!tile_bytes)
+        return fail("PICA texture0 format is outside the supported RGBA8/IA8/ETC1/ETC1A4 slice");
     const auto magnify=(reg(0x83)>>1)&1U,minify=(reg(0x83)>>2)&1U;
     if (magnify!=minify)
         return fail("PICA texture0 requires identical minification and magnification filters");
@@ -106,7 +164,7 @@ bool StagePicaTexture0(const PicaGpuRegisters& registers,const PicaUploadState& 
     staged.width=(reg(0x82)>>16)&0x7FFU;staged.height=reg(0x82)&0x7FFU;
     if (!Dimensions(staged.width,staged.height))
         return fail("PICA texture0 dimensions are outside supported power-of-two bounds");
-    const auto bytes=std::uint64_t(staged.width)*staged.height*texel_bytes;
+    const auto bytes=std::uint64_t(staged.width/8)*(staged.height/8)*tile_bytes;
     if (bytes>kPicaTextureMaxBytes)
         return fail("PICA texture0 exceeds the host byte bound");
     const auto physical=(reg(0x85)&0x0FFFFFFFU)*8U;
@@ -145,22 +203,27 @@ bool SamplePicaTexture(const PicaTexturePlan& plan,float u,float v,
     const auto fail=[&](const char* message){error=message;return false;};
     if (!Dimensions(plan.width,plan.height))
         return fail("PICA texture sample has invalid staged dimensions");
-    const auto texel_bytes=TexelBytes(plan.format);
-    const auto bytes=std::uint64_t(plan.width)*plan.height*texel_bytes;
-    if (!texel_bytes || bytes>kPicaTextureMaxBytes || plan.bytes.size()!=bytes || plan.read.bytes!=bytes ||
+    const auto tile_bytes=TileBytes(plan.format);
+    const auto bytes=std::uint64_t(plan.width/8)*(plan.height/8)*tile_bytes;
+    if (!tile_bytes || bytes>kPicaTextureMaxBytes || plan.bytes.size()!=bytes || plan.read.bytes!=bytes ||
         (plan.filter!=PicaTextureFilter::Nearest && plan.filter!=PicaTextureFilter::Linear))
         return fail("PICA texture sample has an invalid staged format, extent or filter");
     if (!NormalOrZero(u) || !NormalOrZero(v) || std::fegetround()!=FE_TONEAREST)
         return fail("PICA texture sample requires finite normal/zero coordinates and nearest host rounding");
+    const auto tap=[&](std::uint32_t x,std::uint32_t y,Color& value) {
+        if (!Texel(plan,x,y,value)) return fail("PICA ETC1 block has undefined differential endpoints");
+        return true;
+    };
     Color sampled{};
     if (plan.filter==PicaTextureFilter::Nearest) {
         const auto x=static_cast<std::uint32_t>(Mul(std::clamp(u,0.0f,1.0f),static_cast<float>(plan.width)));
         const auto y=static_cast<std::uint32_t>(Mul(std::clamp(v,0.0f,1.0f),static_cast<float>(plan.height)));
-        sampled=Texel(plan,std::min(x,plan.width-1),std::min(y,plan.height-1));
+        if (!tap(std::min(x,plan.width-1),std::min(y,plan.height-1),sampled)) return false;
     } else {
         const auto x=LinearAxis(u,plan.width),y=LinearAxis(v,plan.height);
-        const auto a=Texel(plan,x.first,y.first),b=Texel(plan,x.second,y.first);
-        const auto c=Texel(plan,x.first,y.second),d=Texel(plan,x.second,y.second);
+        Color a{},b{},c{},d{};
+        if (!tap(x.first,y.first,a) || !tap(x.second,y.first,b) ||
+            !tap(x.first,y.second,c) || !tap(x.second,y.second,d)) return false;
         for (unsigned channel=0;channel<4;++channel) {
             const auto low=Lerp(static_cast<float>(a[channel]),static_cast<float>(b[channel]),x.fraction);
             const auto high=Lerp(static_cast<float>(c[channel]),static_cast<float>(d[channel]),x.fraction);

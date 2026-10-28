@@ -75,8 +75,28 @@ struct Arithmetic {
     }
 };
 
+// A triangle intersected by six half-spaces has at most3+6 polygon vertices.
+// These are host staging bounds, not a claim about PICA hardware resources.
+constexpr std::size_t kClipPolygonVertices=9;
+constexpr std::size_t kClipFanTriangles=kClipPolygonVertices-2;
+struct ClipVertex {
+    std::array<float,4> position{},color{};
+    std::array<float,2> texture{};
+    bool operator==(const ClipVertex&) const = default;
+};
+std::uint8_t OutsidePlanes(const ClipVertex& vertex) {
+    const auto& p=vertex.position;const auto w=p[3];
+    return static_cast<std::uint8_t>((p[0]<-w?1U:0U)|(p[0]>w?2U:0U)|
+        (p[1]<-w?4U:0U)|(p[1]>w?8U:0U)|(p[2]<-w?16U:0U)|(p[2]>0?32U:0U));
+}
+float PlaneDistance(const ClipVertex& vertex,unsigned plane,Arithmetic& math) {
+    const auto& p=vertex.position;
+    if (plane==5) return -p[2];
+    const auto coordinate=p[plane/2];
+    return math.Add(p[3],(plane&1U)?-coordinate:coordinate);
+}
+
 struct Vertex {
-    std::uint8_t outside_planes{};
     std::int32_t x{},y{}; // 12.4 raster coordinates, within the supported framebuffer.
     float inverse_w{};
     std::array<float,4> color_over_w{};
@@ -167,6 +187,7 @@ struct Rasterizer {
     PicaRasterPlan staged;
     PicaTexturePlan texture;
     std::array<TevStage,6> tev{};
+    std::vector<ClipVertex> clip_vertices;
     std::vector<Vertex> vertices;
     std::vector<Triangle> triangles;
     std::array<std::uint32_t,7> mappings{};
@@ -351,7 +372,7 @@ struct Rasterizer {
     }
 
     bool Transform() {
-        vertices.reserve(shader.vertices.size());
+        clip_vertices.reserve(shader.vertices.size());
         for (const auto& shaded:shader.vertices) {
             // Unmapped output semantics have the reference's hardware-tested
             // value1. A mapped but unwritten shader component remains unknown.
@@ -371,47 +392,127 @@ struct Rasterizer {
                 for (unsigned component=0;component<2;++component)
                     if (!known[12+component] || !NormalOrZero(slots[12+component]))
                         return Fail("PICA raster texture coordinate is unknown or unsupported");
-            const auto x=slots[0],y=slots[1],z=slots[2],w=slots[3];
-            if (w<=0) return Fail("PICA raster clipping requires unsupported nonpositive W");
-            Vertex vertex;
-            vertex.outside_planes=static_cast<std::uint8_t>((x < -w?1U:0U)|(x>w?2U:0U)|
-                (y < -w?4U:0U)|(y>w?8U:0U)|(z < -w?16U:0U)|(z>0?32U:0U));
-            // A homogeneous plane distance is affine over a triangle. Three
-            // outside endpoints on the same side prove rejection without any
-            // intersection or perspective conversion. Assemble makes that
-            // per-primitive decision; an outside endpoint alone proves nothing.
-            if (vertex.outside_planes) { vertices.push_back(vertex); continue; }
-            Arithmetic math;vertex.inverse_w=math.Divide(1,w);
-            if (depth_test||depth_write) vertex.z_over_w=math.Mul(z,vertex.inverse_w);
-            if (texture_enabled) {
-                for (unsigned component=0;component<2;++component) {
-                    vertex.texture_over_w[component]=math.Mul(slots[12+component],vertex.inverse_w);
-                }
-            }
-            const auto screen_x=math.Add(math.Mul(math.Add(math.Mul(x,vertex.inverse_w),1),half_x),static_cast<float>(corner_x));
-            const auto screen_y=math.Add(math.Mul(math.Add(math.Mul(y,vertex.inverse_w),1),half_y),static_cast<float>(corner_y));
-            const auto fixed_x=math.Mul(screen_x,16),fixed_y=math.Mul(screen_y,16);
-            if (!math.valid || fixed_x<0 || fixed_y<0 || fixed_x>staged.width*16U || fixed_y>staged.height*16U)
-                return Fail("PICA raster transformed position exceeds the supported framebuffer");
-            vertex.x=static_cast<std::int32_t>(std::round(fixed_x));
-            vertex.y=static_cast<std::int32_t>(std::round(fixed_y));
+            if (slots[3]<=0) return Fail("PICA raster clipping requires unsupported nonpositive W");
+            ClipVertex vertex;
+            for (unsigned component=0;component<4;++component) vertex.position[component]=slots[component];
+            // The pinned output-vertex policy applies abs/saturation before
+            // all interpolation, including newly introduced clip vertices.
             for (unsigned channel=0;channel<4;++channel)
-                vertex.color_over_w[channel]=math.Mul(std::min(1.0f,std::fabs(slots[8+channel])),vertex.inverse_w);
-            if (!math.valid) return Fail("PICA raster perspective conversion exceeds supported finite arithmetic");
-            vertices.push_back(vertex);
+                vertex.color[channel]=std::min(1.0f,std::fabs(slots[8+channel]));
+            if (texture_enabled)
+                for (unsigned component=0;component<2;++component) vertex.texture[component]=slots[12+component];
+            clip_vertices.push_back(vertex);
         }
         return true;
     }
 
+    bool Intersection(const ClipVertex& inside,const ClipVertex& outside,
+                      unsigned plane,ClipVertex& output) {
+        Arithmetic math;
+        const auto in_distance=PlaneDistance(inside,plane,math);
+        const auto out_distance=PlaneDistance(outside,plane,math);
+        if (!math.valid || in_distance<0 || out_distance>=0)
+            return Fail("PICA raster clip distance exceeds supported finite arithmetic");
+        // Reuse exact boundary endpoints. Emitting them twice would create
+        // artificial polygon growth and an unnecessary zero-length edge.
+        if (in_distance==0) {output=inside;return true;}
+        const auto denominator=math.Add(in_distance,-out_distance);
+        const auto outside_weight=math.Divide(in_distance,denominator);
+        const auto inside_weight=math.Add(1,-outside_weight);
+        if (!math.valid || outside_weight<=0 || outside_weight>=1 || inside_weight<=0)
+            return Fail("PICA raster clip intersection ratio exceeds supported finite arithmetic");
+        // Always order the endpoints inside/outside, independent of edge
+        // traversal. Shared edges therefore generate the same binary32 vertex.
+        const auto interpolate=[&](float a,float b) {
+            if (a==b) return a; // Preserve constant varyings and exact plane coordinates.
+            return math.Add(math.Mul(a,inside_weight),math.Mul(b,outside_weight));
+        };
+        ClipVertex intersection;
+        for (unsigned component=0;component<4;++component) {
+            intersection.position[component]=interpolate(inside.position[component],outside.position[component]);
+            intersection.color[component]=interpolate(inside.color[component],outside.color[component]);
+        }
+        if (texture_enabled)
+            for (unsigned component=0;component<2;++component)
+                intersection.texture[component]=interpolate(inside.texture[component],outside.texture[component]);
+        if (!math.valid || intersection.position[3]<=0)
+            return Fail("PICA raster clip interpolation exceeds supported finite arithmetic");
+        // The intersection lies on this exact canonical plane. Explicitly
+        // restore that equality after rounded interpolation, without epsilon.
+        if (plane==5) intersection.position[2]=0;
+        else intersection.position[plane/2]=(plane&1U)?intersection.position[3]:-intersection.position[3];
+        output=intersection;
+        return true;
+    }
+
+    bool Clip(std::array<ClipVertex,kClipPolygonVertices>& polygon,std::size_t& count) {
+        // Preserve the pinned plane order while retaining the existing strict
+        // positive-W canonical volume. No epsilon or W-crossing approximation.
+        constexpr std::array<unsigned,6> planes{1,0,3,2,5,4};
+        for (const auto plane:planes) {
+            std::array<ClipVertex,kClipPolygonVertices> next{};
+            std::size_t next_count{};
+            const auto emit=[&](const ClipVertex& vertex) {
+                if (next_count && next[next_count-1]==vertex) return true;
+                if (next_count==next.size()) return Fail("PICA raster clipped polygon exceeds its vertex capacity");
+                next[next_count++]=vertex;return true;
+            };
+            const ClipVertex* previous=&polygon[count-1];
+            bool previous_inside=!(OutsidePlanes(*previous)&(1U<<plane));
+            for (std::size_t index=0;index<count;++index) {
+                const auto& current=polygon[index];
+                const bool current_inside=!(OutsidePlanes(current)&(1U<<plane));
+                if (previous_inside!=current_inside) {
+                    ClipVertex intersection;
+                    if (!Intersection(current_inside?current:*previous,
+                                      current_inside?*previous:current,plane,intersection) ||
+                        !emit(intersection)) return false;
+                }
+                if (current_inside && !emit(current)) return false;
+                previous=&current;previous_inside=current_inside;
+            }
+            if (next_count>1 && next[0]==next[next_count-1]) --next_count;
+            if (next_count>count+1)
+                return Fail("PICA raster clipped polygon exceeds convex growth bounds");
+            polygon=next;count=next_count;
+            if (count<3) return true;
+        }
+        return true;
+    }
+
+    bool Project(const ClipVertex& clipped,Vertex& vertex) {
+        if (OutsidePlanes(clipped) || clipped.position[3]<=0)
+            return Fail("PICA raster clipped position remains outside the canonical volume");
+        const auto& position=clipped.position;
+        Arithmetic math;vertex.inverse_w=math.Divide(1,position[3]);
+        if (depth_test||depth_write) vertex.z_over_w=math.Mul(position[2],vertex.inverse_w);
+        if (texture_enabled)
+            for (unsigned component=0;component<2;++component)
+                vertex.texture_over_w[component]=math.Mul(clipped.texture[component],vertex.inverse_w);
+        const auto screen_x=math.Add(math.Mul(math.Add(math.Mul(position[0],vertex.inverse_w),1),half_x),static_cast<float>(corner_x));
+        const auto screen_y=math.Add(math.Mul(math.Add(math.Mul(position[1],vertex.inverse_w),1),half_y),static_cast<float>(corner_y));
+        const auto fixed_x=math.Mul(screen_x,16),fixed_y=math.Mul(screen_y,16);
+        if (!math.valid || fixed_x<0 || fixed_y<0 || fixed_x>staged.width*16U || fixed_y>staged.height*16U)
+            return Fail("PICA raster transformed position exceeds the supported framebuffer");
+        vertex.x=static_cast<std::int32_t>(std::round(fixed_x));
+        vertex.y=static_cast<std::int32_t>(std::round(fixed_y));
+        for (unsigned channel=0;channel<4;++channel)
+            vertex.color_over_w[channel]=math.Mul(clipped.color[channel],vertex.inverse_w);
+        if (!math.valid) return Fail("PICA raster perspective conversion exceeds supported finite arithmetic");
+        return true;
+    }
+
     bool Assemble() {
+        const auto input_triangles=topology==0?clip_vertices.size()/3:
+            (clip_vertices.size()<3?0:clip_vertices.size()-2);
+        const auto vertex_limit=input_triangles*kClipPolygonVertices;
+        const auto triangle_limit=input_triangles*kClipFanTriangles;
+        vertices.reserve(vertex_limit);triangles.reserve(triangle_limit);
+        std::size_t generated_triangles{};
         const auto append=[&](std::array<std::size_t,3> indices)->bool {
-            ++staged.triangles;
-            const auto a_planes=vertices[indices[0]].outside_planes;
-            const auto b_planes=vertices[indices[1]].outside_planes;
-            const auto c_planes=vertices[indices[2]].outside_planes;
-            if (a_planes&b_planes&c_planes) { ++staged.triangles_outside; return true; }
-            if (a_planes|b_planes|c_planes)
-                return Fail("PICA raster clipping intersections are outside the supported homogeneous slice");
+            if (generated_triangles==triangle_limit)
+                return Fail("PICA raster clipped triangles exceed staging capacity");
+            ++generated_triangles;
             auto area=Edge(vertices[indices[0]],vertices[indices[1]],vertices[indices[2]].x,vertices[indices[2]].y);
             if (!area || (cull==1 && area>0) || (cull==2 && area<0)) return true;
             if (area<0) std::swap(indices[1],indices[2]);
@@ -431,11 +532,36 @@ struct Rasterizer {
             staged.pixels_tested+=static_cast<std::uint32_t>(tests);triangles.push_back(triangle);
             return true;
         };
+        const auto primitive=[&](std::array<std::size_t,3> indices)->bool {
+            ++staged.triangles; // Original assembled primitives, before clipping/fan expansion.
+            const auto a_planes=OutsidePlanes(clip_vertices[indices[0]]);
+            const auto b_planes=OutsidePlanes(clip_vertices[indices[1]]);
+            const auto c_planes=OutsidePlanes(clip_vertices[indices[2]]);
+            // Keep the arithmetic-free common-plane rejection, including very
+            // large finite outside coordinates whose distance sums may overflow.
+            if (a_planes&b_planes&c_planes) {++staged.triangles_outside;return true;}
+            std::array<ClipVertex,kClipPolygonVertices> polygon{};
+            for (unsigned index=0;index<3;++index) polygon[index]=clip_vertices[indices[index]];
+            std::size_t count=3;
+            if ((a_planes|b_planes|c_planes) && !Clip(polygon,count)) return false;
+            if (count<3) {++staged.triangles_outside;return true;}
+            if (count>kClipPolygonVertices || count>vertex_limit || vertices.size()>vertex_limit-count)
+                return Fail("PICA raster transformed vertices exceed staging capacity");
+            const auto first=vertices.size();
+            for (std::size_t index=0;index<count;++index) {
+                Vertex vertex;
+                if (!Project(polygon[index],vertex)) return false;
+                vertices.push_back(vertex);
+            }
+            for (std::size_t index=1;index+1<count;++index)
+                if (!append({first,first+index,first+index+1})) return false;
+            return true;
+        };
         if (topology==0) {
-            for (std::size_t i=0;i<vertices.size();i+=3) if (!append({i,i+1,i+2})) return false;
+            for (std::size_t i=0;i<clip_vertices.size();i+=3) if (!primitive({i,i+1,i+2})) return false;
         } else {
-            for (std::size_t i=2;i<vertices.size();++i)
-                if (!append((i&1U)?std::array<std::size_t,3>{i-1,i-2,i}:
+            for (std::size_t i=2;i<clip_vertices.size();++i)
+                if (!primitive((i&1U)?std::array<std::size_t,3>{i-1,i-2,i}:
                                    std::array<std::size_t,3>{i-2,i-1,i})) return false;
         }
         return true;

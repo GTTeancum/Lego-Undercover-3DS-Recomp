@@ -96,8 +96,18 @@ struct Fixture {
         Set(0x85,(private_texture?kTextureVa-0x14000000U+0x20000000U:kGpuVramPhysicalBase+kTexture)/8);
         Set(0xC0,0x00030003); // Replace RGB and alpha with texture0.
         const bool ia8=texture_format==5;
-        std::vector<std::uint8_t> texture(ia8?512:1024);
-        for(unsigned i=0;i<texture.size();i+=ia8?2:4) {
+        const bool etc=texture_format==12 || texture_format==13;
+        const bool etc_alpha=texture_format==13;
+        std::vector<std::uint8_t> texture(etc?(etc_alpha?256:128):(ia8?512:1024));
+        if(etc) {
+            // Hand-authored uniform ETC block: both RGB bases3*17 with
+            // modifier+2 produce53. A4 nibble8 gives alpha136; ETC1 is opaque.
+            constexpr std::array<std::uint8_t,8> rgb{0,0,0,0,0,0x33,0x33,0x33};
+            for(unsigned offset=0;offset<texture.size();offset+=etc_alpha?16:8) {
+                if(etc_alpha)for(unsigned i=0;i<8;++i)texture[offset+i]=0x88;
+                for(unsigned i=0;i<8;++i)texture[offset+(etc_alpha?8:0)+i]=rgb[i];
+            }
+        } else for(unsigned i=0;i<texture.size();i+=ia8?2:4) {
             texture[i]=0x80;texture[i+1]=ia8?0x40:0x30;
             if(!ia8) {texture[i+2]=0x20;texture[i+3]=0x10;}
         }
@@ -265,10 +275,48 @@ void Ia8EncodedSpansAndFeedback() {
     feedback.Set(0x85,(kGpuVramPhysicalBase+kFramebuffer-512+8)/8);
     feedback.Draw();feedback.Submit();feedback.Stop("texture source overlaps");
 }
+
+void EtcRealPixelsAndEncodedDependencies() {
+    for(const unsigned format:{12U,13U}) {
+        const unsigned encoded_bytes=format==13?256:128;
+        // The full authored quad covers64 pixels. An immediately adjacent
+        // FCRAM transfer must not overlap the compressed source's encoded span.
+        Fixture f;f.TexturedDepth(true,format);f.Draw();f.Irq();f.Submit(1,2);
+        f.PacketAt(0,{3,kGpuVramVirtualBase+kTransfer,kTextureVa+encoded_bytes,
+                     0x80008,0x80008,0x4400,0,0});
+        const auto source=f.PrivateBytes(kTextureVa,encoded_bytes);
+        f.Success();
+        if(format==13)f.Pixels({0x55,75,83,91}); // floor((53*136+destination*119)/255).
+        else f.Pixels({0x55,53,53,53}); // Opaque ETC1 replaces all enabled RGB.
+        f.DepthPixels();
+        CHECK(f.gpu->last_pica_result().pixels_covered==64 &&
+              f.gpu->last_pica_result().pixels_written==64 && f.gpu->last_pica_result().draws==1);
+        CHECK(f.PrivateBytes(kTextureVa,encoded_bytes)==source);
+        CHECK(f.PrivateBytes(kTextureVa+encoded_bytes,128)==std::vector<std::uint8_t>(128,0xA5));
+        CHECK(f.Page()[1]==2 && f.Page()[12]==4 && f.Page()[13]==5 && f.event->signaled());
+
+        Fixture overlap;overlap.TexturedDepth(true,format);overlap.Draw();overlap.Submit(1,2);
+        overlap.PacketAt(0,{3,kGpuVramVirtualBase+kTransfer,kTextureVa+encoded_bytes-8,
+                           0x80008,0x80008,0x4400,0,0});
+        const auto before=overlap.PrivateBytes(kTextureVa,encoded_bytes);
+        overlap.Stop("PICA texture source depends on an earlier staged FCRAM transfer");
+        CHECK(overlap.PrivateBytes(kTextureVa,encoded_bytes)==before);
+    }
+    // A reached undefined differential block stops the actual queue without
+    // committing framebuffer/depth, register, IRQ or request progress.
+    Fixture bad;bad.TexturedDepth(false,13);
+    std::vector<std::uint8_t> invalid(256,0xFF);
+    constexpr std::array<std::uint8_t,8> bad_rgb{0,0,0,0,2,0,0,7};
+    for(unsigned offset=0;offset<invalid.size();offset+=16)
+        for(unsigned i=0;i<8;++i)invalid[offset+8+i]=bad_rgb[i];
+    CHECK(bad.bank->Write(kTexture,invalid));bad.Draw();bad.Irq();bad.Submit();
+    bad.Stop("undefined differential");
+}
 } // namespace
 
 int main(){RealPixelsThenIrq();WholeQueueRollback();OrderedDrawsAndTransfers();FillForwardingAndPrivateSourceGuard();
     TextureSnapshotAndDepthWrites();TextureFcramDependenciesAndRollback();Ia8EncodedSpansAndFeedback();
+    EtcRealPixelsAndEncodedDependencies();
     if(failures)return EXIT_FAILURE;
     std::cout<<"PASS: native draw/texture/depth bytes, ordered device staging, restart, IRQ and complete-queue rollback\n";
 }

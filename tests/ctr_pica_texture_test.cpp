@@ -63,6 +63,44 @@ std::vector<std::uint8_t> AuthoredIa8Texture() {
     return bytes;
 }
 
+void StoreLittle64(std::vector<std::uint8_t>& bytes,unsigned offset,std::uint64_t value) {
+    CHECK(offset+8<=bytes.size());
+    if (offset+8>bytes.size())return;
+    for (unsigned i=0;i<8;++i)bytes[offset+i]=static_cast<std::uint8_t>(value>>(8*i));
+}
+std::vector<std::uint8_t> AuthoredEtcBlock(bool alpha,std::uint64_t rgb,
+                                        std::uint64_t a=0xFEDCBA9876543210ULL) {
+    // One8x8 tile, with four identical hand-authored4x4 blocks. PICA stores
+    // little-endian alpha before RGB; no production encoder/decoder is used.
+    std::vector<std::uint8_t> bytes(alpha?64:32);
+    for (unsigned offset=0;offset<bytes.size();offset+=alpha?16:8) {
+        if (alpha)StoreLittle64(bytes,offset,a);
+        StoreLittle64(bytes,offset+(alpha?8:0),rgb);
+    }
+    return bytes;
+}
+std::vector<std::uint8_t> AuthoredEtcSeams(bool alpha) {
+    std::vector<std::uint8_t> bytes(alpha?256:128);
+    if (alpha)for (unsigned offset=0;offset<bytes.size();offset+=16)
+        StoreLittle64(bytes,offset,0xFFFFFFFFFFFFFFFFULL);
+    // Literal block offsets for logical(7,7),(8,7),(7,8),(8,8), spanning
+    // four8x8 tiles after Y inversion. Both partitions use the same authored
+    // base; modifier+2 gives RGB19,53,87,121. Alpha is17,85,153,221.
+    constexpr std::array<unsigned,4> with_alpha{144,192,48,96},opaque{72,96,24,48};
+    constexpr std::array<std::uint64_t,4> colors{
+        0x1111110000000000ULL,0x3333330000000000ULL,
+        0x5555550000000000ULL,0x7777770000000000ULL};
+    constexpr std::array<std::uint64_t,4> alphas{
+        0x1111111111111111ULL,0x5555555555555555ULL,
+        0x9999999999999999ULL,0xDDDDDDDDDDDDDDDDULL};
+    for (unsigned i=0;i<4;++i) {
+        const auto offset=alpha?with_alpha[i]:opaque[i];
+        if (alpha)StoreLittle64(bytes,offset,alphas[i]);
+        StoreLittle64(bytes,offset+(alpha?8:0),colors[i]);
+    }
+    return bytes;
+}
+
 struct Fixture {
     GuestMemory memory;
     PicaGpuRegisters regs{};
@@ -213,6 +251,109 @@ void Ia8EncodedExtentAndFailures() {
     f.plan.read.bytes=1024;RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
 }
 
+void EtcWordsModesAndAlpha() {
+    Fixture f;f.Set(0x82,0x00080008);f.Set(0x83,0,11);f.Set(0x8E,13,1);
+    // Individual bases(17,34,51)/(68,85,102), tables0/1. Four authored
+    // selectors exercise +2,+8,-2,-8. These words contain no game data.
+    CHECK(f.bank->Write(kOffset,AuthoredEtcBlock(true,0x14253604000C000AULL)));
+    if (!f.Good())return;
+    CHECK(f.plan.format==PicaTextureFormat::ETC1A4 && f.plan.bytes.size()==64);
+    Sample(f.plan,0.5f/8,7.5f/8,{19,36,53,0});
+    Sample(f.plan,0.5f/8,6.5f/8,{25,42,59,17});
+    Sample(f.plan,0.5f/8,5.5f/8,{15,32,49,34});
+    Sample(f.plan,0.5f/8,4.5f/8,{9,26,43,51});
+    Sample(f.plan,2.5f/8,7.5f/8,{73,90,107,136});
+
+    // Flip changes the partition, never the selector or alpha index.
+    CHECK(f.bank->Write(kOffset,AuthoredEtcBlock(true,0x14253605000C000AULL)));
+    if (!f.Good())return;
+    Sample(f.plan,0.5f/8,5.5f/8,{63,80,97,34});
+    Sample(f.plan,2.5f/8,7.5f/8,{19,36,53,136});
+
+    // Differential bases(10,12,14), deltas(-4,+3,-1): expand5bits only
+    // after adding. Both differential flip values have literal RGB goldens.
+    CHECK(f.bank->Write(kOffset,AuthoredEtcBlock(true,0x5463770600000000ULL)));
+    if (!f.Good())return;
+    Sample(f.plan,0.5f/8,7.5f/8,{84,101,117,0});
+    Sample(f.plan,2.5f/8,7.5f/8,{54,128,112,136});
+    CHECK(f.bank->Write(kOffset,AuthoredEtcBlock(true,0x5463770700000000ULL)));
+    if (!f.Good())return;
+    Sample(f.plan,0.5f/8,5.5f/8,{54,128,112,34});
+
+    // Table7 large modifiers(-183,+183) saturate at both byte endpoints.
+    CHECK(f.bank->Write(kOffset,AuthoredEtcBlock(true,0x0F0F0FFC00010101ULL)));
+    if (!f.Good())return;
+    Sample(f.plan,0.5f/8,7.5f/8,{0,0,0,0});
+    Sample(f.plan,2.5f/8,7.5f/8,{255,255,255,136});
+    f.Set(0x8E,12,1);
+    CHECK(f.bank->Write(kOffset,AuthoredEtcBlock(false,0x14253604000C000AULL)));
+    if (!f.Good())return;
+    CHECK(f.plan.format==PicaTextureFormat::ETC1 && f.plan.bytes.size()==32);
+    Sample(f.plan,0.5f/8,7.5f/8,{19,36,53,255});
+    Sample(f.plan,0.5f/8,4.5f/8,{9,26,43,255});
+}
+
+void EtcTilesFiltersAndEncodedSpans() {
+    for (const unsigned format:{12U,13U}) {
+        const bool alpha=format==13;const auto texture=AuthoredEtcSeams(alpha);
+        const unsigned count=alpha?256:128;
+        Fixture f;f.Set(0x8E,format,1);f.Set(0x83,0,11);
+        CHECK(f.bank->Write(kOffset,texture));if (!f.Good())return;
+        CHECK(f.plan.bytes==texture && f.plan.read.bytes==count);
+        Sample(f.plan,7.5f/16,7.5f/16,{19,19,19,static_cast<std::uint8_t>(alpha?17:255)});
+        Sample(f.plan,8.5f/16,7.5f/16,{53,53,53,static_cast<std::uint8_t>(alpha?85:255)});
+        Sample(f.plan,7.5f/16,8.5f/16,{87,87,87,static_cast<std::uint8_t>(alpha?153:255)});
+        Sample(f.plan,8.5f/16,8.5f/16,{121,121,121,static_cast<std::uint8_t>(alpha?221:255)});
+        f.Set(0x83,6,11);if (!f.Good())return;
+        Sample(f.plan,0.5f,7.5f/16,{36,36,36,static_cast<std::uint8_t>(alpha?51:255)});
+        Sample(f.plan,0.5f,0.5f,{70,70,70,static_cast<std::uint8_t>(alpha?119:255)});
+        Sample(f.plan,7.75f/16,8.25f/16,{79,79,79,static_cast<std::uint8_t>(alpha?136:255)});
+        Sample(f.plan,-4,-2,{2,2,2,255});Sample(f.plan,4,2,{2,2,2,255});
+
+        // Exact encoded backing must suffice: ETC1 occupies half a byte per
+        // texel, ETC1A4 one byte, despite producing four-channel samples.
+        CHECK(f.memory.Map(kPrivateVa,count,kRw));CHECK(f.memory.LoadBytes(kPrivateVa,texture));
+        CHECK(!f.memory.IsMapped(kPrivateVa+count));f.Set(0x85,kPrivatePhysical/8);
+        if (!f.Good(&f.memory))return;
+        CHECK((f.plan.read==PicaTextureReadSpan{kPrivatePhysical,count}) && f.plan.bytes==texture);
+        GuestMemory short_source;CHECK(short_source.Map(kPrivateVa,count-1,kRw));f.Stop(&short_source);
+        const auto end_address=kGpuVramPhysicalBase+kGpuVramBytes-count;
+        CHECK(f.bank->Write(kGpuVramBytes-count,texture));f.Set(0x85,end_address/8);
+        if (!f.Good())return;
+        CHECK(f.plan.bytes==texture && f.plan.read.bytes==count);
+        f.Set(0x85,(end_address+8)/8);f.Stop();
+        const auto saved=f.plan;
+        f.plan.bytes.pop_back();RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
+        ++f.plan.read.bytes;RejectSample(f.plan,0.5f,0.5f);f.plan=saved;
+        f.plan.format=alpha?PicaTextureFormat::ETC1:PicaTextureFormat::ETC1A4;
+        RejectSample(f.plan,0.5f,0.5f);
+    }
+}
+
+void EtcUndefinedDifferentialIsAtomic() {
+    // Underflow/overflow in each of R,G,B. Every sample is in the FIRST
+    // partition: an invalid unused second endpoint still invalidates the block.
+    constexpr std::array<std::uint64_t,6> invalid{
+        0x0700000200000000ULL,0xF900000200000000ULL,
+        0x0007000200000000ULL,0x00F9000200000000ULL,
+        0x0000070200000000ULL,0x0000F90200000000ULL};
+    for (const unsigned format:{12U,13U}) {
+        Fixture f;f.Set(0x82,0x00080008);f.Set(0x83,0,11);f.Set(0x8E,format,1);
+        for (const auto word:invalid) {
+            CHECK(f.bank->Write(kOffset,AuthoredEtcBlock(format==13,word)));
+            if (!f.Good())return; // Staging retains encoded storage; taps validate blocks.
+            RejectSample(f.plan,0.5f/8,7.5f/8);
+        }
+    }
+    Fixture f;f.Set(0x82,0x00080008);f.Set(0x83,0,11);f.Set(0x8E,13,1);
+    auto mixed=AuthoredEtcBlock(true,0x1111110000000000ULL,0xFFFFFFFFFFFFFFFFULL);
+    StoreLittle64(mixed,24,invalid[0]); // Second4x4 block, after its alpha word.
+    CHECK(f.bank->Write(kOffset,mixed));if (!f.Good())return;
+    Sample(f.plan,0.5f/8,7.5f/8,{19,19,19,255}); // Unvisited invalid block has no effect.
+    f.Set(0x83,6,11);if (!f.Good())return;
+    RejectSample(f.plan,0.5f,7.5f/8); // First tap valid, second invalid: no partial color.
+}
+
 struct ReadProbe final : DeviceMemory {
     mutable unsigned probes{},reads{};
     std::uint32_t size() const noexcept override {return 0x1000;}
@@ -253,7 +394,7 @@ void KnownRegistersAndUnsupportedConfigurations() {
     f.Set(0x83,6);
     for (const auto lod:{1U,1U<<16,1U<<24}) {f.Set(0x84,lod);f.Stop();}
     f.Set(0x84,0);
-    for (const auto format:{1U,13U,15U}) {f.Set(0x8E,format);f.Stop();}
+    for (const auto format:{1U,9U,15U}) {f.Set(0x8E,format);f.Stop();}
     f.Set(0x8E,0);
     for (const auto size:{0U,0x00040008U,0x000C0010U,0x0010000CU,0x06000400U}) {
         f.Set(0x82,size);f.Stop();
@@ -280,6 +421,7 @@ void InvalidSamplesStayAtomic() {
 int main() {
     MortonNearestAndClamp();LinearGoldensAndPureSampling();PhysicalSourceEquivalenceAndLimits();
     Ia8DecodeAndFiltering();Ia8EncodedExtentAndFailures();
+    EtcWordsModesAndAlpha();EtcTilesFiltersAndEncodedSpans();EtcUndefinedDifferentialIsAtomic();
     UnavailableSourcesStayAtomic();KnownRegistersAndUnsupportedConfigurations();InvalidSamplesStayAtomic();
     if (failures)return EXIT_FAILURE;
     std::cout<<"PASS: authored RGBA8/IA8 texture bytes, Morton/linear sampling, immutable physical reads and atomic bounds\n";

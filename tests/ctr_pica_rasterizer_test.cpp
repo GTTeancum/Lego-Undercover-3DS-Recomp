@@ -276,7 +276,7 @@ void InvalidSpansNumericInputsAndLateFailure() {
     f.Set(0x11D,address);
     const auto position=f.shader.vertices[0].attributes[0];
     for (const auto [component,bits]:std::array<std::pair<unsigned,std::uint32_t>,4>{{
-            {0,Bits(2)},{2,Bits(0.5f)},{3,0},{0,0x7FC12345}}}) {
+            {0,1},{3,Bits(-1)},{3,0},{0,0x7FC12345}}}) {
         f.shader.vertices[0].attributes[0][component]=bits; f.Stop();
         f.shader.vertices[0].attributes[0]=position;
     }
@@ -467,24 +467,106 @@ void HomogeneousTrivialRejection() {
     huge.shader.vertices[0].attribute_components[2]=3;
     huge.shader.vertices[0].attributes[0][3]=Bits(0); huge.Stop();
 
-    // Each endpoint outside a DIFFERENT plane does not prove the triangle is
-    // invisible. It may cross the view and must retain the intersection stop.
+    // Endpoints outside different planes still enclose visible geometry. The
+    // strict right/left/top clips leave exactly the upper half of the8x8 target.
     Fixture crossing; crossing.Triangle(); if (!crossing.Success()) return;
     constexpr std::array<std::array<float,2>,3> xy{{{-2,0},{0,2},{2,0}}};
     for (unsigned i=0;i<3;++i) for (unsigned c=0;c<2;++c)
         crossing.shader.vertices[i].attributes[0][c]=Bits(xy[i][c]);
-    crossing.Stop(); CHECK(crossing.error && std::string_view(crossing.error).find("intersections")!=std::string_view::npos);
+    if (!crossing.Success()) return;
+    std::vector<Pixel> upper;
+    for (unsigned y=4;y<8;++y) for (unsigned x=0;x<8;++x) upper.push_back({x,y});
+    CHECK(crossing.plan.triangles==1 && crossing.plan.triangles_outside==0);
+    CHECK(crossing.plan.pixels_covered==32); crossing.Expect(upper,{78,46,92,91});
 
     Fixture late; late.Triangle(); if (!late.Success()) return;
     const auto first=late.shader.vertices;
     late.shader.vertices.insert(late.shader.vertices.end(),first.begin(),first.end());
-    late.shader.vertices[3].attributes[0][0]=Bits(-2); late.Stop();
+    // The first primitive can stage successfully before a later clipping edge
+    // overflows its distance sum. Keep the previous complete plan unchanged.
+    late.shader.vertices[3].attributes[0]={0x7F7FFFFF,0,Bits(-0.5f),0x7F7FFFFF};
+    late.shader.vertices[4].attributes[0]={0xFF7FFFFF,0,Bits(-0.5f),Bits(1)};
+    late.shader.vertices[5].attributes[0]={0,Bits(0.75f),Bits(-0.5f),Bits(1)};
+    late.Stop(); CHECK(late.error && std::string_view(late.error).find("clip distance")!=std::string_view::npos);
 
     // Equality with a plane is inside. A triangle touching the left boundary
     // still covers its one valid pixel and is not trivially rejected.
     Fixture boundary; boundary.Vertex(0,1); boundary.Vertex(2,1); boundary.Vertex(0,3);
     if (!boundary.Success()) return;
     CHECK(boundary.plan.triangles_outside==0 && boundary.plan.pixels_covered==1);
+}
+
+void HomogeneousClipCoverageAndSharedEdges() {
+    constexpr FloatColor white{1,1,1,1};
+    Fixture clipped; clipped.Set(0x100,0); clipped.Set(0x107,0xF00);
+    clipped.Vertex(-2,1,white); clipped.Vertex(2,1,white); clipped.Vertex(2,5,white);
+    if (!clipped.Success()) return;
+    // Exact left-plane intersections are(0,1) and(0,3). The resulting
+    // quadrilateral includes its rising top edge under the existing edge rule.
+    const std::vector<Pixel> seven{{0,1},{0,2},{0,3},{1,1},{1,2},{1,3},{1,4}};
+    CHECK(clipped.plan.triangles==1 && clipped.plan.triangles_outside==0);
+    CHECK(clipped.plan.pixels_covered==7 && clipped.plan.pixels_tested==12);
+    clipped.Expect(seven,{255,255,255,255});
+    clipped.Stop(11); // Both generated fan triangles count toward the budget.
+    CHECK(clipped.error && std::string_view(clipped.error).find("budget")!=std::string_view::npos);
+    CHECK(clipped.Run(12)); clipped.Expect(seven,{255,255,255,255});
+
+    Fixture strip; strip.Topology(1); strip.Set(0x40,2);
+    strip.Vertex(-2,1); strip.Vertex(2,1); strip.Vertex(-2,5); strip.Vertex(2,5);
+    if (!strip.Success()) return;
+    std::vector<Pixel> rectangle;
+    for (unsigned y=1;y<5;++y) for (unsigned x=0;x<2;++x) rectangle.push_back({x,y});
+    CHECK(strip.plan.triangles==2 && strip.plan.pixels_covered==8);
+    strip.Expect(rectangle,{78,46,92,91}); // Every clipped shared edge blends once.
+    strip.Set(0x40,1); if (!strip.Success()) return;
+    CHECK(strip.plan.pixels_covered==0 && strip.plan.patches.empty());
+
+    // A boundary endpoint is also an intersection. Reusing it must neither
+    // duplicate the closing polygon vertex nor introduce another visible fan.
+    Fixture endpoint; endpoint.Vertex(-2,3); endpoint.Vertex(2,3); endpoint.Vertex(0,1);
+    if (!endpoint.Success()) return;
+    CHECK(endpoint.plan.triangles==1 && endpoint.plan.pixels_tested==4);
+    CHECK(endpoint.plan.pixels_covered==1); endpoint.Expect({{0,2}},{78,46,92,91});
+}
+
+void HomogeneousClipColorUvAndDepth() {
+    Fixture f; f.Set(0x100,0); f.Set(0x107,0xF00);
+    // Original homogeneous left distances are(-1,+1,+1), so both new
+    // intersections use exact half weights, with W=1.5. Clamp original colors
+    // before clipping: abs/saturate maps these values to red,green,blue.
+    f.Vertex(-4,1,{-1,0,0,1},1);
+    f.Vertex(2,1,{0,2,0,1},2);
+    f.Vertex(2,4,{0,0,-1,1},2);
+    if (!f.Success()) return;
+    CHECK(f.plan.triangles==1 && f.plan.pixels_covered==5);
+    // The first fan has screen vertices(0,3),(0,1),(2,1). At(0.5,1.5),
+    // integer weights are256,511,256 and inverse W is(2/3,2/3,1/2).
+    // Explicit binary32 perspective interpolation rounds to RGBA(102,119,34,255).
+    const auto pixel=ByteOffset(8,8,0,1);
+    const auto color=f.StagedFrame();
+    CHECK(color[pixel]==255 && color[pixel+1]==34 && color[pixel+2]==119 && color[pixel+3]==102);
+
+    TextureFixture(f);
+    for (unsigned i=0;i<3;++i) f.shader.vertices[i].attributes[2][0]=Bits(i==1?1.0f:0.0f);
+    auto initial_depth=DepthFixture(f); f.Set(0x107,0x1F51);
+    f.shader.vertices[0].attributes[0][2]=Bits(-0.25f);
+    f.shader.vertices[1].attributes[0][2]=Bits(-1.0f);
+    f.shader.vertices[2].attributes[0][2]=Bits(-1.5f);
+    if (!f.Success()) return;
+    // U=0.4666319191455841 after the same homogeneous clip and perspective
+    // interpolation. The authored linear red ramp rounds to103. Interpolating
+    // divided UV at the clip boundary would yield a different texel value.
+    const auto textured=f.StagedFrame();
+    CHECK(textured[pixel]==255 && textured[pixel+1]==96 && textured[pixel+2]==48 && textured[pixel+3]==103);
+    // Clipped z/w is(-7/12,-5/12,-1/2). The affine biased interpolation and
+    // existing binary32 depth model quantize the first covered sample to0x7AAEAB.
+    const auto depth=StagedDepth(f);
+    CHECK(depth[pixel]==0xAB && depth[pixel+1]==0xAE && depth[pixel+2]==0x7A);
+    CHECK(f.plan.depth_pixels_written==5 && f.plan.pixels_written==5);
+    for (unsigned i=0;i<64;++i) CHECK(depth[4*i+3]==initial_depth[4*i+3]);
+    f.shader.vertices[0].attribute_components[2]&=~1U; f.Stop();
+    f.shader.vertices[0].attribute_components[2]=3;
+    f.shader.vertices[0].attributes[2][0]=0x7F800000; f.Stop();
 }
 } // namespace
 
@@ -494,7 +576,8 @@ int main() {
     InvalidSpansNumericInputsAndLateFailure(); AggregateRasterWorkBound();
     TexturePerspectiveTevAndFeedback(); DepthWritesComparisonsAndStencil(); DepthInterpolationAndRejection();
     HomogeneousTrivialRejection();
+    HomogeneousClipCoverageAndSharedEdges(); HomogeneousClipColorUvAndDepth();
     if (failures) return EXIT_FAILURE;
-    std::cout << "PASS: authored coverage, perspective color/UV, texture TEV/blending, D24S8 comparisons/stencil preservation, tiled bytes and atomic bounds\n";
+    std::cout << "PASS: authored homogeneous clipping/coverage, perspective color/UV, texture TEV/blending, D24S8 comparisons/stencil preservation, tiled bytes and atomic bounds\n";
     return EXIT_SUCCESS;
 }

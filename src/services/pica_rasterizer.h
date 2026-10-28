@@ -20,7 +20,7 @@ struct PicaRasterPatch {
 struct PicaRasterPlan {
     std::uint32_t framebuffer_address{},width{},height{};
     std::uint32_t triangles{},pixels_tested{},pixels_covered{},pixels_written{};
-    std::uint32_t triangles_outside{};
+    std::uint32_t triangles_outside{}; // Input primitives wholly removed by canonical clipping.
     std::uint32_t depthbuffer_address{},depth_pixels_written{};
     std::vector<PicaTextureReadSpan> texture_reads;
     std::vector<PicaRasterPatch> patches;
@@ -32,14 +32,19 @@ struct PicaRasterPlan {
 // draws is not represented here. Shader attributes use their existing component
 // provenance. Unsupported or unknown state stops, with no output-plan mutation.
 // Triangles wholly outside one homogeneous clip plane are rejected before
-// perspective/screen conversion. Remaining geometry must stay inside clip space
-// and map inside the target; intersections and framebuffer clipping still stop.
+// perspective/screen conversion. Positive-W crossings are clipped against the
+// six strict canonical planes, interpolating position, preclamped color and
+// enabled UV before perspective divide. Per input primitive, at most9 polygon
+// vertices and7 fan triangles are staged; triangles still counts input primitives.
+// Generated intersections snap exactly to their active plane, without epsilon.
+// Nonpositive W, unsupported intermediate arithmetic and framebuffer clipping
+// still stop atomically. Every surviving vertex must map inside the target.
 // The color slice is tiled RGBA8, optional bounded texture0, disabled fog,
 // stencil and alpha tests, and optional D24S8 Z testing/writes. TEV supports
 // unscaled primary/texture0/constant/previous Replace/Modulate and additive blending
 // with factors0/1/source-alpha/one-minus-source-alpha (or logic Copy).
 // Coverage and binary32 interpolation follow the pinned software reference.
-// Depth and texture filtering are bounded emulator models, not measurements of
+// Clipping, depth and texture filtering are bounded emulator models, not measurements of
 // hardware precision. Texture/color/depth feedback overlap remains unsupported.
 //
 // Reads the supplied VRAM snapshot and returns staged color-buffer bytes. Source
