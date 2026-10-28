@@ -20,6 +20,7 @@ struct PicaRasterPatch {
 struct PicaRasterPlan {
     std::uint32_t framebuffer_address{},width{},height{};
     std::uint32_t triangles{},pixels_tested{},pixels_covered{},pixels_written{};
+    std::uint32_t triangles_outside{};
     std::uint32_t depthbuffer_address{},depth_pixels_written{};
     std::vector<PicaTextureReadSpan> texture_reads;
     std::vector<PicaRasterPatch> patches;
@@ -30,8 +31,9 @@ struct PicaRasterPlan {
 // must prove/reset assembly state before invoking this slice; strip carry across
 // draws is not represented here. Shader attributes use their existing component
 // provenance. Unsupported or unknown state stops, with no output-plan mutation.
-// Supported geometry stays inside homogeneous clip space and maps inside the
-// target; clipping intersections and framebuffer clipping remain explicit stops.
+// Triangles wholly outside one homogeneous clip plane are rejected before
+// perspective/screen conversion. Remaining geometry must stay inside clip space
+// and map inside the target; intersections and framebuffer clipping still stop.
 // The color slice is tiled RGBA8, optional bounded texture0, disabled fog,
 // stencil and alpha tests, and optional D24S8 Z testing/writes. TEV supports
 // unscaled primary/texture0/constant/previous Replace/Modulate and additive blending

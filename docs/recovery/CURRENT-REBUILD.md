@@ -1,3 +1,80 @@
+# October 28, 2026 — proven whole-triangle clip rejection
+
+## Current result and next task
+
+The later draw at list byte **0x668** contains two triangles entirely left of
+the view: all three original shader positions in each triangle satisfy
+`x < -w`. The rasterizer now recognizes this case as a successful draw with
+zero pixel work and no color/depth patches. The first textured/depth draw at
+**0x3F0** remains byte-for-byte identical to its independent reference result.
+
+The unchanged original game now proceeds to a later texture configuration in
+the same command list:
+
+```text
+stop=UnsupportedIpc pc=0x0025947c detail=0x00000032 thread=3 dispatch_rounds=1529
+host_ipc_error=PICA texture0 requires ordinary RGBA8, base level0 and clamp-to-edge at list byte 0xb58 register 0x22e
+guest_now_ns=635131145
+```
+
+**Next task: support the actual texture configuration captured at 0xB58.**
+Start with the private `evidence/next-texture-blocker.json` and its exact source
+spans, then extend the bounded sampler only for behavior supported by that
+evidence and pinned references. The whole pending queue still rolls back at
+this later guard, including all earlier staged draws. This is progress within
+one GPU request, not an increase beyond round 1529 or a presented game frame.
+No visible scene, menu, audible playback or gameplay is demonstrated.
+
+## Geometry behavior and verification
+
+The rasterizer classifies known finite position components against the six
+canonical homogeneous clip planes, with positive W required. It rejects a
+triangle only when all three endpoints are strictly outside the same plane.
+Plane distance is affine across the triangle, so that condition proves there
+is no intersection to render. Equality stays inside. Outside endpoints skip
+perspective division and screen conversion, avoiding unsafe conversion of
+large finite values. Position, color and enabled UV provenance are still
+validated before this decision.
+
+Triangles crossing a plane, endpoints outside different planes, nonpositive W,
+unknown components and unsupported numeric inputs remain explicit stops. A
+later failure leaves the caller's output plan unchanged. These are strict
+canonical comparisons; they do not reproduce the pinned software clipper's
+small approximate epsilon or claim measured hardware clipping precision.
+
+All **79 local suites pass**. Authored cases cover all six planes, boundary
+equality, large finite outside positions, unknown enabled UV, nonpositive W,
+crossing triangles and late failure. Two private replays use the frozen final
+CTR library and exact original captured sources. For both draws, all 120
+selected shader output components match the independent arithmetic oracle.
+The first draw's complete 6 MiB output and patch bytes remain identical to the
+previous depth proof. The second draw reports two outside triangles, zero
+tested/covered/written pixels, zero patches and all 6 MiB unchanged.
+
+The initial test receipt and JUnit recorded all 79 passing cases, but a later
+read found that its console log was truncated and no longer matched the saved
+hash. That artifact is preserved. A separately named complete gate checks the
+same frozen source and binaries, all configured names, and durable log/JUnit
+readback; no test is removed or weakened. Earlier executable-mode repairs and
+the historical incomplete Protect audio captures remain recorded below.
+
+Current private receipts:
+
+- `clip-reject-build.json` and `clip-reject-final-tests.{json,log,xml}`.
+- `clip-reject-replay-enzranjj/{proof,receipt}.json`.
+- `clip-reject-native-ed0d4w_y/{receipt.json,stdout.txt}`.
+- `next-texture-blocker.json`.
+
+Native SHA-256: `adcd70223add98be5e46c225156796fd1a838486d914f43731734437ba61bba2`.
+CTR library SHA-256: `cdf0b1abf36c08257a9cce3545e58fd2c19561a1c827a8af71cf870e7734da63`.
+
+Use the unchanged finite original launch and private-input recipe below.
+Exact-commit hosted results and the final targeted capture are recorded in the
+private continuation receipt. The following sections preserve preceding
+milestones and their original evidence scope.
+
+---
+
 # October 28, 2026 — authenticated AOT entry, texture0 and depth
 
 ## Current result and next task

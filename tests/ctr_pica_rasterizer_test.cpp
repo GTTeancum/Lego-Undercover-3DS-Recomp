@@ -444,6 +444,48 @@ void DepthInterpolationAndRejection() {
     // A texture may not sample the depth buffer while the draw writes it.
     TextureFixture(f); f.Set(0x85,(kGpuVramPhysicalBase+kDepthOffset)/8); f.Stop();
 }
+
+void HomogeneousTrivialRejection() {
+    for (unsigned plane=0;plane<6;++plane) {
+        Fixture f; f.Triangle();
+        const unsigned component=plane/2;
+        const float base=plane==5?0.5f:((plane&1U)?2.0f:-2.0f);
+        for (unsigned vertex=0;vertex<3;++vertex)
+            f.shader.vertices[vertex].attributes[0][component]=Bits(
+                base+(vertex==(component==0?0U:2U)?(base<0?-1.0f:1.0f):0.0f));
+        if (!f.Success()) return;
+        CHECK(f.plan.triangles==1 && f.plan.triangles_outside==1 && f.plan.pixels_tested==0);
+        CHECK(f.plan.patches.empty() && f.plan.depth_pixels_written==0); f.Expect({},kDestination);
+    }
+    Fixture huge; huge.Triangle();
+    for (auto& vertex:huge.shader.vertices) vertex.attributes[0][0]=0xFF7FFFFF; // Finite -FLT_MAX.
+    if (!huge.Success()) return;
+    CHECK(huge.plan.triangles_outside==1 && huge.plan.patches.empty());
+    TextureFixture(huge);
+    if (!huge.Success()) return;
+    huge.shader.vertices[0].attribute_components[2]&=~1U; huge.Stop();
+    huge.shader.vertices[0].attribute_components[2]=3;
+    huge.shader.vertices[0].attributes[0][3]=Bits(0); huge.Stop();
+
+    // Each endpoint outside a DIFFERENT plane does not prove the triangle is
+    // invisible. It may cross the view and must retain the intersection stop.
+    Fixture crossing; crossing.Triangle(); if (!crossing.Success()) return;
+    constexpr std::array<std::array<float,2>,3> xy{{{-2,0},{0,2},{2,0}}};
+    for (unsigned i=0;i<3;++i) for (unsigned c=0;c<2;++c)
+        crossing.shader.vertices[i].attributes[0][c]=Bits(xy[i][c]);
+    crossing.Stop(); CHECK(crossing.error && std::string_view(crossing.error).find("intersections")!=std::string_view::npos);
+
+    Fixture late; late.Triangle(); if (!late.Success()) return;
+    const auto first=late.shader.vertices;
+    late.shader.vertices.insert(late.shader.vertices.end(),first.begin(),first.end());
+    late.shader.vertices[3].attributes[0][0]=Bits(-2); late.Stop();
+
+    // Equality with a plane is inside. A triangle touching the left boundary
+    // still covers its one valid pixel and is not trivially rejected.
+    Fixture boundary; boundary.Vertex(0,1); boundary.Vertex(2,1); boundary.Vertex(0,3);
+    if (!boundary.Success()) return;
+    CHECK(boundary.plan.triangles_outside==0 && boundary.plan.pixels_covered==1);
+}
 } // namespace
 
 int main() {
@@ -451,6 +493,7 @@ int main() {
     TiledAddressesAndViewportOffset(); WindingStripAndDegenerates(); KnownStateAndUnsupportedModes();
     InvalidSpansNumericInputsAndLateFailure(); AggregateRasterWorkBound();
     TexturePerspectiveTevAndFeedback(); DepthWritesComparisonsAndStencil(); DepthInterpolationAndRejection();
+    HomogeneousTrivialRejection();
     if (failures) return EXIT_FAILURE;
     std::cout << "PASS: authored coverage, perspective color/UV, texture TEV/blending, D24S8 comparisons/stencil preservation, tiled bytes and atomic bounds\n";
     return EXIT_SUCCESS;

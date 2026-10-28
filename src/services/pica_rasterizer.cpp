@@ -76,6 +76,7 @@ struct Arithmetic {
 };
 
 struct Vertex {
+    std::uint8_t outside_planes{};
     std::int32_t x{},y{}; // 12.4 raster coordinates, within the supported framebuffer.
     float inverse_w{};
     std::array<float,4> color_over_w{};
@@ -366,15 +367,24 @@ struct Rasterizer {
             for (unsigned semantic: {0U,1U,2U,3U,8U,9U,10U,11U})
                 if (!known[semantic] || !NormalOrZero(slots[semantic]))
                     return Fail("PICA raster position/color uses an unknown or unsupported numeric component");
+            if (texture_enabled)
+                for (unsigned component=0;component<2;++component)
+                    if (!known[12+component] || !NormalOrZero(slots[12+component]))
+                        return Fail("PICA raster texture coordinate is unknown or unsupported");
             const auto x=slots[0],y=slots[1],z=slots[2],w=slots[3];
-            if (w<=0 || x < -w || x>w || y < -w || y>w || z < -w || z>0)
-                return Fail("PICA raster clipping is required outside the supported homogeneous volume");
-            Arithmetic math;Vertex vertex;vertex.inverse_w=math.Divide(1,w);
+            if (w<=0) return Fail("PICA raster clipping requires unsupported nonpositive W");
+            Vertex vertex;
+            vertex.outside_planes=static_cast<std::uint8_t>((x < -w?1U:0U)|(x>w?2U:0U)|
+                (y < -w?4U:0U)|(y>w?8U:0U)|(z < -w?16U:0U)|(z>0?32U:0U));
+            // A homogeneous plane distance is affine over a triangle. Three
+            // outside endpoints on the same side prove rejection without any
+            // intersection or perspective conversion. Assemble makes that
+            // per-primitive decision; an outside endpoint alone proves nothing.
+            if (vertex.outside_planes) { vertices.push_back(vertex); continue; }
+            Arithmetic math;vertex.inverse_w=math.Divide(1,w);
             if (depth_test||depth_write) vertex.z_over_w=math.Mul(z,vertex.inverse_w);
             if (texture_enabled) {
                 for (unsigned component=0;component<2;++component) {
-                    if (!known[12+component] || !NormalOrZero(slots[12+component]))
-                        return Fail("PICA raster texture coordinate is unknown or unsupported");
                     vertex.texture_over_w[component]=math.Mul(slots[12+component],vertex.inverse_w);
                 }
             }
@@ -396,6 +406,12 @@ struct Rasterizer {
     bool Assemble() {
         const auto append=[&](std::array<std::size_t,3> indices)->bool {
             ++staged.triangles;
+            const auto a_planes=vertices[indices[0]].outside_planes;
+            const auto b_planes=vertices[indices[1]].outside_planes;
+            const auto c_planes=vertices[indices[2]].outside_planes;
+            if (a_planes&b_planes&c_planes) { ++staged.triangles_outside; return true; }
+            if (a_planes|b_planes|c_planes)
+                return Fail("PICA raster clipping intersections are outside the supported homogeneous slice");
             auto area=Edge(vertices[indices[0]],vertices[indices[1]],vertices[indices[2]].x,vertices[indices[2]].y);
             if (!area || (cull==1 && area>0) || (cull==2 && area<0)) return true;
             if (area<0) std::swap(indices[1],indices[2]);
