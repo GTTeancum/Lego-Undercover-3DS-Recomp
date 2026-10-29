@@ -17,12 +17,15 @@ def git(*args: str) -> bytes:
 
 
 def expected_test_names() -> set[str]:
-    # This repository registers its ROM-free suites in one literal foreach list.
-    # Fail closed if that structure changes; do not merely accept any test count.
-    loops = re.findall(r"foreach\(test_name\s+([^)]+)\)", Path("CMakeLists.txt").read_text())
+    # C++ suites use one literal foreach list; interpreter suites use literal
+    # add_test names. Verify the exact combined inventory, not just its count.
+    cmake = Path("CMakeLists.txt").read_text()
+    loops = re.findall(r"foreach\(test_name\s+([^)]+)\)", cmake)
     if len(loops) != 1:
         raise ValueError("Expected one literal CTest suite list")
-    names = loops[0].split()
+    names = loops[0].split() + re.findall(
+        r"add_test\(\s*NAME\s+(ctr_[a-z0-9_]+)\s", cmake
+    )
     if not names or len(names) != len(set(names)) or any(
         re.fullmatch(r"ctr_[a-z0-9_]+", name) is None for name in names
     ):

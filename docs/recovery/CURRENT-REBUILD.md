@@ -1,3 +1,135 @@
+# October 29, 2026 — authenticated AOT dispatch and the next two-block gap
+
+## Current result
+
+The unchanged original game now passes the missing dispatch at **`0x00151B48`**.
+Five authenticated build-time supplements add **167 instruction words / 668 bytes**,
+bringing the supplement count from four to **nine**. The original **599 AOT pages**,
+original four supplement instruction records and runtime semantics are unchanged.
+
+The actual first visit executes the nine-instruction dispatcher, selects
+**`0x00151AE4`**, executes its 21 instructions and returns to **`0x00150F40`**.
+All **30 instruction records** form a complete, nontruncated chain with the same
+TLS value. No unique kernel-thread identity is inferred merely from that value.
+The other three leaves are statically reviewed and covered by independent
+synthetic dispatch fixtures; they were not observed executing in this run.
+
+| Measurement | Current result |
+| --- | --- |
+| Terminal stop | **MissingBlock `0x001535E0`**, thread **7**, round **21,843** |
+| Core-0 instructions | **61,370,039**, an increase of **96** |
+| Core-1 instructions | **99**, unchanged |
+| Diagnostic guest time | **8,748,408,299 ns**, an increase of **358 ns** |
+| Local gate | **80/80 suites**, one configure/build/full gate |
+| Ordinary/capture comparison | **21/21 strict checks** |
+| Independent first-visit verification | **30/30 transitions and state boundaries**, three observed admitted operations checked arithmetically |
+| Final source/input/evidence closure | **21/21 checks** |
+
+Both runs exit with diagnostic status **3** before the event cap. The fixed
+profile is **131,072 host events**, `--block-limit 100000000`, a **600-second guest
+wall timeout** and **630-second outer guard**, with fresh owned SaveData and
+SharedExtData. In diagnostic mode the block limit bounds instructions between
+SVC boundaries. Guest time and CPU ticks are diagnostic measurements, not a
+claim of hardware timing accuracy.
+
+The complete **4,571,648-byte / 285,726-record** audio streams match each other
+and the preceding checkpoint byte-for-byte. Both runs also agree on normalized
+launch arguments/stdout, final CPU/TLS, stop context and complete recursive
+filesystem inventories. The last `fs:RomFS` request is historical; it is not the
+cause of this missing-code stop.
+
+Both active headless framebuffers are black after the earlier logos cleared.
+Actual LCD color-fill words are zero, so force-black is disabled. Three lossless
+PNG exports preserve the current active buffers and composite. A menu, gameplay,
+host-window presentation and audible playback remain unproven.
+
+## Change and verification scope
+
+`tools/generate_aot_supplement.py` now admits only three reviewed forms from the
+otherwise rejected broad ALU-candidate category: **MOV, ADD and ORR with register
+operands and immediate shifts**. Conditional encodings, canonical MOV fields and
+non-PC operands/destinations are enforced. Register-controlled shifts, exception
+returns and unrelated ALU families remain rejected. Existing fast-path computed
+branches and returns retain their existing policy. No runtime ALU evaluator or
+general frontend implementation changes are included.
+
+The added intervals are `0x001518C0..0x001519A4`, `0x001519A4..0x00151A48`,
+`0x00151A48..0x00151AE4`, `0x00151AE4..0x00151B38` and
+`0x00151B48..0x00151B6C`, with exclusive ends. They contain **57, 41, 39, 21 and
+9 instructions** respectively. The 16-byte literal table at
+`0x00151B38..0x00151B48` is excluded from executable intervals. Every interval
+fits the existing 256-byte and single-page bounds; no original registry entry
+is overwritten.
+
+The new Python suite has **17 cases** and is registered as the 80th CTest suite.
+The public ROM-free packager also recognizes its literal CMake registration.
+Expanded C++ fixtures use independently authored words and fixed expectations
+for shifts, flags, conditions, aliasing, SP/LR operands, four-way dispatch and
+strict missing-block behavior. Their CHECK macro remains active in Release.
+
+A private observational executable wraps the original recorded step once and
+returns its unchanged result. It records const CPU/op/result values, uses bounded
+storage and performs no guest-memory writes or result substitution. Separate
+verification binds the trace to the authenticated code, generated metadata,
+reviewed source, actual run, selected executable and full test gate. It checks
+all actual PC/result transitions and serialized-state continuity. Independent
+integer arithmetic verifies the three observed newly admitted operations:
+one MOV and two ORRs. Memory register/writeback effects and the authenticated
+table-read value are checked; general memory contents are not independently
+replayed. No broader memory or hardware-equivalence claim is made.
+
+## Current private evidence
+
+This continuation used the intact `5b4933e` checkpoint; no recovery rebuild was
+needed. Both exact new executables were archived and saved privately **before**
+their game runs:
+
+- Native SHA-256: `c6f30df0bcfeea7e9125c9558d78ba9474c5d39750e69077a5c7a1d51b838bcd`.
+  Archive: `LEGO-Chase-aot-dispatch-native-20261029.tgz`.
+- Capture SHA-256: `75902da9c529545b11ff19d25c8094ddbf0792a139ee49fc4f5cf366d3b790bc`.
+  Archive: `LEGO-Chase-aot-dispatch-capture-20261029.tgz`.
+
+Current evidence paths relative to the recovery root:
+
+- `evidence/aot-dispatch-20261029/gate/`: configure/build logs, full 80-suite console/JUnit/LastTest results, source/input snapshots and selected-native preservation.
+- `evidence/aot-dispatch-20261029/runs/{native,capture}/`: approved controls and closed bounded-run receipts.
+- `evidence/aot-dispatch-native-131072-sfff_diz/`: actual ordinary run.
+- `evidence/aot-dispatch-capture-131072-9vgn6szy/`: actual capture, complete audio and strict comparison.
+- `evidence/aot_dispatch_capture/`: reviewed reversible capture helpers and build provenance.
+- `evidence/aot-dispatch-20261029/aot-first-visit-verification.json`: independent first-visit proof.
+- `evidence/aot-dispatch-20261029/screens/actual-capture-v1/`: lossless images, active-buffer provenance and image closure.
+- `evidence/aot-dispatch-20261029/closed-verification.json`: final 21-check closure before documentation edits.
+- `evidence/aot-dispatch-20261029/next-gap/`: authenticated static follow-up proof and proposed metadata.
+
+Only source and metadata are published. Raw game words, generated game C++, game
+inputs, executable bodies, captures and audio remain private. The earlier recovery
+and priority sections below are retained byte-identically as historical records;
+their lost original evidence has not been restored or relabeled as current.
+
+## Exact next task
+
+Add only the two statically reviewed follow-up intervals:
+
+| Entry | End, exclusive | Instructions | Exit |
+| --- | --- | ---: | --- |
+| `0x001535E0` | `0x0015368C` | 43 | NE loop to aligned suffix `0x00153604`; otherwise fall through |
+| `0x0015368C` | `0x00153690` | 1 | POP loads PC from guest stack |
+
+These are **44 words / 176 bytes**: 26 existing CoreMemory operations, 17 existing
+fast-path operations and one already-admitted MOV with immediate ASR. No opcode
+policy expansion is needed. The loop initializes r12 to eight and decrements it
+once per iteration; **282 instructions through POP** is a static inference if
+all memory operations complete, not an observed continuation result.
+
+At the current stop, entry SP is `0x0E01FD9C`; after the reviewed push and loop,
+the POP would load PC from **`0x0E01FDA8`**. That word's value is unknown.
+**Do not substitute live LR `0x0015309C` for the loaded return address.** Keep
+existing memory and registry checks; unsupported return states must remain
+explicit. Let the actual bounded run identify the return or next blocker. The two
+proposed blocks have not been added to the manifest or executed in this checkpoint.
+
+---
+
 # October 29, 2026 — recovery of the published priority checkpoint
 
 The tested runtime remains code commit

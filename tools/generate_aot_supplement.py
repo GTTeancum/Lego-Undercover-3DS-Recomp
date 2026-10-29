@@ -9,6 +9,33 @@ from __future__ import annotations
 import argparse, hashlib, json, pathlib, struct, tempfile
 import generate_aot_pages_llvm as frontend
 
+def verified_alu_candidate(raw: int) -> str | None:
+    """Admit only reviewed register/immediate-shift MOV, ADD and ORR forms.
+
+    The LLVM frontend's generic CoreAlu category is deliberately broader than
+    this policy. These conditional A32 data-processing encodings use the
+    existing evaluator's immediate shifter (including RRX) and raw S bit.
+    Exclude PC reads/writes, exception returns, register-specified shifts and
+    the neighboring multiply/extra-load-store encoding space. MOV's unused
+    Rn field must be canonical zero. No guest address or mnemonic is a permit.
+    """
+    if not 0 <= raw <= 0xFFFFFFFF or raw >> 28 == 15:
+        return None
+    if raw & 0x0E000010:  # bits 27..25=000 and bit 4=0: immediate register shift
+        return None
+    opcode = (raw >> 21) & 15
+    names = {4: 'add_register_immediate_shift',
+             12: 'orr_register_immediate_shift',
+             13: 'mov_register_immediate_shift'}
+    if opcode not in names:
+        return None
+    rn, rd, rm = (raw >> 16) & 15, (raw >> 12) & 15, raw & 15
+    if rd == 15 or rm == 15:
+        return None
+    if (opcode == 13 and rn != 0) or (opcode != 13 and rn == 15):
+        return None
+    return names[opcode]
+
 def checked_ranges(document: dict) -> list[tuple[int, int]]:
     if document.get('format') != 'lego_observed_aot_supplements_v1':
         raise ValueError('unsupported supplement manifest')
@@ -38,7 +65,9 @@ def render(code: bytes, inst: dict, ranges: list[tuple[int, int]]) -> tuple[str,
             if struct.unpack_from('<I', code, pc-frontend.BASE)[0] != raw:
                 raise ValueError('disassembly/input disagreement')
             opcode, condition, flags, category=frontend.classify(raw, mn)
-            if opcode=='Unsupported' or category=='core_alu_candidate':
+            if category=='core_alu_candidate':
+                category=verified_alu_candidate(raw)
+            if opcode=='Unsupported' or category is None:
                 raise ValueError('unverified supplemental opcode class')
             terminal=frontend.indirect_terminator(mn, operands) or frontend.branch_kind(mn) is not None
             if pc+4==end:
@@ -46,7 +75,7 @@ def render(code: bytes, inst: dict, ranges: list[tuple[int, int]]) -> tuple[str,
             elif frontend.ends(mn, operands):
                 raise ValueError('internal control-flow exit requires a separately reviewed block')
             lines.append(f'    {{0x{raw:08X}U, a32::EncodeMetadata(a32::Opcode::{opcode}, a32::Condition::{condition}, 0x{flags:02X}U)}},')
-            records.append({'pc':pc,'raw':raw,'mnemonic':mn,'operands':operands,'opcode':opcode,'condition':condition,'flags':flags})
+            records.append({'pc':pc,'raw':raw,'mnemonic':mn,'operands':operands,'opcode':opcode,'condition':condition,'flags':flags,'category':category})
         lines.append('};');evidence.append({'entry':start,'end':end,'instructions':records})
     lines.append('static const a32::Block blocks[] = {')
     for n,(start,end) in enumerate(ranges):lines.append(f'    {{0x{start:08X}U,ops{n},{(end-start)//4}U,false}},')

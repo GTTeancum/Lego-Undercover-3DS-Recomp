@@ -24,6 +24,9 @@ if(BUILD_TESTING)
         target_link_libraries(${test_name} PRIVATE lego_ctr)
         add_test(NAME ${test_name} COMMAND ${test_name})
     endforeach()
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME ctr_aot_supplement_policy_test
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_generate_aot_supplement.py")
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         # Test-only interception verifies flush selection and error propagation.
         target_compile_definitions(ctr_dsp_audio_file_test PRIVATE LEGO_TEST_WRAP_STDIO=1)

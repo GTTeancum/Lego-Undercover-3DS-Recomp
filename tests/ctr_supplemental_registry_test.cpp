@@ -55,5 +55,168 @@ void Invalid(){
  // A failed construction cannot change the previously compiled pages or a later build.
  lego::host::SupplementalRegistry ok(base,{});CHECK(ok.registry().shards[0].blocks==base_blocks);
 }
+
+// These instruction words are independently authored from A32 field layouts.
+// No original-game words, addresses, disassembly or captured values are used.
+constexpr std::uint32_t kShiftPc=0x00800000U;
+constexpr std::uint32_t kOtherCpsr=0x08050010U; // Q, GE and user-mode bits.
+constexpr auto N=a32::kFlagN, Z=a32::kFlagZ, C=a32::kFlagC, V=a32::kFlagV;
+const a32::BlockShard shift_shard{kShiftPc,kShiftPc+0xffcU,nullptr,0};
+const a32::Registry shift_base{&shift_shard,1,nullptr,0};
+
+constexpr std::uint32_t ShiftWord(unsigned opcode, bool set_flags,
+                                unsigned shift_type, unsigned amount,
+                                unsigned rd=2, unsigned rm=1, unsigned rn=3,
+                                a32::Condition condition=a32::Condition::Al){
+ return (static_cast<std::uint32_t>(condition)<<28U) | (opcode<<21U) |
+        (set_flags?1U<<20U:0U) | ((opcode==13U?0U:rn)<<16U) |
+        (rd<<12U) | (amount<<7U) | (shift_type<<5U) | rm;
 }
-int main(){ValidAndExecution();Invalid();if(failures)return EXIT_FAILURE;std::cout<<"PASS: immutable compile-time supplement, holes/overlap/range/lifetime, suffix execution, allocation failure, unchanged base and strict missing-PC stop\n";}
+
+void ShiftCase(unsigned opcode, unsigned type, unsigned amount, bool set_flags,
+               std::uint32_t left, std::uint32_t input,
+               std::uint32_t flags_before, std::uint32_t value,
+               std::uint32_t flags_after,
+               a32::Condition condition=a32::Condition::Al, bool executes=true,
+               unsigned rd=2, unsigned rm=1, unsigned rn=3){
+ const a32::PackedOp op{ShiftWord(opcode,set_flags,type,amount,rd,rm,rn,condition),
+                      a32::EncodeMetadata(a32::Opcode::CoreAlu,condition)};
+ const a32::Block block{kShiftPc,&op,1,false};
+ lego::host::SupplementalRegistry merged(shift_base,std::span(&block,1));
+ GuestMemory memory;
+ a32::GuestState cpu{};
+ for(unsigned i=0;i<cpu.r.size();++i)cpu.r[i]=0x10203040U+i*0x01010101U;
+ cpu.r[rm]=input;
+ if(opcode!=13U)cpu.r[rn]=left;
+ cpu.r[15]=kShiftPc;cpu.cpsr=kOtherCpsr|flags_before;
+ cpu.fpscr=0x01234567U;cpu.thread_pointer=0x08004000U;
+ cpu.vfp.fill(0xA55A1234U);
+ cpu.exclusive_address=0x08005000U;cpu.exclusive_token=0x123456789abcdef0ULL;
+ cpu.exclusive_size=4;cpu.exclusive_valid=true;
+ auto expected=cpu;
+ if(executes)expected.r[rd]=value;
+ expected.r[15]=kShiftPc+4U;expected.cpsr=kOtherCpsr|flags_after;
+ const auto result=StepRecordedA32(merged.registry(),cpu,memory);
+ CHECK(result.kind==a32::ExitKind::Fallthrough && result.pc==kShiftPc+4U);
+ CHECK(result.fallback==a32::FallbackReason::None && result.detail==0U);
+ CHECK(cpu.r==expected.r && cpu.cpsr==expected.cpsr);
+ CHECK(cpu.fpscr==expected.fpscr && cpu.vfp==expected.vfp);
+ CHECK(cpu.thread_pointer==expected.thread_pointer);
+ CHECK(cpu.exclusive_address==expected.exclusive_address &&
+       cpu.exclusive_token==expected.exclusive_token &&
+       cpu.exclusive_size==expected.exclusive_size &&
+       cpu.exclusive_valid==expected.exclusive_valid);
+ CHECK(a32::FindBlock(shift_base,kShiftPc)==nullptr);
+}
+
+void ImmediateShiftSemantics(){
+ // Expected values/flags are fixed arithmetic examples, not an implementation
+ // of the runtime shifter. Encoded zero means LSR/ASR #32 and RRX, but LSL #0.
+ ShiftCase(13,0,0,true,0,0x80000001U,Z|C|V,0x80000001U,N|C|V);
+ ShiftCase(13,0,0,true,0,0U,N|V,0U,Z|V);
+ ShiftCase(13,0,1,true,0,0x80000001U,N|V,2U,C|V);
+ ShiftCase(13,0,31,true,0,3U,0,0x80000000U,N|C);
+ ShiftCase(13,0,31,true,0,2U,0,0U,Z|C);
+ ShiftCase(13,1,0,true,0,0x80000001U,N|V,0U,Z|C|V);
+ ShiftCase(13,1,1,true,0,0x80000001U,N,0x40000000U,C);
+ ShiftCase(13,1,31,true,0,0xc0000000U,V,1U,C|V);
+ ShiftCase(13,2,0,true,0,0x80000000U,V,0xffffffffU,N|C|V);
+ ShiftCase(13,2,0,true,0,0x7fffffffU,N|C,0U,Z);
+ ShiftCase(13,2,1,true,0,0x80000001U,V,0xc0000000U,N|C|V);
+ ShiftCase(13,2,31,true,0,0x80000000U,C,0xffffffffU,N);
+ ShiftCase(13,3,1,true,0,3U,0,0x80000001U,N|C);
+ ShiftCase(13,3,31,true,0,0x80000003U,C|V,7U,V);
+ ShiftCase(13,3,0,true,0,3U,0,1U,C);
+ ShiftCase(13,3,0,true,0,2U,C|V,0x80000001U,N|V);
+
+ // S=0 preserves every CPSR bit even when the shifter would change carry.
+ ShiftCase(13,0,1,false,0,0x80000001U,N|Z|C|V,2U,N|Z|C|V);
+ ShiftCase(13,1,0,false,0,0x80000001U,N|Z|C|V,0U,N|Z|C|V);
+ ShiftCase(13,2,31,false,0,0x80000001U,N|Z|C|V,0xffffffffU,N|Z|C|V);
+ ShiftCase(13,3,1,false,0,0x80000001U,N|Z|C|V,0xc0000000U,N|Z|C|V);
+ ShiftCase(13,3,0,false,0,0x80000001U,N|Z|C|V,0xc0000000U,N|Z|C|V);
+
+ // ADD derives C/V from addition, not the operand shifter's discarded bit.
+ ShiftCase(4,0,1,true,0U,0x80000000U,N|C|V,0U,Z);
+ ShiftCase(4,1,1,true,0xffffffffU,2U,V,0U,Z|C);
+ ShiftCase(4,1,1,true,0x7fffffffU,2U,C,0x80000000U,N|V);
+ ShiftCase(4,3,0,true,0x80000000U,0U,C,0U,Z|C|V);
+ ShiftCase(4,1,24,true,0xfffffff0U,0xff000000U,V,0xefU,C);
+ ShiftCase(4,1,1,false,0xffffffffU,2U,N|Z|C|V,0U,N|Z|C|V);
+
+ // ORR uses shifter carry, leaves V intact, and computes N/Z from the OR.
+ ShiftCase(12,0,1,true,1U,0x80000000U,V,1U,C|V);
+ ShiftCase(12,0,0,true,0x80000000U,0U,C|V,0x80000000U,N|C|V);
+ ShiftCase(12,1,0,true,0U,0x7fffffffU,N|C|V,0U,Z|V);
+ ShiftCase(12,2,31,true,0U,0x80000000U,C,0xffffffffU,N);
+ ShiftCase(12,3,0,true,0x10U,2U,C|V,0x80000011U,N|V);
+ ShiftCase(12,0,16,false,0x80000001U,0x12345678U,Z|C|V,0xd6780001U,Z|C|V);
+
+ for(unsigned opcode:{4U,12U,13U}){
+   ShiftCase(opcode,0,17,true,0xffffffffU,0xffffffffU,C|V,0U,C|V,
+             a32::Condition::Eq,false);
+ }
+ ShiftCase(13,0,1,true,0U,3U,Z|V,6U,V,a32::Condition::Eq);
+
+ // SP/LR and source/destination overlap remain ordinary A32 registers here.
+ ShiftCase(4,0,1,false,4U,3U,C,10U,C,a32::Condition::Al,true,13,13,14);
+ ShiftCase(12,0,31,true,1U,1U,V,0x80000001U,N|V,
+           a32::Condition::Al,true,14,13,14);
+ ShiftCase(13,3,1,true,0U,3U,V,0x80000001U,N|C|V,
+           a32::Condition::Al,true,14,14);
+}
+
+void ComputedPcDispatch(){
+ // A separate, authored four-arm dispatch proves PC+8, data-table reads and
+ // ordinary ADD/MOV PC exits. None of these addresses or values comes from a
+ // game image. Table bytes stay data, never decoded as supplemental code.
+ constexpr auto entry=kShiftPc+0x400U, table=kShiftPc+0x440U;
+ constexpr auto return_pc=kShiftPc+0x700U;
+ const a32::PackedOp dispatch_ops[]{
+   {(14U<<28U)|(1U<<25U)|(4U<<21U)|(15U<<16U)|(4U<<12U)|0x38U,
+    a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al,2)},
+   {(14U<<28U)|(3U<<25U)|(1U<<24U)|(1U<<23U)|(1U<<20U)|(4U<<16U)|(5U<<12U),
+    a32::EncodeMetadata(a32::Opcode::CoreMemory,a32::Condition::Al)},
+   {ShiftWord(4,false,0,0,15,5,4),
+    a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al)}};
+ a32::PackedOp arm_ops[4][2]{};
+ a32::Block additions[5]{{entry,dispatch_ops,3,false}};
+ GuestMemory memory;
+ CHECK(memory.Map(kShiftPc,0x1000,MemoryPermission::Read|MemoryPermission::Write));
+ for(unsigned i=0;i<4;++i){
+   const auto arm=kShiftPc+0x480U+i*0x20U;
+   arm_ops[i][0]={(14U<<28U)|(1U<<25U)|(13U<<21U)|(2U<<12U)|(0x20U+i),
+                  a32::EncodeMetadata(a32::Opcode::MovImm,a32::Condition::Al,2)};
+   arm_ops[i][1]={ShiftWord(13,false,0,0,15,14),
+                  a32::EncodeMetadata(a32::Opcode::MovReg,a32::Condition::Al)};
+   additions[i+1]={arm,arm_ops[i],2,false};
+   CHECK(memory.Write32(table+i*4U,arm-table));
+ }
+ lego::host::SupplementalRegistry merged(shift_base,additions);
+ for(unsigned i=0;i<4;++i){
+   a32::GuestState cpu{};cpu.r[0]=i*4U;cpu.r[14]=return_pc;
+   cpu.r[15]=entry;cpu.cpsr=kOtherCpsr|V;
+   CHECK(StepRecordedA32(merged.registry(),cpu,memory).kind==a32::ExitKind::Fallthrough);
+   CHECK(cpu.r[4]==table && cpu.r[15]==entry+4U);
+   CHECK(StepRecordedA32(merged.registry(),cpu,memory).kind==a32::ExitKind::Fallthrough);
+   CHECK(cpu.r[5]==0x40U+i*0x20U && cpu.r[15]==entry+8U);
+   CHECK(StepRecordedA32(merged.registry(),cpu,memory).kind==a32::ExitKind::Branch);
+   CHECK(cpu.r[15]==kShiftPc+0x480U+i*0x20U && cpu.r[14]==return_pc);
+   CHECK(StepRecordedA32(merged.registry(),cpu,memory).kind==a32::ExitKind::Fallthrough);
+   CHECK(cpu.r[2]==0x20U+i);
+   CHECK(StepRecordedA32(merged.registry(),cpu,memory).kind==a32::ExitKind::Branch);
+   CHECK(cpu.r[15]==return_pc && cpu.cpsr==(kOtherCpsr|V));
+   const auto stopped=cpu;
+   CHECK(StepRecordedA32(merged.registry(),cpu,memory).kind==a32::ExitKind::MissingBlock);
+   CHECK(cpu.r==stopped.r && cpu.cpsr==stopped.cpsr);
+ }
+ for(unsigned i=0;i<4;++i){
+   a32::GuestState data{};data.r[15]=table+i*4U;data.cpsr=kOtherCpsr;
+   const auto before=data;
+   CHECK(a32::FindBlock(merged.registry(),data.r[15])==nullptr);
+   CHECK(StepRecordedA32(merged.registry(),data,memory).kind==a32::ExitKind::MissingBlock);
+   CHECK(data.r==before.r && data.cpsr==before.cpsr);
+ }
+}
+}
+int main(){ValidAndExecution();Invalid();ImmediateShiftSemantics();ComputedPcDispatch();if(failures)return EXIT_FAILURE;std::cout<<"PASS: immutable compile-time supplement, shifted MOV/ADD/ORR semantics, computed-PC dispatch, data/code separation, holes/overlap/range/lifetime, suffix execution, allocation failure, unchanged base and strict missing-PC stop\n";}

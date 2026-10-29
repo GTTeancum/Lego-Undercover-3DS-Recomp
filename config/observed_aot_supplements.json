@@ -20,6 +20,31 @@
       "entry": "0x0024D3DC",
       "end": "0x0024D3F0",
       "evidence": "Fallthrough of 0x0024D3D8, bounded by original unconditional branch to existing recorded block at 0x0024D3A8."
+    },
+    {
+      "entry": "0x001518C0",
+      "end": "0x001519A4",
+      "evidence": "Static target of the observed dispatch at 0x00151B48; 57 instructions end at an unconditional return through unchanged LR. No internal exits or overlap with original AOT. The captured LR 0x00150F40 is already recorded; other return values retain normal registry validation. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x001519A4",
+      "end": "0x00151A48",
+      "evidence": "Static target of the observed dispatch at 0x00151B48; 41 instructions end at an unconditional return through unchanged LR. No internal exits or overlap with original AOT. The captured LR 0x00150F40 is already recorded; other return values retain normal registry validation. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x00151A48",
+      "end": "0x00151AE4",
+      "evidence": "Static target of the observed dispatch at 0x00151B48; 39 instructions end at an unconditional return through unchanged LR. No internal exits or overlap with original AOT. The captured LR 0x00150F40 is already recorded; other return values retain normal registry validation. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x00151AE4",
+      "end": "0x00151B38",
+      "evidence": "Static target of the observed dispatch at 0x00151B48; 21 instructions end at an unconditional return through unchanged LR. No internal exits or overlap with original AOT. The captured LR 0x00150F40 is already recorded; other return values retain normal registry validation. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x00151B48",
+      "end": "0x00151B6C",
+      "evidence": "Observed thread 7 MissingBlock at startup round 21843. Nine-instruction entry of a reviewed four-way dispatch; the literal table at 0x00151B38..0x00151B48 is data and excluded. All four bounded targets are recorded separately. End is exclusive; generate only from authenticated private code.bin."
     }
   ]
 }
