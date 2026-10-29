@@ -116,14 +116,20 @@ class ThreadObject final : public WaitObject,
 public:
     explicit ThreadObject(std::uint32_t thread_id) noexcept
         : WaitObject(Type::Thread), thread_id(thread_id) {}
+    ThreadObject(const ThreadObject&) = delete;
+    ThreadObject& operator=(const ThreadObject&) = delete;
+    ThreadObject(ThreadObject&&) = delete;
+    ThreadObject& operator=(ThreadObject&&) = delete;
 
     [[nodiscard]] bool ShouldWait(const ThreadObject&) const noexcept override {
         return status != ThreadStatus::Dead;
     }
     void Acquire(ThreadObject&) noexcept override {}
 
+    [[nodiscard]] bool owns_mutex() const noexcept { return held_mutex_count_ != 0; }
+
     std::uint32_t thread_id{};
-    bool execution_started{}; // Diagnostic provenance for bounded fresh-thread operations.
+    bool execution_started{}; // Diagnostic execution provenance.
     ThreadStatus status{ThreadStatus::Dormant};
     std::uint32_t entry_point{};
     std::uint32_t argument{};
@@ -139,6 +145,8 @@ public:
 
 private:
     friend class Kernel;
+    friend class MutexObject;
+    std::size_t held_mutex_count_{}; // Live owned objects, not recursive lock depth.
     std::vector<std::shared_ptr<WaitObject>> wait_objects_{};
     std::optional<std::uint64_t> wake_deadline_ns_{};
     bool wait_reports_index_{};
@@ -185,6 +193,11 @@ private:
 class MutexObject final : public WaitObject {
 public:
     MutexObject() noexcept : WaitObject(Type::Mutex) {}
+    ~MutexObject() override;
+    MutexObject(const MutexObject&) = delete;
+    MutexObject& operator=(const MutexObject&) = delete;
+    MutexObject(MutexObject&&) = delete;
+    MutexObject& operator=(MutexObject&&) = delete;
 
     [[nodiscard]] bool ShouldWait(const ThreadObject& thread) const noexcept override;
     void Acquire(ThreadObject& thread) noexcept override;
@@ -416,9 +429,11 @@ public:
     Result CreateThread(Handle* out_handle, std::uint32_t entry_point,
                         std::uint32_t argument, std::uint32_t stack_top,
                         std::uint32_t priority, std::int32_t processor_id) noexcept;
-    // First priority assignment before the thread executes. Broader priority
-    // inheritance/reordering on running or waiting threads is not modeled here.
-    std::optional<Result> SetFreshThreadPriority(Handle handle,std::uint32_t priority) noexcept;
+    // Active threads that neither own a mutex nor have a mutex wait dependency.
+    // Selection and wake order consult the new priority without consuming a wait
+    // or changing time.
+    // nullopt: dormant/dead targets or unmodeled mutex priority inheritance.
+    std::optional<Result> SetThreadPriority(Handle handle,std::uint32_t priority) noexcept;
     void ExitCurrentThread() noexcept;
     bool SleepCurrentThread(std::int64_t nanoseconds) noexcept;
 

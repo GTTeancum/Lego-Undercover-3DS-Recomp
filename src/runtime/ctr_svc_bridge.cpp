@@ -165,6 +165,13 @@ a32::ExecutionResult SvcBridge::Handle(const a32::ExecutionResult& exit,
                        : ResumeAfterSvc(exit.pc, state);
     }
 
+    case kSvcSetThreadPriority: {
+        const auto result=kernel_.SetThreadPriority(state.r[0],state.r[1]);
+        if(!result)return exit; // Unsupported dependency: preserve the full call.
+        state.r[0]=*result;
+        return ResumeAfterSvc(exit.pc,state);
+    }
+
     case kSvcCreateMutex: {
         ::lego::ctr::Handle handle = 0;
         const Result result = kernel_.CreateMutex(&handle, state.r[1] != 0U);

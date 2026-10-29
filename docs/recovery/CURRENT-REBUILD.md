@@ -1,3 +1,177 @@
+# October 29, 2026 — active thread priority changes and the next AOT gap
+
+## Current result and next task
+
+The unchanged original game now passes the **SetThreadPriority** call that
+stopped the extended startup run at `0x0010B1B0`. The real target is thread
+**12**, which has already executed and is waiting on an address arbiter.
+Its priority changes from **48 to 47** with Result **0**, while it remains in
+`WaitArb`; pending-wake state, stored CPU context and guest time do not change.
+The original call resumes at `0x0010B1B4`.
+
+The current ordinary run reaches **MissingBlock**, thread **7**, dispatch round
+**21843**, PC **`0x00151B48`**, guest time **8748407941 ns**. It executes
+**61369943 core-0 instructions**, which is **113624 more** than the pre-fix
+priority stop. The dispatch-round counter counts SVC boundaries, so it need
+not increase while ordinary instructions advance between them.
+
+**Next: verify and translate the missing A32 region beginning at
+`0x00151B48` using the authenticated build-time supplement workflow.** The
+address is absent from the original registry. Initial static inspection reaches
+an instruction classified `core_alu_candidate`, which the existing supplement
+generator deliberately rejects. Review that exact instruction's semantics,
+control-flow exits and generator admission policy before adding a range; do
+not remove the guard or insert a forced return merely to advance execution.
+
+The first fragment is **nine instructions / 36 bytes**, ending at exclusive
+`0x00151B6C`. Its shifted flag-setting MOV already has runtime evaluator support,
+but that does not establish safe admission of the generator's broad candidate
+category. The fragment ends with a four-way PC-relative indirect dispatch to
+`0x00151AE4`, `0x00151A48`, `0x001519A4` or `0x001518C0`; all four entries are
+unrecorded. The captured register values imply the first target under static
+evaluation, but no execution beyond the missing entry has been observed.
+Review the resulting block graph and exits and add independently authored
+admission/semantic tests before changing the supplement manifest.
+
+The current last router request is **historical** `fs:RomFS`, header
+`0x080200C2`; it is not an unsupported IPC. Both active display buffers are
+black at this later checkpoint, with LCD force-black disabled. The extended
+pre-fix run had already cleared the startup logos and had the same black
+active buffers. Earlier actual startup-logo exports remain valid historical
+evidence; this later image does not establish a usable menu or gameplay.
+
+## Why the previous startup window was extended
+
+The prior **65536-host-event / 240-second** window ended at its event cap
+while startup branding was visible. A distinct run of the exact published
+`284e3d1322dfada688a44407cda6c47470bac3ae` native executable used
+**131072 host events**, the existing **`--block-limit 100000000`** setting,
+and a **600-second wall timeout**, with a **630-second outer guard**.
+In diagnostic mode, the block-limit setting bounds instructions between SVC
+boundaries.
+
+That run stopped at **UnsupportedSvc 0x0C**, PC `0x0010B1B0`, thread **7**,
+round **21843**, guest time **8747984148 ns**. The request used handle
+`0x0012803A` and priority **47**. The former implementation only supported a
+fresh Ready thread that had never executed. A matching capture passed all
+**21 strict comparison checks** and preserved all **232 capture members**.
+This identifies a concrete runtime boundary instead of inferring a hang from
+the earlier event-limited snapshot.
+
+## Supported priority behavior
+
+`Kernel::SetThreadPriority` now accepts active **Running**, **Ready**,
+**WaitSleep**, **WaitArb**, **WaitSynchAny** and **WaitSynchAll** targets when
+they neither own a mutex nor have a mutex wait registration. It supports the
+current-thread pseudo handle and executed targets, and preserves pending
+wake results and indices. The shared SVC bridge handles command **0x0C** in
+both strict and diagnostic runners; the previous diagnostic-only interception
+has been removed.
+
+Validation preserves the established order: unsigned priority range **0..63**,
+typed thread handle, then the caller process's priority resource limit
+(**24** in this runtime). Invalid requests return the corresponding guest
+Result. An unsupported dependency leaves the original call and its registers
+untouched. A successful call changes only the target's priority before the
+normal runner SVC boundary applies scheduling.
+
+All live mutex owners remain explicitly unsupported, including uncontended
+owners. A small per-thread count tracks distinct owned mutex objects, rather
+than recursive lock depth. First acquisition, final release and object
+destruction maintain it; thread and mutex objects cannot be copied or moved.
+Mutex wait dependencies are found through retained wait-object references,
+so closing a handle cannot hide one. WaitAll registrations count even when a
+mutex is currently available.
+
+This is a bounded slice. There is no nominal/effective priority split or
+priority inheritance implementation. Dormant and Dead targets remain
+unsupported. Existing diagnostic scheduler tie rules, strict/waiter thread-ID
+ordering and weak mutex lifetime behavior are unchanged; full reference FIFO
+or hardware-equivalent scheduling is not claimed.
+
+Primary references: pinned Azahar [SVC validation](https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/kernel/svc.cpp),
+[thread priority handling](https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/kernel/thread.cpp),
+[mutex priority behavior](https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/kernel/mutex.cpp),
+and libctru's [SVC declaration](https://github.com/devkitPro/libctru/blob/1f8d386e375ce734e11a3199eb51b8c98cc7e93a/libctru/include/3ds/svc.h)
+and [ABI wrapper](https://github.com/devkitPro/libctru/blob/1f8d386e375ce734e11a3199eb51b8c98cc7e93a/libctru/source/svc.s).
+
+## Verification and actual execution
+
+One complete Release build and all **79 local suites pass**. The new authored
+fixtures cover running-thread demotion, Ready-thread promotion, cross-core
+context/TLS/reservations, validation precedence and handle lifetime, unchanged
+sleep deadlines, event/semaphore/WaitAll behavior, arbiter wake order and
+once-only pending-wake delivery. Mutex ownership, recursion, multiple objects,
+final release, destruction, expired owners, failed handle allocation and
+retained WaitAll registrations are covered too. Guest-written memory verifies
+actual preemption and atomic unsupported stops in both runner modes.
+
+One ordinary run and one private observational capture use the same larger
+**131072-host-event / 600-second** profile and unchanged
+**`--block-limit 100000000`** setting, with fresh SaveData/SharedExtData.
+The unchanged strict comparator passes **21 checks**, including normalized
+complete launch arguments/stdout, CPU/IPC state, filesystem inventories and
+all **4571648 audio bytes / 285726 records**, with complete streams and
+successful close status. Every audio byte from the pre-fix stop is an exact
+prefix of the new stream.
+
+The capture records **all five actual priority calls**, with no truncation;
+all return success. Call **5** uniquely matches the earlier blocked request
+by PC, caller, handle and requested priority. Its before/after proof verifies
+the successful change on already-executed thread **12** and unchanged
+serialized caller/target metadata and live/stored CPU contexts, except for
+the permitted priority and result/PC updates. The observation runs inside the unchanged common
+SVC boundary, before the runner publishes context or invalidates reservations.
+The original setter executes exactly once. No GPU replay, artificial wake,
+guest-memory repair, game-specific handler or automatic run retry is used.
+
+All **14 capture payloads** are retained and hashed. Source, four production
+libraries, native/capture executables, private supplements, original inputs
+and reviewed helpers remain unchanged through the completed runs. The
+original **599 AOT pages** and **four supplements** are unchanged. Hosted CI
+for the exact published revision is recorded separately.
+
+The initial AOT restoration preparation rejected the archive's SGID directory
+mode before extracting any files. A dependent configure then correctly failed
+because no pages existed. The corrected restore accepts the authenticated
+archive, strips that directory's SGID bit, and preserves every regular-file
+byte and mode. Both failed preparation records remain retained; they were
+not failed tests or game runs. No project build or test failure occurred in
+this priority milestone.
+
+## Private evidence and source identity
+
+- `extended-startup/` and `extended-startup-native-131072-2xi1ppau/`:
+  exact published executable's larger startup window and restoration records.
+- `extended-startup-capture-131072-oojf7a0v/`: matching pre-fix capture.
+- `extended-startup/thread-priority-design/`: primary reference identities,
+  bounded design decisions and independent production/capture reviews.
+- `thread-priority-build.json`, `thread-priority-tests.{json,log,xml}` and
+  `thread-priority-LastTest.log`: complete build and test gate.
+- `thread-priority-native-131072-ntjiagtu/`: actual post-fix ordinary run.
+- `thread-priority-capture-131072-t6yzkqg1/`: complete capture, strict
+  comparison, five-call proof and raw state.
+- `thread_priority_capture/` and `thread-priority-capture-run/`: private
+  observational builder, exact approvals, execution and closure records.
+- `thread-priority-screens/`: actual later framebuffer export and provenance.
+- `thread-priority-next-blocker/`: bounded private static AOT-gap diagnosis.
+
+Native SHA-256:
+`6212ad2295258bd7a3f703ccf3f0449d3b05795b79c532a466b271202a04e041`
+(**11726648 bytes**).
+CTR library SHA-256:
+`f152e45ddd542dd3987fbd9aa5a813ae50960c4e635ccdce824ddfc24a214d98`
+(**1398410 bytes**).
+
+The prior saved `284e3d1` metadata and private evidence are preserved, including
+the earlier workspace-loss boundary and explicitly labeled recovery runs.
+This milestone's extended and post-fix runs are new actual executions.
+Public source remains in Git; game-derived inputs, executable bodies,
+captures, audio and screenshots remain private. The complete prior handoff
+remains byte-identical below.
+
+---
+
 # October 28, 2026 — RGB8 repeat textures and visible startup branding
 
 ## Current result and next task

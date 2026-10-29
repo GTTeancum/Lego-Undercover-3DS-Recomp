@@ -39,6 +39,14 @@ void ResourceLimitObject::Reserve(ResourceLimitType type,
     current_[static_cast<std::size_t>(type)] += amount;
 }
 
+MutexObject::~MutexObject() {
+    if (lock_count_ > 0) {
+        if (const auto holder = holding_thread_.lock()) {
+            --holder->held_mutex_count_;
+        }
+    }
+}
+
 bool MutexObject::ShouldWait(const ThreadObject& thread) const noexcept {
     const auto holder = holding_thread_.lock();
     return lock_count_ > 0 && holder.get() != &thread;
@@ -47,6 +55,7 @@ bool MutexObject::ShouldWait(const ThreadObject& thread) const noexcept {
 void MutexObject::Acquire(ThreadObject& thread) noexcept {
     if (lock_count_ == 0) {
         holding_thread_ = thread.shared_from_this();
+        ++thread.held_mutex_count_;
         lock_count_ = 1;
         return;
     }
@@ -66,6 +75,7 @@ Result MutexObject::Release(ThreadObject& thread) noexcept {
     }
     --lock_count_;
     if (lock_count_ == 0) {
+        --thread.held_mutex_count_;
         holding_thread_.reset();
     }
     return kResultSuccess;

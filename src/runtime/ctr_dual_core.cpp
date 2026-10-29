@@ -60,16 +60,31 @@ bool Kernel::ConsumeCpuQuota(std::uint64_t tick) noexcept {
         if(const auto prior=diagnostic_core_threads_[1].lock())prior->guest_state.exclusive_valid=false;
     return true;
 }
-std::optional<Result> Kernel::SetFreshThreadPriority(Handle handle,std::uint32_t priority) noexcept {
+std::optional<Result> Kernel::SetThreadPriority(Handle handle,std::uint32_t priority) noexcept {
     if(priority>kThreadPriorityLowest)return kResultOutOfRange;
     const auto thread=std::dynamic_pointer_cast<ThreadObject>(handles_.Get(handle));
     if(!thread)return kResultInvalidHandle;
     if(priority<static_cast<std::uint32_t>(application_resource_limit_->Limit(ResourceLimitType::Priority)))
         return 0xD9001BEAU; // pinned OS NotAuthorized
-    if(thread->execution_started || thread==current_thread_ || thread->status!=ThreadStatus::Ready ||
-       !thread->wait_objects_.empty() || thread->pending_wake)return std::nullopt;
-    // It has never executed and cannot own or await a mutex. Ready selection
-    // consults this same priority on the next issue slot; no unrelated wake.
+    switch(thread->status) {
+    case ThreadStatus::Running:
+    case ThreadStatus::Ready:
+    case ThreadStatus::WaitSleep:
+    case ThreadStatus::WaitArb:
+    case ThreadStatus::WaitSynchAny:
+    case ThreadStatus::WaitSynchAll:
+        break;
+    default:
+        return std::nullopt;
+    }
+    if(thread->owns_mutex())return std::nullopt;
+    // There is no nominal/effective priority split or mutex donation model yet.
+    // Inspect retained wait references, not open handles: closing the last client
+    // handle cannot hide a mutex dependency. Wait-all registrations count too.
+    for(const auto& object:thread->wait_objects_)
+        if(std::dynamic_pointer_cast<MutexObject>(object))return std::nullopt;
+    // Ready selection and waiter wake ordering already sort the live priority.
+    // Do not wake a sleeper, consume a signal, or overwrite a pending wake result.
     thread->priority=priority;return kResultSuccess;
 }
 } // namespace lego::ctr

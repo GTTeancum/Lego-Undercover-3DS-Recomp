@@ -122,15 +122,7 @@ RunnerResult NativeRunner::RunDiagnosticDual(std::uint32_t instruction_limit,
         const auto e=StepRecordedA32(registry_,live_state_,memory_);
         if(e.kind==a32::ExitKind::Svc) {
             ++rounds;
-            a32::ExecutionResult handled=e;
-            if(e.detail==0x0C) {
-                // Observed first priority change on the newly created worker.
-                const auto value=kernel_.SetFreshThreadPriority(live_state_.r[0],live_state_.r[1]);
-                if(value) {
-                    live_state_.r[0]=*value;live_state_.r[15]=e.pc+4;
-                    handled={a32::ExitKind::Fallthrough,e.pc+4,a32::FallbackReason::None,0};
-                }
-            } else handled=svc_.Handle(e,live_state_,&memory_);
+            const auto handled=svc_.Handle(e,live_state_,&memory_);
             if(handled.kind==a32::ExitKind::Svc) {
                 return stop(ipc_.unsupported_request()&&e.detail==kSvcSendSyncRequest
                     ?RunnerStopReason::UnsupportedIpc:RunnerStopReason::UnsupportedSvc,e);

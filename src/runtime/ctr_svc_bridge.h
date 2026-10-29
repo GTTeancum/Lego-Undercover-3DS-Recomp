@@ -12,6 +12,7 @@ inline constexpr std::uint32_t kSvcControlMemory = 0x01U;
 inline constexpr std::uint32_t kSvcCreateThread = 0x08U;
 inline constexpr std::uint32_t kSvcExitThread = 0x09U;
 inline constexpr std::uint32_t kSvcSleepThread = 0x0AU;
+inline constexpr std::uint32_t kSvcSetThreadPriority = 0x0CU;
 inline constexpr std::uint32_t kSvcCreateMutex = 0x13U;
 inline constexpr std::uint32_t kSvcReleaseMutex = 0x14U;
 inline constexpr std::uint32_t kSvcCreateSemaphore = 0x15U;
