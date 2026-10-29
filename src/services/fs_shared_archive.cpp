@@ -169,6 +169,10 @@ Result Descend(ScopedFd& current, const std::string& component) {
 #endif
 } // namespace
 
+bool DecodeContainedFilePath(std::u16string_view path, std::vector<std::string>& components) {
+    return PathComponents(path, components);
+}
+
 bool SharedArchiveMounts::CanCreateFiles() const noexcept {
 #ifdef LEGO_HAS_CONTAINED_FILE_CREATE
     return native_root_ && native_root_->fd >= 0;

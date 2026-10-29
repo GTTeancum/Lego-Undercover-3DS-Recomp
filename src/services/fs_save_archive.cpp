@@ -73,6 +73,22 @@ Result DescendSaveDirectory(ScopedDirectory& current, const std::string& compone
     if (error == ELOOP || error == ENOTDIR) return kResultFsInvalidPath;
     SaveHostError(error, "SaveData directory open");
 }
+#ifdef LEGO_HAS_ATOMIC_SAVE_FORMAT
+Result DescendSaveFileParent(ScopedDirectory& current, const std::string& component) {
+    const int next=::openat(current.get(),component.c_str(),
+                            O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    if (next>=0) { current.reset(next); return kResultSuccess; }
+    const int error=errno;
+    struct stat entry{};
+    if (::fstatat(current.get(),component.c_str(),&entry,AT_SYMLINK_NOFOLLOW)==0) {
+        if (S_ISLNK(entry.st_mode)) return kResultFsInvalidPath;
+        if (!S_ISDIR(entry.st_mode)) return kResultFsUnexpectedFileOrDirectory;
+    }
+    if (error==ENOENT) return kResultFsPathNotFound;
+    if (error==ELOOP) return kResultFsInvalidPath;
+    SaveHostError(error,"SaveData file parent open");
+}
+#endif
 #endif
 
 #ifdef LEGO_HAS_ATOMIC_SAVE_FORMAT
@@ -169,6 +185,72 @@ void WriteSaveMetadata(SaveFormatStage& stage,const std::array<std::uint8_t,16>&
 }
 #endif
 } // namespace
+
+struct SaveDataFileOpenPlan::NativeCreation {
+    int parent;
+    std::string temporary, destination;
+    bool pending{};
+    NativeCreation(int fd,std::string leaf) noexcept
+        : parent(fd), destination(std::move(leaf)) {}
+    ~NativeCreation() {
+        Rollback();
+#ifdef LEGO_HAS_CONTAINED_SAVE_OPEN
+        if (parent>=0) ::close(parent);
+#endif
+    }
+    int Create() {
+#ifdef LEGO_HAS_ATOMIC_SAVE_FORMAT
+        static std::atomic<std::uint64_t> serial{1};
+        for (unsigned attempt=0;attempt<64;++attempt) {
+            // Owner, destination and this name exist before the exclusive open.
+            temporary=".lego-file-"+std::to_string(::getpid())+"-"+
+                      std::to_string(serial.fetch_add(1,std::memory_order_relaxed));
+            const int fd=::openat(parent,temporary.c_str(),
+                                  O_RDWR|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600);
+            if (fd>=0) {
+                pending=true; // No allocation or throwing step before ownership.
+                return fd;
+            }
+            if (errno!=EEXIST) SaveHostError(errno,"SaveData staged file creation");
+        }
+        throw std::runtime_error("SaveData staging file names exhausted");
+#else
+        throw std::logic_error("atomic SaveData file creation unavailable on this host");
+#endif
+    }
+    void Publish() {
+        if (!pending) return;
+#ifdef LEGO_HAS_ATOMIC_SAVE_FORMAT
+        if (::syscall(SYS_renameat2,parent,temporary.c_str(),parent,destination.c_str(),
+                       RENAME_NOREPLACE)!=0)
+            SaveHostError(errno,"SaveData exclusive file publication");
+        pending=false; // No fallible operation after the final name is visible.
+#else
+        throw std::logic_error("atomic SaveData file publication unavailable on this host");
+#endif
+    }
+    bool Rollback() noexcept {
+        if (!pending) return true;
+        pending=false;
+#ifdef LEGO_HAS_CONTAINED_SAVE_OPEN
+        return ::unlinkat(parent,temporary.c_str(),0)==0;
+#else
+        return false;
+#endif
+    }
+};
+
+SaveDataFileOpenPlan::SaveDataFileOpenPlan() = default;
+SaveDataFileOpenPlan::~SaveDataFileOpenPlan() = default;
+std::unique_ptr<SharedArchiveFile> SaveDataFileOpenPlan::TakeFile() noexcept {
+    return std::move(file_);
+}
+void SaveDataFileOpenPlan::Publish() {
+    if (creation_) creation_->Publish();
+}
+bool SaveDataFileOpenPlan::Rollback() noexcept {
+    return !creation_ || creation_->Rollback();
+}
 
 bool SaveDataArchiveMounts::ConfigureRoot(const fs::path& root) {
     if (root.empty()) return false;
@@ -283,6 +365,77 @@ Result SaveDataArchiveMounts::FormatMissing(std::uint64_t program_id,const SaveD
     return kResultSuccess;
 #else
     throw std::logic_error("atomic SaveData formatting is unavailable on this host");
+#endif
+}
+
+Result SaveDataArchiveMounts::StageOpenFile(std::uint64_t handle,std::uint64_t program_id,
+                                           std::u16string_view path,std::uint32_t mode,
+                                           SaveDataFileOpenPlan& out) const {
+    if (out.file_ || out.creation_)
+        throw std::logic_error("SaveData OpenFile requires an empty staging owner");
+    const auto found=mounts_.find(handle);
+    if (found==mounts_.end() || !program_id || found->second.mount.program_id!=program_id)
+        return kResultFsInvalidArchiveHandle;
+    if (!CanOpenFiles() || mode!=7)
+        throw std::logic_error("unsupported SaveData OpenFile backend/mode");
+    std::vector<std::string> parts;
+    if (!DecodeContainedFilePath(path,parts)) return kResultFsInvalidPath;
+#ifdef LEGO_HAS_ATOMIC_SAVE_FORMAT
+    // The opened title directory, not its diagnostic pathname, selects storage.
+    // Replacing or renaming the configured pathname cannot redirect this mount.
+    ScopedDirectory parent(::fcntl(found->second.directory->fd,F_DUPFD_CLOEXEC,0));
+    if (parent.get()<0) SaveHostError(errno,"SaveData file mount duplication");
+    for (std::size_t i=0;i+1<parts.size();++i) {
+        const auto result=DescendSaveFileParent(parent,parts[i]);
+        if (result!=kResultSuccess) return result;
+    }
+    const auto& leaf=parts.back();
+    struct stat before{};
+    if (::fstatat(parent.get(),leaf.c_str(),&before,AT_SYMLINK_NOFOLLOW)!=0) {
+        if (errno!=ENOENT) SaveHostError(errno,"SaveData file destination check");
+        // Prepare both owners before the first filesystem mutation. Publication
+        // happens only after the caller allocates its service/session and reply.
+        auto file=std::unique_ptr<SharedArchiveFile>(new SharedArchiveFile(-1,0,true));
+        auto creation=std::make_unique<SaveDataFileOpenPlan::NativeCreation>(parent.get(),leaf);
+        parent.release();
+        out.file_=std::move(file);
+        out.creation_=std::move(creation);
+        try {
+            out.file_->fd_=out.creation_->Create();
+        } catch (...) {
+            if (!out.Rollback())
+                throw std::runtime_error("SaveData file staging failed and owned cleanup failed");
+            throw;
+        }
+        return kResultSuccess;
+    }
+    if (S_ISLNK(before.st_mode)) return kResultFsInvalidPath;
+    if (!S_ISREG(before.st_mode)) return kResultFsUnexpectedFileOrDirectory;
+    if (before.st_nlink!=1) return kResultFsInvalidPath;
+    ScopedDirectory file(::openat(parent.get(),leaf.c_str(),O_RDWR|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK));
+    if (file.get()<0) {
+        if (errno==ENOENT) return kResultFsFileNotFound;
+        if (errno==ELOOP) return kResultFsInvalidPath;
+        if (errno==EISDIR) return kResultFsUnexpectedFileOrDirectory;
+        SaveHostError(errno,"SaveData existing file open");
+    }
+    struct stat opened{};
+    if (::fstat(file.get(),&opened)!=0) SaveHostError(errno,"SaveData opened file check");
+    if (!S_ISREG(opened.st_mode)) return kResultFsUnexpectedFileOrDirectory;
+    if (opened.st_nlink!=1) return kResultFsInvalidPath;
+    if (before.st_dev!=opened.st_dev || before.st_ino!=opened.st_ino)
+        throw std::runtime_error("SaveData file changed during OpenFile");
+    if (opened.st_size<0 || static_cast<std::uint64_t>(opened.st_size)>kMaxSaveDataFileBytes)
+        throw std::runtime_error("SaveData file extent exceeds the supported host bound");
+    const int flags=::fcntl(file.get(),F_GETFL);
+    if (flags<0 || ::fcntl(file.get(),F_SETFL,flags&~O_NONBLOCK)!=0)
+        SaveHostError(errno,"SaveData file flags");
+    out.file_=std::unique_ptr<SharedArchiveFile>(
+        new SharedArchiveFile(file.get(),static_cast<std::uint64_t>(opened.st_size),true));
+    file.release(); // Existing bytes are never truncated or removed by this plan.
+    return kResultSuccess;
+#else
+    throw std::logic_error("contained SaveData file opening unavailable on this host");
 #endif
 }
 } // namespace lego::ctr

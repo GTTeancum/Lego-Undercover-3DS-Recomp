@@ -1,3 +1,125 @@
+# October 28, 2026 — SaveData files and growing writes
+
+## Current result and next task
+
+The unchanged original game now completes the previously unsupported SaveData
+**OpenFile** request. It creates a real zero-length application file, reads its
+size, writes **42644 bytes**, and closes the file. The file contents come from
+the running guest and remain private.
+
+The selected ordinary run reaches **fs:USER ControlArchive**, request header
+**0x080D0144**, at dispatch round **5349**, guest time **1872359327 ns**. The
+explicit stop is `UnsupportedIpc`, PC `0x0025947C`, detail `0x32`, thread 10.
+
+**Next task: implement the observed ControlArchive commit acknowledgement
+against the verified reference behavior.** The complete command and transport
+remain private. This milestone establishes file creation and writes; it does
+not claim that the subsequent archive commit or save initialization completed.
+
+## Supported file behavior
+
+The new SaveData slice accepts the observed UTF-16 OpenFile request with
+**read/write/create mode 7 and attributes 0**. The mount must belong to the
+initialized client program. Descriptor-relative traversal stays beneath the
+pinned title directory, checks the bounded path and rejects unsupported link
+or file types. Replacing a diagnostic host pathname cannot redirect the mount.
+
+An existing regular file opens without truncation. A missing leaf is staged
+under an owned temporary name and published with Linux
+`renameat2(RENAME_NOREPLACE)`. The file endpoint, client session, kernel handle
+capacity and private guest reply are prepared before publication. Failed
+preparation or publication cleans up the owned temporary leaf without removing
+an existing file; rollback failures remain explicit host stops.
+
+SaveData file size is read from the actual descriptor, so separate opens see
+one another's growth. Writes may extend the file, including an intervening
+zero-filled gap, up to an explicit **64 MiB host policy bound**. This bound is
+not a discovered console capacity or a claim that format-metadata quotas are
+enforced. SharedExtData retains its prior fixed-size clipping semantics.
+
+The file service handles GetSize, Write and Close for this observed slice.
+The Read command remains unsupported. SaveData reply backing is prepared
+before operations that change the file or release its descriptor. Write input
+must have private backing separate from the reply. A host write failure stops
+explicitly and retains its real partial byte count; it does not pretend that
+a full write succeeded. There is no new hardware journal or power-loss
+durability claim.
+
+## Verification and finite-run limits
+
+The complete **79-suite local gate passes**. Authored SaveData cases cover
+creation, growth, gaps, preserved existing bytes, size visibility across
+separate opens, title ownership, invalid paths and links, publication conflict
+and rollback, exhausted handle capacity, private reply preparation, closed
+endpoints and an actual partial host write. The gate uses byte-identical
+executable copies with the original test arguments, properties and effective
+working directories. Source and binary bytes remain frozen through the gate.
+
+Two ordinary original-game runs are retained. The first uses the existing
+**16384 host-event budget**, creates and writes the 42644-byte file, then reaches
+`HostEventLimit` at dispatch round **5162**. That limit is not an unsupported
+game operation. A separately recorded second run raises only the finite
+host-event budget to **65536** and reaches ControlArchive at round **5349**.
+The native binary, original inputs, **100 million block limit** and **240-second
+ordinary timeout** are unchanged. No test rerun accompanies this budget change.
+
+One selective capture uses the second run's **65536-event** setting and the
+same other limits. Complete normalized launch arguments/stdout, final CPU/IPC
+state, recursive SaveData/SharedExtData inventories and all **970944 audio
+bytes / 60682 records** match that ordinary run. Both audio streams include
+complete headers and reported tails with successful close status.
+
+The actual file sequence is **OpenFile → GetSize(0) → Write(42644) → Close**.
+OpenFile adds one kernel handle, from 38 to 39. File Close releases its file
+descriptor without removing that kernel session handle. The final capture
+retains the full subsequent ControlArchive request, bounded input transport,
+GPU/GSP state, all **6 MiB of VRAM** and both LCD force-black words.
+
+The first semantic proof compared identical filesystem entries in different
+orders: C++ path ordering and Python string ordering. It retained one failed
+check. A separate, reviewed read-only verifier rejects duplicate paths and
+compares all complete entries after sorting by the same key. The corrected
+`save-file-proof-checked.json` passes **276 checks**. The original failed proof
+and original helper remain unchanged; no guest rerun or captured-byte repair
+was performed. Portable integrity and its readback check cover **145 retained
+files and all 102 capture members**.
+
+The latest private lossless framebuffer export still shows a save-preparation
+notice on the lower screen and a black top screen. Both captured LCD
+force-black controls are disabled. This is evidence of the actual headless
+framebuffer at the stop, without demonstrating a host window, usable menu,
+audible playback or playable gameplay.
+
+GPU code is unchanged and no GPU queue is replayed for this filesystem
+milestone. The original code/RomFS/ExHeader hashes and four authenticated
+build-time AOT supplements are unchanged. Exact-revision hosted CI results
+are recorded separately from the local and original-game evidence.
+
+## Private evidence and source identity
+
+- `save-file-build.json` identifies the frozen production build.
+- `save-file-tests.{json,log,xml}` retains the complete 79-suite local gate.
+- `save-file-native-_wwyms8d/` retains the first run at the existing event limit.
+- `save-file-extended-preparation.json` and `save-file-extended-run.json`
+  record the explicit budget change and unchanged inputs/source/binary.
+- `save-file-extended-native-e2rk_ue6/` is the selected ordinary comparator.
+- `save-file-capture-46pp9n5n/` and `save_file_capture/` retain the selective
+  capture, strict comparison, original failed proof, corrected proof and helpers.
+- `save_file_capture/closed-verification.json` records the complete capture
+  verification and release of the source/build freeze.
+- `screenshot-save-file/` retains the actual framebuffer export and provenance.
+
+Native SHA-256:
+`00a6bf7547b7884a8711ca88c09365770fbf24a92c9fd417af5d3ab9a442f98e`.
+CTR library SHA-256:
+`075e92f96b64d1b794085387ec9851783b348eacd0d249fecfb60c1404a5d6e3`.
+This follows the published first-time format milestone
+`bbb453626d266e75782d168cc0ddbe3a1123dd48`. All earlier chronological sections,
+including their historical failed gates and evidence limits, remain unchanged
+below.
+
+---
+
 # October 28, 2026 — first-time SaveData formatting
 
 ## Current result and next task

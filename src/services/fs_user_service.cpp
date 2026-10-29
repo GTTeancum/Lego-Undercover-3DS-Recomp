@@ -44,11 +44,12 @@ bool FsUserService::CanHandle(const IpcCommandBuffer& command) const noexcept {
     }
     if (command[0] == IpcMakeHeader(0x0802, 7, 2)) {
         const auto archive = std::uint64_t(command[2]) | (std::uint64_t(command[3]) << 32);
-        if (IsSaveDataArchiveHandle(archive)) return false;
         const auto bytes = command[5];
-        return shared_->archives.CanOpenFiles() && command[4] == 4 &&
-               bytes >= 4 && bytes <= 0x1000 && (bytes & 1) == 0 &&
-               command[8] == ((bytes << 14) | 2) && (command[6] & ~7U) == 0;
+        if (command[4]!=4 || bytes<4 || bytes>0x1000 || (bytes&1)!=0 ||
+            command[8]!=((bytes<<14)|2)) return false;
+        if (IsSaveDataArchiveHandle(archive))
+            return shared_->save_archives.CanOpenFiles() && command[6]==7 && command[7]==0;
+        return shared_->archives.CanOpenFiles() && (command[6]&~7U)==0;
     }
     if (command[0] == IpcMakeHeader(0x0808, 8, 2)) {
         const auto archive = std::uint64_t(command[2]) | (std::uint64_t(command[3]) << 32);
@@ -164,11 +165,30 @@ Result FsUserService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& mem
     if (id == 0x0802) {
         const auto bytes = command[5];
         const auto address = command[9];
+        const auto archive = std::uint64_t(command[2]) | (std::uint64_t(command[3]) << 32);
+        const bool savedata=IsSaveDataArchiveHandle(archive);
         if (std::uint64_t(address) + bytes > 0x100000000ULL || !memory.IsReadable(address, bytes))
             return kResultInvalidPointer;
+        const auto reply64=std::uint64_t(thread.tls_address)+kIpcCommandBufferOffset;
+        if (savedata) {
+            if (reply64+sizeof(command)>0x100000000ULL ||
+                !memory.IsReadable(static_cast<std::uint32_t>(reply64),sizeof(command)) ||
+                !memory.IsWritable(static_cast<std::uint32_t>(reply64),sizeof(command)))
+                return kResultInvalidPointer;
+            if (!memory.IsCachelessPrivateRange(address,bytes) ||
+                !memory.IsCachelessPrivateRange(static_cast<std::uint32_t>(reply64),sizeof(command))) {
+                router.RequestHostStop("SaveData OpenFile requires private path and reply backing");
+                return kResultSuccess;
+            }
+        }
         Result result = kResultFsInvalidPath;
         ::lego::ctr::Handle file_handle = 0;
+        SaveDataFileOpenPlan plan;
         try {
+            if (savedata && !memory.PrepareDeviceWrite(static_cast<std::uint32_t>(reply64),sizeof(command))) {
+                router.RequestHostStop("SaveData OpenFile reply preparation failed");
+                return kResultSuccess;
+            }
             std::u16string path;
             path.reserve(bytes / 2);
             for (std::uint32_t offset = 0; offset < bytes; offset += 2) {
@@ -178,17 +198,43 @@ Result FsUserService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& mem
             }
             if (path.back() == 0) {
                 path.pop_back();
-                const auto archive = std::uint64_t(command[2]) | (std::uint64_t(command[3]) << 32);
-                std::unique_ptr<SharedArchiveFile> file;
-                result = shared_->archives.OpenFile(archive, path, command[6], &file);
-                if (result == kResultSuccess) {
-                    auto service = std::make_shared<FsFileService>(std::move(file));
-                    result = kernel.handles().Create(&file_handle,
-                        std::make_shared<ClientSessionObject>("fs:File", std::move(service)));
+                if (savedata) {
+                    const auto* mount=shared_->save_archives.Find(archive);
+                    if (!mount || mount->program_id!=program_id_) result=kResultFsInvalidArchiveHandle;
+                    else if (kernel.handles().OpenHandleCount()==HandleTable::kMaxCount)
+                        result=kResultOutOfHandles;
+                    else {
+                        result=shared_->save_archives.StageOpenFile(archive,program_id_,path,command[6],plan);
+                        if (result==kResultSuccess) {
+                            auto service=std::make_shared<FsFileService>(plan.TakeFile());
+                            auto client=std::make_shared<ClientSessionObject>("fs:File",std::move(service));
+                            // This synchronous handler cannot interleave another
+                            // handle allocation. Create is fixed-array/noexcept;
+                            // capacity, endpoint and reply are ready before the
+                            // new name appears. Failed publication consumes no
+                            // handle generation or caller-visible file name.
+                            plan.Publish();
+                            result=kernel.handles().Create(&file_handle,std::move(client));
+                            if (result!=kResultSuccess) {
+                                router.RequestHostStop("SaveData file published but handle-capacity invariant failed");
+                                return kResultSuccess;
+                            }
+                        }
+                    }
+                } else {
+                    std::unique_ptr<SharedArchiveFile> file;
+                    result = shared_->archives.OpenFile(archive, path, command[6], &file);
+                    if (result == kResultSuccess) {
+                        auto service = std::make_shared<FsFileService>(std::move(file));
+                        result = kernel.handles().Create(&file_handle,
+                            std::make_shared<ClientSessionObject>("fs:File", std::move(service)));
+                    }
                 }
             }
         } catch (const std::exception& error) {
-            router.RequestHostStop(error.what());
+            if (!plan.Rollback())
+                router.RequestHostStop("SaveData OpenFile failed and owned staging cleanup failed");
+            else router.RequestHostStop(error.what());
             return kResultSuccess; // No response committed; all temporary owners unwind.
         }
         // Same reply shape on success and failure; a failed open moves null.

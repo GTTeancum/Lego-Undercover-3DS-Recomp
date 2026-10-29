@@ -11,6 +11,24 @@
 #endif
 
 namespace lego::ctr {
+std::uint64_t SharedArchiveFile::size() const {
+    if (!savedata_) return size_; // Preserve fixed extdata's captured extent.
+    if (!is_open()) throw std::logic_error("GetSize on a closed SaveData backend");
+#if defined(__unix__) || defined(__APPLE__)
+    struct stat st{};
+    if (::fstat(fd_,&st)!=0)
+        throw std::system_error(errno,std::generic_category(),"SaveData GetSize fstat");
+    if (!S_ISREG(st.st_mode) || st.st_size<0 || st.st_nlink>1 ||
+        static_cast<std::uint64_t>(st.st_size)>kMaxSaveDataFileBytes)
+        throw std::runtime_error("SaveData extent/type/link count exceeds host policy");
+    // Other endpoints for this inode can grow it; an instance-local snapshot
+    // would falsely report the size observed at OpenFile.
+    return static_cast<std::uint64_t>(st.st_size);
+#else
+    throw std::logic_error("contained SaveData size unavailable on this host");
+#endif
+}
+
 void SharedArchiveFile::Close() {
     if (fd_ < 0) return;
     // Retire ownership before close; never retry an ambiguous close error or let
@@ -34,20 +52,27 @@ Result SharedArchiveFile::Write(std::uint64_t offset, std::span<const std::uint8
     if (!is_open()) throw std::logic_error("Write on a closed file backend");
     // Match fixed extdata: beyond end is an error; at end is a zero-byte success.
     // Subtraction after the comparison avoids offset+length overflow.
-    if (offset > size_) return kResultFsWriteBeyondEnd;
-    if (offset == size_) return kResultSuccess;
+    if (!savedata_) {
+        if (offset > size_) return kResultFsWriteBeyondEnd;
+        if (offset == size_) return kResultSuccess;
+    }
 #if defined(__unix__) || defined(__APPLE__)
     struct stat st{};
     if (::fstat(fd_, &st) != 0)
         throw std::system_error(errno, std::generic_category(), "file Write fstat");
-    // Do not silently regrow a host-truncated file or write a newly hard-linked
-    // object. This is host containment policy, not a guest filesystem Result.
+    // Extdata retains its fixed-size policy. SaveData follows DiskFile's growing
+    // extent, bounded here by explicit host policy rather than an invented quota.
+    // Neither policy writes a newly hard-linked object.
     if (!S_ISREG(st.st_mode) || st.st_size < 0 ||
-        static_cast<std::uint64_t>(st.st_size) != size_ || st.st_nlink > 1)
+        (!savedata_ && static_cast<std::uint64_t>(st.st_size) != size_) || st.st_nlink > 1)
         throw std::runtime_error("file extent/type/link count changed outside guest");
+    if (savedata_ && (static_cast<std::uint64_t>(st.st_size)>kMaxSaveDataFileBytes ||
+        offset>kMaxSaveDataFileBytes || data.size()>kMaxSaveDataFileBytes-offset))
+        throw std::logic_error("SaveData Write exceeds the supported host extent");
     const auto count = static_cast<std::uint32_t>(
-        std::min<std::uint64_t>(data.size(), size_ - offset));
-    if (size_ > static_cast<std::uint64_t>(std::numeric_limits<off_t>::max()))
+        savedata_ ? data.size() : std::min<std::uint64_t>(data.size(), size_ - offset));
+    const auto extent = savedata_ ? offset+count : size_;
+    if (extent > static_cast<std::uint64_t>(std::numeric_limits<off_t>::max()))
         throw std::logic_error("file offset cannot be represented by this host");
     while (*written < count) {
         const auto n = ::pwrite(fd_, data.data() + *written, count - *written,
@@ -86,8 +111,36 @@ bool FsFileService::CanHandle(const IpcCommandBuffer& command) const noexcept {
 Result FsFileService::Handle(IpcRouter& router, Kernel&, GuestMemory& memory,
                              ThreadObject& thread, IpcCommandBuffer& command) {
     if (!CanHandle(command)) return kResultNotFound;
+    const auto cb = std::uint64_t(thread.tls_address) + kIpcCommandBufferOffset;
+    if (file_->is_savedata()) {
+        if (cb+sizeof(command)>0x100000000ULL ||
+            !memory.IsReadable(static_cast<std::uint32_t>(cb),sizeof(command)) ||
+            !memory.IsWritable(static_cast<std::uint32_t>(cb),sizeof(command)))
+            return kResultInvalidPointer;
+        if (!memory.IsCachelessPrivateRange(static_cast<std::uint32_t>(cb),sizeof(command))) {
+            router.RequestHostStop("SaveData file reply requires private backing");
+            return kResultSuccess;
+        }
+        try {
+            // Prepare before Write changes bytes or Close releases ownership.
+            // Ordinary reply writes then need no callback or epoch allocation.
+            if (!memory.PrepareDeviceWrite(static_cast<std::uint32_t>(cb),sizeof(command))) {
+                router.RequestHostStop("SaveData file reply preparation failed");
+                return kResultSuccess;
+            }
+        } catch (const std::exception& error) {
+            router.RequestHostStop(error.what());
+            return kResultSuccess;
+        }
+    }
     if (IpcCommandId(command[0]) == 0x0804) {
-        const auto size = file_->size();
+        std::uint64_t size;
+        try {
+            size=file_->size();
+        } catch (const std::exception& error) {
+            router.RequestHostStop(error.what());
+            return kResultSuccess;
+        }
         command.fill(0);
         command[0] = IpcMakeHeader(0x0804, 3, 0);
         command[1] = kResultSuccess;
@@ -116,9 +169,14 @@ Result FsFileService::Handle(IpcRouter& router, Kernel&, GuestMemory& memory,
     // Validate the WHOLE declared input even when EOF will clip the write.
     if (end > 0x100000000ULL || (length != 0 && !memory.IsReadable(address, length)))
         return kResultInvalidPointer;
-    const auto cb = std::uint64_t(thread.tls_address) + kIpcCommandBufferOffset;
     if (length != 0 && address < cb + sizeof(IpcCommandBuffer) && cb < end) {
         router.RequestHostStop("file Write source aliases IPC reply (unsupported mapping)");
+        return kResultSuccess;
+    }
+    if (file_->is_savedata() && length!=0 &&
+        (!memory.IsCachelessPrivateRange(address,length) ||
+         memory.SpansAlias(address,length,static_cast<std::uint32_t>(cb),sizeof(command)))) {
+        router.RequestHostStop("SaveData Write source requires private backing separate from its reply");
         return kResultSuccess;
     }
     std::uint32_t written = 0;

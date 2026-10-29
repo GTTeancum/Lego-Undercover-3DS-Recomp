@@ -1,4 +1,5 @@
 #include "services/fs_user_service.h"
+#include "services/fs_file_service.h"
 #include "runtime/ctr_svc_bridge.h"
 #include <array>
 #include <chrono>
@@ -9,6 +10,7 @@
 #include <iostream>
 #include <iterator>
 #include <stdexcept>
+#include <system_error>
 #include <vector>
 #if defined(__unix__) || defined(__APPLE__)
 #include <sys/wait.h>
@@ -445,6 +447,241 @@ struct FailingReplyDevice final : DeviceMemory {
     std::uint64_t Epoch(std::uint32_t) const noexcept override { return 0; }
 };
 
+constexpr std::uint32_t kSaveFilePath=0x08001000,kSaveFilePayload=0x08002000;
+IpcCommandBuffer SaveFileRequest(Fixture& f,std::uint64_t archive,std::u16string_view path) {
+    std::vector<std::uint8_t> bytes;
+    for (const auto unit:path) { bytes.push_back(unit&255);bytes.push_back(unit>>8); }
+    bytes.push_back(0);bytes.push_back(0);
+    if (!f.memory.IsMapped(kSaveFilePath,0x1000))
+        CHECK(f.memory.Map(kSaveFilePath,0x1000,MemoryPermission::Read));
+    CHECK(f.memory.LoadBytes(kSaveFilePath,bytes));
+    const auto length=static_cast<std::uint32_t>(bytes.size());
+    return {0x080201C2,0,static_cast<std::uint32_t>(archive),static_cast<std::uint32_t>(archive>>32),
+            4,length,7,0,(length<<14)|2,kSaveFilePath};
+}
+Handle OpenSaveFile(Fixture& f,std::uint64_t archive,std::u16string_view path,
+                    Result result=kResultSuccess) {
+    const auto handles=f.kernel.handles().OpenHandleCount(),mounts=f.endpoint->save_archives().size();
+    f.Put(SaveFileRequest(f,archive,path));
+    CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==0);
+    const auto reply=f.Read();const Handle file=result==0?reply[3]:0;
+    CHECK((reply==IpcCommandBuffer{0x08020042,result,0x10,file}));
+    CHECK((file!=0)==(result==0) && !f.router.unsupported_request());
+    CHECK(f.kernel.handles().OpenHandleCount()==handles+(result==0));
+    CHECK(f.endpoint->save_archives().size()==mounts && f.kernel.now_ns()==0);
+    return file;
+}
+std::shared_ptr<FsFileService> SaveFileService(Fixture& f,Handle file) {
+    const auto session=std::dynamic_pointer_cast<ClientSessionObject>(f.kernel.handles().Get(file));
+    if (!session) throw std::runtime_error("missing authored save file session");
+    const auto service=std::dynamic_pointer_cast<FsFileService>(session->service);
+    if (!service) throw std::runtime_error("wrong authored save file service");
+    CHECK(service->file().is_savedata());
+    return service;
+}
+IpcCommandBuffer SaveWriteRequest(std::uint64_t offset,std::uint32_t length,
+                                  std::uint32_t address=kSaveFilePayload) {
+    return {0x08030102,static_cast<std::uint32_t>(offset),static_cast<std::uint32_t>(offset>>32),
+            length,1,(length<<4)|0xA,address};
+}
+void SaveFileReply(Fixture& f,Handle file,const IpcCommandBuffer& request,const IpcCommandBuffer& reply) {
+    const auto handles=f.kernel.handles().OpenHandleCount();
+    f.Put(request);f.cpu.r[0]=file;const auto before=f.cpu;
+    CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==0 && f.Read()==reply);
+    for (unsigned i=1;i<15;++i) CHECK(f.cpu.r[i]==before.r[i]);
+    CHECK(f.cpu.r[15]==before.r[15]+4 && f.cpu.cpsr==before.cpsr && f.cpu.fpscr==before.fpscr);
+    CHECK(f.kernel.handles().OpenHandleCount()==handles && f.kernel.now_ns()==0);
+}
+void SaveFileStop(Fixture& f,Handle file,const IpcCommandBuffer& request) {
+    const auto handles=f.kernel.handles().OpenHandleCount();
+    f.Put(request);f.cpu.r[0]=file;const auto before=f.cpu;
+    CHECK(f.Call().kind==a32::ExitKind::Svc && f.router.unsupported_request());
+    CHECK(f.Read()==request && f.cpu.r==before.r && f.cpu.cpsr==before.cpsr && f.cpu.fpscr==before.fpscr);
+    CHECK(f.kernel.handles().OpenHandleCount()==handles && f.kernel.now_ns()==0);
+}
+bool HasStagedSaveFile(const fs::path& directory) {
+    for (const auto& entry:fs::directory_iterator(directory))
+        if (entry.path().filename().string().starts_with(".lego-file-")) return true;
+    return false;
+}
+
+void SaveFileLifecycleAndGrowth() {
+    Fixture f;f.FormatReply(Fixture::FormatRequest());
+    const auto archive=f.Reply(Fixture::Request(),0);
+    const auto title=Title(f.Root());
+    Write(title/"neighbor.bin","preserve neighboring data");
+    const auto first=OpenSaveFile(f,archive,u"/profile.bin");
+    CHECK(Bytes(title/"profile.bin").empty() && SaveFileService(f,first)->file().is_open());
+    SaveFileReply(f,first,{0x08040000},{0x080400C0,0,0,0});
+    const std::array<std::uint8_t,8> payload{'L','E','G','O',0,0x81,0xFE,0x7F};
+    CHECK(f.memory.Map(kSaveFilePayload,payload.size(),MemoryPermission::Read));
+    CHECK(f.memory.LoadBytes(kSaveFilePayload,payload));
+    SaveFileReply(f,first,SaveWriteRequest(0,8),{0x08030082,0,8,0x8A,kSaveFilePayload});
+    std::string expected(reinterpret_cast<const char*>(payload.data()),payload.size());
+    CHECK(Bytes(title/"profile.bin")==expected);
+    const auto second=OpenSaveFile(f,archive,u"/profile.bin");
+    CHECK(first!=second && SaveFileService(f,first)!=SaveFileService(f,second));
+    CHECK(Bytes(title/"profile.bin")==expected); // Mode 7 does not truncate.
+    SaveFileReply(f,second,SaveWriteRequest(12,4,kSaveFilePayload+4),
+                  {0x08030082,0,4,0x4A,kSaveFilePayload+4});
+    expected+=std::string(4,'\0');expected.append(reinterpret_cast<const char*>(payload.data()+4),4);
+    CHECK(Bytes(title/"profile.bin")==expected); // Real gap and growth, not EOF clipping.
+    for (const auto file:{first,second})
+        SaveFileReply(f,file,{0x08040000},{0x080400C0,0,16,0});
+    SaveFileReply(f,first,SaveWriteRequest(16,1),{0x08030082,0,1,0x1A,kSaveFilePayload});
+    expected+='L';CHECK(Bytes(title/"profile.bin")==expected);
+    SaveFileStop(f,second,SaveWriteRequest(kMaxSaveDataFileBytes,1));
+    CHECK(Bytes(title/"profile.bin")==expected && !f.router.last_host_error().empty());
+    Handle duplicate=0;CHECK(f.kernel.handles().Duplicate(&duplicate,first)==0);
+    SaveFileReply(f,duplicate,{0x08080000},{0x08080040,0});
+    CHECK(!SaveFileService(f,first)->file().is_open() && SaveFileService(f,second)->file().is_open());
+    SaveFileReply(f,first,{0x08080000},{0x08080040,0});
+    SaveFileReply(f,second,{0x08040000},{0x080400C0,0,17,0});
+    SaveFileStop(f,first,SaveWriteRequest(0,1));
+    SaveFileStop(f,second,{0x080200C2}); // Read is still an unsupported command.
+    CHECK(f.kernel.CloseHandle(first)==0 && f.kernel.CloseHandle(duplicate)==0);
+    CHECK(f.kernel.CloseHandle(second)==0);
+    const auto reopened=OpenSaveFile(f,archive,u"/profile.bin");
+    SaveFileReply(f,reopened,{0x08040000},{0x080400C0,0,17,0});
+    CHECK(Bytes(title/"profile.bin")==expected && Bytes(title/"neighbor.bin")=="preserve neighboring data");
+    CHECK(!HasStagedSaveFile(title) && fs::is_empty(f.SharedRoot()));CheckFormatMetadata(title);
+}
+
+void SaveFilePublicationAndContainment() {
+    TempDir temp,outside;const auto title=Title(temp.root);
+    fs::create_directories(title/"nested");Write(outside.root/"external.bin","outside bytes");
+    SaveDataArchiveMounts backend;CHECK(backend.ConfigureRoot(temp.root));
+    std::uint64_t archive=0;CHECK(backend.Open(kProgram,&archive)==0 && backend.CanOpenFiles());
+    for (const auto [handle,program]:std::array<std::pair<std::uint64_t,std::uint64_t>,3>{{
+            {1,kProgram},{archive+1,kProgram},{archive,kProgram+1}}}) {
+        SaveDataFileOpenPlan plan;
+        CHECK(backend.StageOpenFile(handle,program,u"/forbidden.bin",7,plan)==kResultFsInvalidArchiveHandle);
+        CHECK(!plan.TakeFile() && plan.Rollback());
+    }
+    fs::create_symlink(outside.root/"external.bin",title/"leaf-link.bin");
+    fs::create_directory_symlink(outside.root,title/"parent-link");
+    fs::create_hard_link(outside.root/"external.bin",title/"hard-link.bin");
+    Write(title/"parent-file","ordinary file");
+    const std::u16string malformed{u'/',static_cast<char16_t>(0xD800),u'x'};
+    const std::array<std::pair<std::u16string_view,Result>,9> cases{{
+        {u"/../external.bin",kResultFsInvalidPath},{u"/leaf-link.bin",kResultFsInvalidPath},
+        {u"/parent-link/new.bin",kResultFsInvalidPath},{u"/hard-link.bin",kResultFsInvalidPath},
+        {u"/missing/new.bin",kResultFsPathNotFound},{u"/parent-file/new.bin",kResultFsUnexpectedFileOrDirectory},
+        {u"/nested",kResultFsUnexpectedFileOrDirectory},{u"/bad//name.bin",kResultFsInvalidPath},
+        {malformed,kResultFsInvalidPath}}};
+    for (const auto& [path,result]:cases) {
+        SaveDataFileOpenPlan plan;CHECK(backend.StageOpenFile(archive,kProgram,path,7,plan)==result);
+        CHECK(!plan.TakeFile() && plan.Rollback());
+    }
+    {
+        SaveDataFileOpenPlan plan;CHECK(backend.StageOpenFile(archive,kProgram,u"/contended.bin",7,plan)==0);
+        auto file=plan.TakeFile();CHECK(file && file->is_open() && file->size()==0);
+        CHECK(!fs::exists(title/"contended.bin") && HasStagedSaveFile(title));
+        Write(title/"contended.bin","concurrent existing data");
+        bool stopped=false;try { plan.Publish(); } catch (const std::system_error&) { stopped=true; }
+        CHECK(stopped && plan.Rollback() && !HasStagedSaveFile(title));
+        CHECK(Bytes(title/"contended.bin")=="concurrent existing data");
+    }
+    {
+        SaveDataFileOpenPlan plan;CHECK(backend.StageOpenFile(archive,kProgram,u"/contended.bin",7,plan)==0);
+        auto file=plan.TakeFile();CHECK(file && file->size()==24 && plan.Rollback());
+        // Failure/abandonment after an existing open never unlinks that leaf.
+    }
+    {
+        SaveDataFileOpenPlan plan;CHECK(backend.StageOpenFile(archive,kProgram,u"/abandoned.bin",7,plan)==0);
+    }
+    CHECK(!fs::exists(title/"abandoned.bin") && !HasStagedSaveFile(title));
+    CHECK(Bytes(title/"contended.bin")=="concurrent existing data");
+    const auto moved=title.parent_path()/"retained-title";
+    fs::rename(title,moved);fs::create_directory_symlink(outside.root,title);
+    SaveDataFileOpenPlan plan;CHECK(backend.StageOpenFile(archive,kProgram,u"/nested/caf\u00E9.bin",7,plan)==0);
+    auto file=plan.TakeFile();plan.Publish();
+    CHECK(file && file->size()==0 && fs::is_regular_file(moved/"nested"/"caf\xC3\xA9.bin"));
+    CHECK(!fs::exists(outside.root/"nested") && Bytes(outside.root/"external.bin")=="outside bytes");
+}
+
+void SaveFilePreflightAndCapacity() {
+    Fixture f;f.FormatReply(Fixture::FormatRequest());const auto archive=f.Reply(Fixture::Request(),0);
+    const auto title=Title(f.Root());
+    auto request=SaveFileRequest(f,archive,u"/prepared.bin");
+    for (const auto [word,value]:std::array<std::pair<unsigned,std::uint32_t>,4>{{
+            {0,0x080201C0},{6,3},{7,1},{8,request[8]^0x400U}}}) {
+        auto bad=request;bad[word]=value;f.Unsupported(bad);
+    }
+    CHECK(fs::is_empty(title));
+    CHECK(f.memory.LoadBytes(kSaveFilePath+request[5]-2,std::array<std::uint8_t,2>{'X',0}));
+    f.Put(request);CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==0);
+    CHECK((f.Read()==IpcCommandBuffer{0x08020042,kResultFsInvalidPath,0x10,0}) && fs::is_empty(title));
+    request=SaveFileRequest(f,archive,u"/prepared.bin");
+    auto bad=request;bad[9]=0xFFFFFFFE;f.Put(bad);
+    CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==kResultInvalidPointer);
+    CHECK(f.Read()==bad && fs::is_empty(title));
+    OpenSaveFile(f,archive+1,u"/prepared.bin",kResultFsInvalidArchiveHandle);
+
+    // A reply callback must not get a chance to fail after file publication,
+    // data writes, or descriptor Close. Exercise all three on the real IPC path.
+    std::array<std::uint8_t,20> payload{};payload.fill(0xA6);
+    CHECK(f.memory.Map(kSaveFilePayload,payload.size(),MemoryPermission::Read));
+    CHECK(f.memory.LoadBytes(kSaveFilePayload,payload));
+    Handle file=0;
+    for (unsigned step=0;step<3;++step) {
+        const auto q=step==0?SaveFileRequest(f,archive,u"/prepared.bin"):
+                     step==1?SaveWriteRequest(0,payload.size()):IpcCommandBuffer{0x08080000};
+        GuestMemory alternate;
+        CHECK(alternate.Map(kSaveFilePath,0x1000,MemoryPermission::Read));
+        std::vector<std::uint8_t> path(request[5]);
+        for (unsigned i=0;i<path.size();++i) CHECK(f.memory.Read8(kSaveFilePath+i,&path[i]));
+        CHECK(alternate.LoadBytes(kSaveFilePath,path));
+        CHECK(alternate.Map(kSaveFilePayload,payload.size(),MemoryPermission::Read));
+        CHECK(alternate.LoadBytes(kSaveFilePayload,payload));
+        auto device=std::make_shared<FailingReplyDevice>();
+        const auto base=f.cb()&~0xFFFU,offset=f.cb()&0xFFFU;
+        std::memcpy(device->bytes.data()+offset,q.data(),sizeof(q));
+        CHECK(alternate.MapDeviceMemory(base,device,RW));
+        f.Put(q);if (step) f.cpu.r[0]=file;const auto before=f.cpu;
+        const auto handles=f.kernel.handles().OpenHandleCount();
+        CHECK(f.Call(&alternate).kind==a32::ExitKind::Svc && f.router.unsupported_request());
+        CHECK(f.cpu.r==before.r && device->writes==0 && f.kernel.handles().OpenHandleCount()==handles);
+        CHECK(std::memcmp(device->bytes.data()+offset,q.data(),sizeof(q))==0);
+        if (step==0) {
+            CHECK(fs::is_empty(title));file=OpenSaveFile(f,archive,u"/prepared.bin");
+        } else CHECK(Bytes(title/"prepared.bin").empty() && SaveFileService(f,file)->file().is_open());
+    }
+    auto source=std::make_shared<FailingReplyDevice>();
+    CHECK(f.memory.MapDeviceMemory(0x18000000,source,MemoryPermission::Read));
+    SaveFileStop(f,file,SaveWriteRequest(0,20,0x18000000));
+    CHECK(source->reads==0 && Bytes(title/"prepared.bin").empty());
+
+    // Growable writes report a real partial host write without a success reply.
+    const auto child=::fork();if (child<0) throw std::runtime_error("fork failed");
+    if (child==0) {
+        struct rlimit limit{};
+        if (::getrlimit(RLIMIT_FSIZE,&limit)!=0 || limit.rlim_max<8) _exit(90);
+        limit.rlim_cur=8;
+        if (::setrlimit(RLIMIT_FSIZE,&limit)!=0 || std::signal(SIGXFSZ,SIG_IGN)==SIG_ERR) _exit(90);
+        const auto q=SaveWriteRequest(0,payload.size());f.Put(q);f.cpu.r[0]=file;const auto before=f.cpu;
+        const bool good=f.Call().kind==a32::ExitKind::Svc && f.cpu.r==before.r && f.Read()==q &&
+            f.router.last_host_error().find("after 8 bytes; host changes retained")!=std::string::npos;
+        _exit(good?0:91);
+    }
+    int status=0;CHECK(::waitpid(child,&status,0)==child && WIFEXITED(status) && WEXITSTATUS(status)==0);
+    CHECK(Bytes(title/"prepared.bin")==std::string(8,char(0xA6)));
+    SaveFileReply(f,file,{0x08040000},{0x080400C0,0,8,0});
+
+    Fixture full;full.FormatReply(Fixture::FormatRequest());const auto full_archive=full.Reply(Fixture::Request(),0);
+    Handle spare=0;
+    const auto missing=HandleTable::kMaxCount-full.kernel.handles().OpenHandleCount();
+    for (std::size_t i=0;i<missing;++i)
+        CHECK(full.kernel.handles().Duplicate(&spare,full.handle)==0);
+    auto expected_table=full.kernel.handles();
+    OpenSaveFile(full,full_archive,u"/capacity.bin",kResultOutOfHandles);
+    CHECK(fs::is_empty(Title(full.Root())));
+    CHECK(full.kernel.CloseHandle(spare)==0 && expected_table.Close(spare)==0);
+    Handle expected_handle=0;CHECK(expected_table.Duplicate(&expected_handle,full.handle)==0);
+    CHECK(OpenSaveFile(full,full_archive,u"/capacity.bin")==expected_handle);
+    CHECK(Bytes(Title(full.Root())/"capacity.bin").empty() && !HasStagedSaveFile(Title(full.Root())));
+}
+
 void FormatRequestAndReplyPreflight() {
     Fixture unconfigured(false); unconfigured.Unsupported(Fixture::FormatRequest());
     CHECK(fs::is_empty(unconfigured.Root()));
@@ -570,8 +807,9 @@ int main() {
 #if defined(__linux__)
     FirstFormatAndTitleBinding(); FormatRequestAndReplyPreflight();
     FormatContainmentAndExistingData(); PartialMetadataFailureRollsBack();
+    SaveFileLifecycleAndGrowth(); SaveFilePublicationAndContainment(); SaveFilePreflightAndCapacity();
 #endif
     if (failures) return EXIT_FAILURE;
-    std::cout << "PASS: per-title SaveData opens, bounded first-time formatting/metadata, private reply preflight and contained atomic publication\n";
+    std::cout << "PASS: per-title SaveData mounting/formatting, atomic file opens, bounded growing writes, live sizes and private reply preflight\n";
     return EXIT_SUCCESS;
 }

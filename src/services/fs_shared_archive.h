@@ -3,7 +3,9 @@
 #include <map>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
+#include <vector>
 #include "runtime/ctr_kernel.h"
 
 namespace lego::ctr {
@@ -26,27 +28,38 @@ inline constexpr bool IsSaveDataArchiveHandle(std::uint64_t handle) noexcept {
 }
 // Explicit host safety limit, NOT a discovered console capacity.
 inline constexpr std::uint64_t kMaxSharedCreateSize = 16ULL * 1024 * 1024;
+inline constexpr std::uint64_t kMaxSaveDataFileBytes = 64ULL * 1024 * 1024;
+
+// Shared containment policy for host-backed UTF-16 file paths. This does not
+// normalize dot components or turn a guest string into an absolute host path.
+bool DecodeContainedFilePath(std::u16string_view path, std::vector<std::string>& components);
 
 // One actually-opened regular file. The descriptor remains owned until the last
 // client-session reference is released. Extdata opens force effective read/write
-// mode, and capture a fixed-size bound for subsequent operations.
+// mode and a fixed size; the observed SaveData mode 7 preserves existing bytes
+// and permits bounded growth through the same descriptor-based file endpoint.
 class SharedArchiveFile final {
 public:
     ~SharedArchiveFile();
     SharedArchiveFile(const SharedArchiveFile&) = delete;
     SharedArchiveFile& operator=(const SharedArchiveFile&) = delete;
-    [[nodiscard]] std::uint64_t size() const noexcept { return size_; }
+    [[nodiscard]] std::uint64_t size() const;
     [[nodiscard]] bool is_open() const noexcept { return fd_ >= 0; }
+    [[nodiscard]] bool is_savedata() const noexcept { return savedata_; }
     void Close();
-    // Fixed-size write; on host failure, written retains the actual partial count.
+    // Extdata clips at its fixed extent; SaveData can grow to the host bound.
+    // On host failure, written retains the actual partial count.
     Result Write(std::uint64_t offset, std::span<const std::uint8_t> data,
                  bool flush, std::uint32_t* written);
     [[nodiscard]] std::uint32_t effective_mode() const noexcept { return 3; }
 private:
     friend class SharedArchiveMounts;
-    SharedArchiveFile(int fd, std::uint64_t size) noexcept : fd_(fd), size_(size) {}
+    friend class SaveDataArchiveMounts;
+    SharedArchiveFile(int fd, std::uint64_t size, bool savedata = false) noexcept
+        : fd_(fd), size_(size), savedata_(savedata) {}
     int fd_;
     const std::uint64_t size_;
+    const bool savedata_;
 };
 
 // Host-backed shared-extdata mount table. No implicit directory creation.

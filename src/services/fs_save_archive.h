@@ -11,9 +11,28 @@ struct SaveDataFormatInfo {
     bool duplicate_data{};
 };
 
+// A real opened file whose new leaf, if any, remains private until Publish.
+// Allocate the client endpoint and prepare the IPC reply before publication.
+// Rollback reports cleanup failures explicitly; existing files are never removed.
+class SaveDataFileOpenPlan final {
+public:
+    SaveDataFileOpenPlan();
+    ~SaveDataFileOpenPlan();
+    SaveDataFileOpenPlan(const SaveDataFileOpenPlan&) = delete;
+    SaveDataFileOpenPlan& operator=(const SaveDataFileOpenPlan&) = delete;
+    std::unique_ptr<SharedArchiveFile> TakeFile() noexcept;
+    void Publish();
+    bool Rollback() noexcept;
+private:
+    friend class SaveDataArchiveMounts;
+    struct NativeCreation;
+    std::unique_ptr<SharedArchiveFile> file_;
+    std::unique_ptr<NativeCreation> creation_;
+};
+
 // Separate title-save backend. The explicitly selected, existing container is
 // pinned; a program selects <high8>/<low8>/data/00000001 using lowercase hex.
-// Configuring/opening creates no directories, metadata or application files.
+// ConfigureRoot/Open (archive mounting) create no directories, metadata or files.
 class SaveDataArchiveMounts final {
 public:
     struct Mount {
@@ -34,6 +53,13 @@ public:
     // policy and stop; no existing save is removed, replaced or mounted here.
     // Requires Linux renameat2(RENAME_NOREPLACE); no weaker fallback is used.
     Result FormatMissing(std::uint64_t program_id, const SaveDataFormatInfo& info);
+    [[nodiscard]] bool CanOpenFiles() const noexcept { return CanFormat(); }
+    // Initial supported slice: mode 7 (read/write/create), no truncation. Mount
+    // ownership is checked against the initialized fs:USER program. New leaves
+    // publish atomically without replacing a concurrent destination.
+    Result StageOpenFile(std::uint64_t handle, std::uint64_t program_id,
+                         std::u16string_view path, std::uint32_t mode,
+                         SaveDataFileOpenPlan& out) const;
 private:
     struct NativeDirectory;
     struct Entry {
