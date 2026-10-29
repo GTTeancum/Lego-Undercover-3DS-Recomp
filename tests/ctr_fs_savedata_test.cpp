@@ -1,6 +1,7 @@
 #include "services/fs_user_service.h"
 #include "services/fs_file_service.h"
 #include "runtime/ctr_svc_bridge.h"
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <csignal>
@@ -539,7 +540,7 @@ void SaveFileLifecycleAndGrowth() {
     SaveFileReply(f,first,{0x08080000},{0x08080040,0});
     SaveFileReply(f,second,{0x08040000},{0x080400C0,0,17,0});
     SaveFileStop(f,first,SaveWriteRequest(0,1));
-    SaveFileStop(f,second,{0x080200C2}); // Read is still an unsupported command.
+    SaveFileStop(f,second,{0x080200C2}); // Malformed Read lacks its mapped descriptor.
     CHECK(f.kernel.CloseHandle(first)==0 && f.kernel.CloseHandle(duplicate)==0);
     CHECK(f.kernel.CloseHandle(second)==0);
     const auto reopened=OpenSaveFile(f,archive,u"/profile.bin");
@@ -912,6 +913,181 @@ void SaveArchiveCloseOwnershipAndReplyPreflight() {
     CHECK(backend.Find(foreign) && backend.size()==1 && CommitInventory(f.temp.root)==inventory);
 }
 
+constexpr std::uint32_t kSaveReadOutput=0x08005001;
+constexpr std::uint8_t kSaveReadSentinel=0xD9;
+IpcCommandBuffer SaveReadRequest(std::uint64_t offset,std::uint32_t length,
+                                 std::uint32_t address=kSaveReadOutput) {
+    return {0x080200C2,static_cast<std::uint32_t>(offset),static_cast<std::uint32_t>(offset>>32),
+            length,(length<<4)|0xC,address};
+}
+std::array<std::uint8_t,34> SaveReadReset(GuestMemory& memory) {
+    std::array<std::uint8_t,34> bytes{};bytes.fill(kSaveReadSentinel);
+    if (!memory.IsMapped(kSaveReadOutput-1,bytes.size()))
+        CHECK(memory.Map(kSaveReadOutput-1,bytes.size(),RW));
+    CHECK(memory.LoadBytes(kSaveReadOutput-1,bytes));return bytes;
+}
+std::array<std::uint8_t,34> SaveReadBytes(GuestMemory& memory) {
+    std::array<std::uint8_t,34> bytes{};
+    for (unsigned i=0;i<bytes.size();++i) CHECK(memory.Read8(kSaveReadOutput-1+i,&bytes[i]));
+    return bytes;
+}
+void SaveReadReply(Fixture& f,Handle file,std::uint64_t offset,std::uint32_t length,
+                   std::span<const std::uint8_t> expected) {
+    CHECK(expected.size()<=length && length<=32);
+    auto output=SaveReadReset(f.memory);
+    std::copy(expected.begin(),expected.end(),output.begin()+1);
+    const auto inventory=CommitInventory(f.temp.root);
+    const auto mounts=f.endpoint->save_archives().size();
+    const auto shared=f.endpoint->archives().size();
+    SaveFileReply(f,file,SaveReadRequest(offset,length),
+        {0x08020082,0,static_cast<std::uint32_t>(expected.size()),(length<<4)|0xC,kSaveReadOutput});
+    CHECK(SaveReadBytes(f.memory)==output && CommitInventory(f.temp.root)==inventory);
+    CHECK(f.endpoint->save_archives().size()==mounts && f.endpoint->archives().size()==shared);
+}
+
+void SaveFileReadContentsAndLifetime() {
+    Fixture f;f.FormatReply(Fixture::FormatRequest());const auto archive=f.Reply(Fixture::Request(),0);
+    const auto writer=OpenSaveFile(f,archive,u"/readback.bin");
+    const auto reader=OpenSaveFile(f,archive,u"/readback.bin");
+    Write(Title(f.Root())/"neighbor.bin","neighbor and metadata survive reads");
+    SaveReadReply(f,reader,0,8,{}); // A real empty file preserves the full output.
+    const std::array<std::uint8_t,8> payload{'R','D',0,0x96,0xF1,0x2B,0x7E,0x41};
+    CHECK(f.memory.Map(kSaveFilePayload,payload.size(),MemoryPermission::Read));
+    CHECK(f.memory.LoadBytes(kSaveFilePayload,payload));
+    SaveFileReply(f,writer,SaveWriteRequest(0,payload.size()),{0x08030082,0,8,0x8A,kSaveFilePayload});
+    SaveReadReply(f,reader,0,8,payload); // Distinct sentinels prove actual backend I/O.
+    SaveReadReply(f,reader,2,3,std::span(payload).subspan(2,3));
+    SaveReadReply(f,reader,6,8,std::span(payload).subspan(6)); // Tail stays sentinel.
+    SaveReadReply(f,reader,8,8,{});SaveReadReply(f,reader,19,8,{});
+    const auto output=SaveReadReset(f.memory);const auto inventory=CommitInventory(f.temp.root);
+    SaveFileReply(f,reader,SaveReadRequest(0,0,0xFFFFFFFE),{0x08020082,0,0,0xC,0xFFFFFFFE});
+    CHECK(SaveReadBytes(f.memory)==output && CommitInventory(f.temp.root)==inventory);
+    // The reader was opened while empty; a second endpoint grows the live inode.
+    SaveFileReply(f,writer,SaveWriteRequest(12,4),{0x08030082,0,4,0x4A,kSaveFilePayload});
+    std::vector<std::uint8_t> grown(payload.begin(),payload.end());grown.resize(12,0);
+    grown.insert(grown.end(),payload.begin(),payload.begin()+4);
+    SaveReadReply(f,reader,0,24,grown);
+    CloseSaveReply(f,archive);
+    CHECK(f.endpoint->save_archives().size()==0);
+    SaveReadReply(f,reader,12,8,std::span(payload).first(4));
+    SaveFileReply(f,writer,{0x08080000},{0x08080040,0});
+    SaveReadReply(f,reader,0,8,payload);
+    SaveFileReply(f,reader,{0x08080000},{0x08080040,0});
+    const auto closed_output=SaveReadReset(f.memory);
+    const auto closed_inventory=CommitInventory(f.temp.root);
+    SaveFileStop(f,reader,SaveReadRequest(0,8));
+    CHECK(SaveReadBytes(f.memory)==closed_output && CommitInventory(f.temp.root)==closed_inventory);
+    CheckFormatMetadata(Title(f.Root()));
+}
+
+void SaveFileReadTransportGuards() {
+    Fixture f;f.FormatReply(Fixture::FormatRequest());const auto archive=f.Reply(Fixture::Request(),0);
+    Write(Title(f.Root())/"guarded.bin","eight123");
+    const auto file=OpenSaveFile(f,archive,u"/guarded.bin");
+    const auto output=SaveReadReset(f.memory);const auto inventory=CommitInventory(f.temp.root);
+    const auto request=SaveReadRequest(0,8);
+    for (const auto [word,value]:std::array<std::pair<unsigned,std::uint32_t>,5>{{
+            {0,0x080200C0},{0,0x08020102},{4,0x8A},{4,0x8E},{4,0x7C}}}) {
+        auto bad=request;bad[word]=value;SaveFileStop(f,file,bad);
+    }
+    SaveFileStop(f,file,SaveReadRequest(0,kMaxFsFileTransfer+1));
+    SaveFileStop(f,file,SaveReadRequest(kMaxSaveDataFileBytes+1,8));
+    SaveFileStop(f,file,SaveReadRequest(~std::uint64_t{0},8));
+    CHECK(f.memory.Map(0x08100000,8,MemoryPermission::Read));
+    CHECK(f.memory.Map(0x08101000,2,RW));
+    CHECK(f.memory.LoadBytes(0x08101000,std::array<std::uint8_t,2>{0x51,0x62}));
+    // Only two source bytes remain, but all eight declared destination bytes
+    // must be writable. The same full-span rule applies at EOF.
+    for (const auto [offset,address]:std::array<std::pair<std::uint64_t,std::uint32_t>,5>{{
+            {6,0x08100000},{6,0x08101000},{8,0x08101000},{0,0x08102000},{0,0xFFFFFFFC}}}) {
+        const auto bad=SaveReadRequest(offset,8,address);f.Put(bad);f.cpu.r[0]=file;
+        const auto before=f.cpu;const auto handles=f.kernel.handles().OpenHandleCount();
+        CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==kResultInvalidPointer);
+        CHECK(f.Read()==bad && f.cpu.r[15]==before.r[15]+4);
+        for (unsigned i=1;i<15;++i) CHECK(f.cpu.r[i]==before.r[i]);
+        CHECK(f.cpu.cpsr==before.cpsr && f.cpu.fpscr==before.fpscr);
+        CHECK(f.kernel.handles().OpenHandleCount()==handles && f.kernel.now_ns()==0);
+    }
+    std::uint16_t short_output=0;CHECK(f.memory.Read16(0x08101000,&short_output) && short_output==0x6251);
+    auto device=std::make_shared<FailingReplyDevice>();device->bytes.fill(0x6D);
+    CHECK(f.memory.MapDeviceMemory(0x18000000,device,RW));
+    auto shared=std::make_shared<ServiceSharedMemoryObject>();
+    CHECK(shared->Write(0,std::array<std::uint8_t,8>{1,3,5,7,9,11,13,15}));
+    CHECK(f.memory.MapSharedServicePage(0x18100000,shared,RW));const auto epoch=shared->Epoch(0);
+    SaveFileStop(f,file,SaveReadRequest(0,8,0x18000000));
+    SaveFileStop(f,file,SaveReadRequest(0,8,0x18100000));
+    CHECK(device->reads==0 && device->writes==0 && device->bytes[0]==0x6D);
+    CHECK(shared->Epoch(0)==epoch && shared->bytes()[0]==1 && shared->bytes()[7]==15);
+    SaveFileStop(f,file,SaveReadRequest(0,8,f.cb()+sizeof(IpcCommandBuffer)-4));
+    for (unsigned mode=0;mode<4;++mode) {
+        GuestMemory alternate;const auto untouched=SaveReadReset(alternate);
+        auto reply_device=std::make_shared<FailingReplyDevice>();
+        auto reply_shared=std::make_shared<ServiceSharedMemoryObject>();
+        const auto base=f.cb()&~0xFFFU,offset=f.cb()&0xFFFU;
+        const auto length=mode==1?sizeof(IpcCommandBuffer)-4:sizeof(IpcCommandBuffer);
+        const auto bytes=std::span(reinterpret_cast<const std::uint8_t*>(request.data()),sizeof(request));
+        if (mode==2) {
+            std::memcpy(reply_device->bytes.data()+offset,request.data(),sizeof(request));
+            CHECK(alternate.MapDeviceMemory(base,reply_device,RW));
+        } else if (mode==3) {
+            CHECK(reply_shared->Write(offset,bytes));CHECK(alternate.MapSharedServicePage(base,reply_shared,RW));
+        } else {
+            CHECK(alternate.Map(f.cb(),length,mode==0?MemoryPermission::Read:RW));
+            CHECK(alternate.LoadBytes(f.cb(),bytes.first(length)));
+        }
+        const auto reply_epoch=reply_shared->Epoch(offset);
+        const auto handles=f.kernel.handles().OpenHandleCount();
+        f.Put(request);f.cpu.r[0]=file;const auto before=f.cpu;const auto result=f.Call(&alternate);
+        if (mode>=2) CHECK(result.kind==a32::ExitKind::Svc && f.cpu.r==before.r && f.router.unsupported_request());
+        else CHECK(result.kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==kResultInvalidPointer);
+        std::uint32_t header=0;CHECK(alternate.Read32(f.cb(),&header) && header==request[0]);
+        CHECK(reply_device->writes==0 && reply_shared->Epoch(offset)==reply_epoch);
+        CHECK(SaveReadBytes(alternate)==untouched && f.kernel.handles().OpenHandleCount()==handles);
+    }
+    // Different virtual addresses must not hide a physical output/reply overlap.
+    constexpr std::uint32_t reply_page=0x08008000,alias_page=0x0E100000;
+    CHECK(f.memory.Map(reply_page,0x1000,RW));
+    CHECK(f.memory.MapUserAlias(alias_page,reply_page,0x1000,3)==0);
+    f.kernel.current_thread()->tls_address=reply_page;
+    SaveFileStop(f,file,SaveReadRequest(0,8,alias_page+kIpcCommandBufferOffset));
+    CHECK(SaveReadBytes(f.memory)==output && CommitInventory(f.temp.root)==inventory);
+
+    // A correctly shaped Read still must not expand the shared-extdata policy.
+    fs::create_directories(f.SharedUser());Write(f.SharedUser()/"excluded.bin","shared bytes");
+    SharedArchiveMounts extdata;CHECK(extdata.ConfigureRoot(f.SharedRoot()));
+    std::uint64_t shared_archive=0;CHECK(extdata.Open(0xF000000B,&shared_archive)==0);
+    std::unique_ptr<SharedArchiveFile> owner;
+    CHECK(extdata.OpenFile(shared_archive,u"/excluded.bin",3,&owner)==0);
+    auto service=std::make_shared<FsFileService>(std::move(owner));Handle shared_file=0;
+    CHECK(f.kernel.handles().Create(&shared_file,std::make_shared<ClientSessionObject>("fs:File",service))==0);
+    SaveFileStop(f,shared_file,request);
+    CHECK(SaveReadBytes(f.memory)==output && Bytes(f.SharedUser()/"excluded.bin")=="shared bytes");
+}
+
+void SaveFileReadPinnedObjectAndHostPolicy() {
+    Fixture f;f.FormatReply(Fixture::FormatRequest());const auto archive=f.Reply(Fixture::Request(),0);
+    const auto original=Title(f.Root())/"pinned.bin",moved=Title(f.Root())/"retained.bin";
+    const std::array<std::uint8_t,4> bytes{0x48,0,0xA5,0x62};
+    Write(original,std::string(reinterpret_cast<const char*>(bytes.data()),bytes.size()));
+    const auto file=OpenSaveFile(f,archive,u"/pinned.bin");
+    fs::rename(original,moved);Write(original,"replacement pathname");
+    SaveReadReply(f,file,0,8,bytes); // Reads the owned inode, not its replacement path.
+    fs::resize_file(moved,2);
+    SaveReadReply(f,file,0,8,std::span(bytes).first(2)); // Query the current extent.
+    const auto hardlink=f.temp.root/"extra-link.bin";fs::create_hard_link(moved,hardlink);
+    const auto output=SaveReadReset(f.memory);const auto inventory=CommitInventory(f.temp.root);
+    SaveFileStop(f,file,SaveReadRequest(0,8));
+    CHECK(!f.router.last_host_error().empty() && SaveReadBytes(f.memory)==output);
+    CHECK(CommitInventory(f.temp.root)==inventory);fs::remove(hardlink);
+    // An externally enlarged sparse file exceeds the established host policy.
+    fs::resize_file(moved,kMaxSaveDataFileBytes+1);
+    SaveFileStop(f,file,SaveReadRequest(0,8));
+    CHECK(SaveReadBytes(f.memory)==output && fs::file_size(moved)==kMaxSaveDataFileBytes+1);
+    CHECK(Bytes(original)=="replacement pathname");fs::resize_file(moved,2);
+    SaveReadReply(f,file,kMaxSaveDataFileBytes,8,{});
+    SaveReadReply(f,file,0,8,std::span(bytes).first(2));
+}
+
 void FormatRequestAndReplyPreflight() {
     Fixture unconfigured(false); unconfigured.Unsupported(Fixture::FormatRequest());
     CHECK(fs::is_empty(unconfigured.Root()));
@@ -1040,8 +1216,9 @@ int main() {
     SaveFileLifecycleAndGrowth(); SaveFilePublicationAndContainment(); SaveFilePreflightAndCapacity();
     SaveCommitAcknowledgementAndOwnership(); SaveCommitRequestAndReplyPreflight();
     SaveArchiveCloseAndLiveFiles(); SaveArchiveCloseOwnershipAndReplyPreflight();
+    SaveFileReadContentsAndLifetime(); SaveFileReadTransportGuards(); SaveFileReadPinnedObjectAndHostPolicy();
 #endif
     if (failures) return EXIT_FAILURE;
-    std::cout << "PASS: per-title SaveData storage, file growth, commit acknowledgement, archive close/live-file lifetime and private reply preflight\n";
+    std::cout << "PASS: per-title SaveData storage, file growth/readback, commit acknowledgement, archive close/live-file lifetime and private reply preflight\n";
     return EXIT_SUCCESS;
 }

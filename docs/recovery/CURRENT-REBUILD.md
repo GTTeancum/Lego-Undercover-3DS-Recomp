@@ -1,3 +1,134 @@
+# October 28, 2026 — SaveData reads and the next graphics stop
+
+## Current result and next task
+
+The unchanged original game now passes the **fs:File Read** command that
+previously stopped at dispatch round **8275**. The current ordinary run reaches
+round **10271**, guest time **3593445876 ns**, thread **1**, PC `0x0025947C`,
+with an explicit `UnsupportedIpc` stop and detail `0x32`.
+
+The new request is **gsp::Gpu command-queue processing**, header
+**0x000C0000**. The current PICA guard requires texture0 to use ordinary 2D,
+base level zero and clamp-to-edge. It rejects the draw reached at command-list
+byte **0x3F0**, command register **0x22E**. That location identifies where
+processing stopped; it does not by itself identify the texture-register field
+that needs additional support.
+
+**Next task: retain the actual pending PICA command-list bytes and reconstruct
+masked register writes up to the rejected draw.** The current capture retains
+the last committed GPU state. Its texture0 configuration passes the existing
+guard, while the failed queue's effective state has not been established.
+The pending **2160-byte** command-list payload is absent from this capture.
+The committed snapshot therefore cannot select a specific new texture feature;
+that diagnosis remains the next bounded task.
+
+The actual Read now returns success with reply header **0x08020082**, a count
+of **42644**, and the original mapped descriptor/address. Its destination
+already matched the file before the call, so **zero destination bytes change**.
+The execution proof binds the successful reply/count, complete file/output
+bytes and frozen real-`pread` implementation; the authored tests below use
+distinct sentinels to establish changed-output behavior. No copied-output
+claim is inferred solely from preexisting equal bytes.
+
+The captured sequence then successfully closes the file and its second archive
+mount. It does not issue an additional ControlArchive operation for that
+read-only use. The last selected FS call is historical relative to the later
+GPU stop; its timestamp is not substituted for the current final CPU time.
+
+## Supported Read behavior
+
+The new slice accepts the observed SaveData file Read command and correctly
+shaped mapped output descriptor within the existing transfer bound. The file
+endpoint must remain open. Reads use the actual pinned descriptor with
+`pread`, consult the live extent and preserve the existing regular-file,
+link-count and **64 MiB host-policy** checks. They do not reopen a diagnostic
+pathname, mutate file contents or change a shared seek position.
+
+The handler checks the entire declared destination even when EOF will return
+fewer bytes. Destination and reply require private backing without physical
+aliasing between them. Reply and destination preparation finish before any
+guest-visible data is published; host data is read into temporary staging.
+Successful replies report the actual byte count and retain the original mapped
+buffer descriptor/address. Only that actual prefix is copied, preserving the
+rest of the destination and its neighbors. EOF returns a successful short or
+zero-byte read. Unsupported host conditions stop without publishing staged
+bytes or a success reply.
+
+An already-open SaveData file can still be read after its archive mount is
+closed, and it sees growth performed through another endpoint. The new handler
+is SaveData-only: it does not add Read support to SharedExtData or change that
+backend's fixed-extent write behavior. These bounded host-file semantics add
+no hardware journal, flush, quota or durability claim.
+
+## Verification and retained evidence
+
+The complete **79-suite local gate passes**. Authored read cases start with
+output sentinels that differ from the file, proving actual byte transfer.
+They cover full and offset reads, partial/zero EOF results, zero-length reads,
+unchanged tails and neighbors, growth through another endpoint, archive/file
+lifetime, pinned objects after pathname replacement, current extent after host
+truncation, invalid transport, address overflow, private reply/destination
+preparation, physical alias rejection, and explicit host-policy stops.
+Existing SharedExtData behavior remains covered. Byte-identical executable
+copies retain original test arguments, properties and working directories;
+source and binary identities remain frozen through the selected gate/run.
+
+One ordinary run uses the existing **65536 host-event budget**, **100 million
+block limit** and **240-second ordinary timeout**. This milestone does not
+raise those limits. Original code/RomFS/ExHeader inputs and four authenticated
+build-time AOT supplements are unchanged. Its audio stream has **1872192 bytes
+/ 117010 records**, with successful close status.
+
+One selective capture, `save-read-capture-0da68ru1`, uses the same original
+inputs and finite budgets as the ordinary run. The strict comparison passes
+**21 checks** covering complete normalized launch arguments/stdout, final
+CPU/IPC state, full recursive filesystem inventories, and all **1872192 audio
+bytes / 117010 records**. Both complete audio streams close successfully.
+
+The actual filesystem sequence passes **693 semantic checks**, including the
+successful Read, following File Close and Archive Close, retained file bytes
+and exact guest replies. Portable integrity and its readback check cover
+**264 retained files and all 216 capture members**. No guest rerun, captured-byte
+repair or GPU queue replay is used to produce this final comparison.
+The capture retains full final CPU/GPU/GSP state, all **6 MiB of VRAM**,
+LCD controls, the final queue request and bounded FS transport. It does not
+retain the pending graphics command-list payload described above.
+
+The latest private lossless framebuffer export shows **both actual screen
+buffers black**, with zero nonblack pixels on either screen. Both LCD
+force-black controls are disabled. The saved pixels are therefore black
+independently of those controls. The earlier save-preparation notice belongs
+to a previous stop. Host-window presentation, a usable menu, audible playback
+and playable gameplay remain unproven.
+
+GPU source is unchanged and no graphics implementation is claimed by this
+filesystem milestone. Only the retained graphics state and the explicit guard failure are diagnosed here; failed-list state is not reconstructed. Exact-revision hosted
+CI results are recorded separately from local and original-game verification.
+
+## Private evidence and source identity
+
+- `save-read-build.json` and `save-read-tests.{json,log,xml}` retain the
+  production build and complete local gate.
+- `save-read-native-tlq6i7t7/` is the selected ordinary run.
+- `save-read-capture-0da68ru1/` retains the strict comparison,
+  `save-read-proof.json`, portable integrity and complete capture payloads.
+- `save_read_capture/closed-verification.json` records capture closure and
+  release of the source/build freeze.
+- `screenshot-save-read/` retains the actual two-black-screen export and its
+  provenance. The pending command list remains a diagnosed evidence gap.
+
+Native SHA-256:
+`15cb516f6340941d2ca3b11398be9b1f4081d16e08d53f485622370f6df56dfd`
+(**11726496 bytes**).
+CTR library SHA-256:
+`0212d32429a139acb68a3109e5645dca7d9c0410e708d21f5ef384e7e4da2e57`
+(**1396272 bytes**).
+This follows the published commit-acknowledgement/archive-close milestone
+`4daf301b67134310e6197eff702ac3ceab0121c8`. The complete earlier handoff and
+its preserved failures, corrections and evidence limits remain unchanged below.
+
+---
+
 # October 28, 2026 — SaveData commit acknowledgement and archive closing
 
 ## Current result and next task

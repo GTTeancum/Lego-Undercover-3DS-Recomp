@@ -47,6 +47,9 @@ public:
     [[nodiscard]] bool is_open() const noexcept { return fd_ >= 0; }
     [[nodiscard]] bool is_savedata() const noexcept { return savedata_; }
     void Close();
+    // Bounded SaveData-only read into host staging; returns the actual count.
+    // EOF leaves the remainder untouched. Errors never publish staged bytes.
+    [[nodiscard]] std::uint32_t Read(std::uint64_t offset, std::span<std::uint8_t> data) const;
     // Extdata clips at its fixed extent; SaveData can grow to the host bound.
     // On host failure, written retains the actual partial count.
     Result Write(std::uint64_t offset, std::span<const std::uint8_t> data,
