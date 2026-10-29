@@ -11,7 +11,8 @@ class GpuVramBank;
 // Host staging limits, not claims about every PICA texture configuration.
 inline constexpr std::uint32_t kPicaTextureMaxBytes = 4 * 1024 * 1024;
 enum class PicaTextureFilter : std::uint8_t { Nearest, Linear };
-enum class PicaTextureFormat : std::uint8_t { RGBA8 = 0, IA8 = 5, ETC1 = 12, ETC1A4 = 13 };
+enum class PicaTextureWrap : std::uint8_t { ClampToEdge = 0, Repeat = 2 };
+enum class PicaTextureFormat : std::uint8_t { RGBA8 = 0, RGB8 = 1, IA8 = 5, ETC1 = 12, ETC1A4 = 13 };
 
 struct PicaTextureReadSpan {
     std::uint32_t physical_address{},bytes{};
@@ -21,6 +22,7 @@ struct PicaTextureReadSpan {
 struct PicaTexturePlan {
     std::uint32_t width{},height{};
     PicaTextureFilter filter{PicaTextureFilter::Nearest};
+    PicaTextureWrap wrap_s{PicaTextureWrap::ClampToEdge},wrap_t{PicaTextureWrap::ClampToEdge};
     PicaTextureFormat format{PicaTextureFormat::RGBA8};
     PicaTextureReadSpan read;
     // Owned encoded storage. read.bytes describes this span, not decoded RGBA.
@@ -28,9 +30,11 @@ struct PicaTexturePlan {
     bool operator==(const PicaTexturePlan&) const = default;
 };
 
-// Stages ordinary unit0, tiled RGBA8/IA8/ETC1/ETC1A4, base level0, clamp-to-edge in both axes,
-// and identical nearest or linear min/mag filters. Dimensions must be powers of
-// two in [8,1024]. Consumed register fields require known byte provenance.
+// Stages ordinary unit0, tiled RGBA8/RGB8/IA8/ETC1/ETC1A4, base level0, independent
+// clamp-to-edge/repeat axes, and identical nearest or linear min/mag filters.
+// LOD bias and min/max levels must be zero. Either mip-filter selector is valid
+// within those bounds; no other mip level is read or sampled. Dimensions must
+// be powers of two in [8,1024]. Consumed fields require known byte provenance.
 // Global texture enables/fog, framebuffer feedback and earlier queue writes are
 // the caller's responsibility. The returned complete source span supports its
 // dependency checks. FCRAM uses the existing vertex-read policy: physical
@@ -44,12 +48,15 @@ bool StagePicaTexture0(const PicaGpuRegisters& registers,
                        PicaTexturePlan& plan,const char*& error);
 
 // Pure, allocation-free sampling of a staged texture. Output order is R,G,B,A.
+// RGB8 taps decode stored B,G,R with opaque alpha and three-byte Morton stride.
 // IA8 taps expand stored alpha/intensity to R=G=B=intensity with separate alpha.
 // ETC1 taps decode PICA's little-endian 4x4 blocks within 8x8 tiles. ETC1A4
 // supplies independent four-bit alpha; ETC1 is opaque. Undefined differential
 // endpoints reject the entire sampled block before any output-color change.
 // Linear filtering uses explicitly rounded binary32 arithmetic at normalized
-// u*width-0.5 / v*height-0.5, clamped taps and tiled lookup with Y inversion.
+// u*width-0.5 / v*height-0.5, independently clamped/wrapped taps, then Y inversion.
+// Repeat reduces finite coordinates by a signed unit remainder before scaling,
+// preserving negative-coordinate floor semantics without large-input overflow.
 // This is a deterministic emulator approximation, not measured PICA precision.
 // Unsupported numeric inputs/host rounding and malformed plans leave color
 // unchanged. The source plan and guest/device state are never modified.

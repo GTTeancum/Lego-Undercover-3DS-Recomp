@@ -1,3 +1,129 @@
+# October 28, 2026 — RGB8 repeat textures and visible startup branding
+
+## Current result and next task
+
+The unchanged original game now renders **actual startup logos and copyright
+text into its headless framebuffers**. The private lossless export shows
+WB Games, TT Games, LEGO and Nintendo branding on the top screen and copyright
+text on the bottom. The previously rejected texture queue at dispatch round
+**10271** now completes successfully.
+
+The current ordinary run reaches **round 18082**, guest time **7100531896 ns**,
+thread **5**, PC `0x002594C4`, before **HostEventLimit**. This is the unchanged
+**65536 host-event budget**, with no current unsupported IPC. The logged last
+`gsp::Gpu` request, header `0x00080082`, is historical; current TLS command-buffer
+bytes are retained separately.
+
+**Next: extend bounded validation beyond the startup logos to identify the
+next real blocker.** Retain explicit event/block/wall-time limits and account
+for slow host execution: this ordinary window took approximately 199 seconds.
+The budget-limited snapshot does not establish a hang at the logos or identify
+another missing graphics feature.
+
+## Observed state and implementation
+
+The initial diagnostic retained the complete **2160-byte** pending command
+list and its pre-batch GPU state. Read-only masked scalar reconstruction
+through the rejected draw established ordinary 2D texture0, **RGB8**, repeat
+on both axes, equal linear min/mag filters, zero LOD bias and min/max levels,
+and the linear mip-filter selector. The rejected transaction preserved the
+GPU/upload state, GSP page, VRAM, LCD controls, event state, time and list bytes.
+No GPU queue, shader or raster replay was used to derive that configuration.
+
+The implementation adds tiled **three-byte B,G,R storage with opaque alpha**
+and independent clamp-to-edge/repeat axes. A signed unit remainder precedes
+power-of-two scaling; each integer tap then wraps before storage-Y inversion.
+This preserves negative nearest-sample floor semantics, handles large finite
+coordinates without integer overflow, and blends across repeat seams.
+Encoded RGB8 extents govern source snapshots, dependency and feedback checks.
+
+Either mip-filter selector is accepted only with the existing **zero bias,
+min=max=0 and equal min/mag filters**. Under the pinned reference sampler
+contract, both choices sample the same base level. Other LOD levels, bias,
+unequal filters, texture types and border/mirror modes remain unsupported.
+Known-byte provenance, private reads and atomic output publication remain
+required. Filtering retains the explicit deterministic binary32 model;
+exact PICA hardware filter precision is not claimed.
+
+Primary references: the pinned [register definitions](https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/video_core/pica/regs_texturing.h), [texture layout decoder](https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/video_core/texture/texture_decode.cpp), [BGR/alpha conversion](https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/common/color.h), and [host sampler setup](https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/video_core/renderer_opengl/gl_texture_runtime.cpp), with the [OpenGL 3.3 sampling rules, sections 3.8.11–3.8.12](https://registry.khronos.org/OpenGL/specs/gl/glspec33.core.pdf).
+
+## Verification and actual rendering
+
+All **79 local suites pass**. New authored fixtures cover RGB8 layout/alpha,
+exact encoded extents, independent repeat axes, nearest/linear seams, negative
+and very large coordinates, invalid inputs and base-only mip-selector
+semantics. Existing IA8 and ETC formats exercise periodic coordinates too.
+An independently authored queue verifies **64 actual pixels** with expected
+RGB(104,132,100), depth writes and IRQ delivery; a later invalid packet rolls
+the entire transaction back. Transfers at offsets 640 versus 768 verify the
+exact 768-byte source boundary of a 16x16 RGB8 texture.
+
+The baseline diagnostic `texture-state-capture-uu0k2f__` passes **21 strict
+comparison checks** and **21 texture-state checks**. The final capture,
+`texture-sampler-capture-m390xz4a`, starts the selected queue with the same
+list bytes and identical pre-queue GPU, GSP, VRAM and register-knownness bytes.
+It commits the actual success reply **0x000C0040**, advances the ring from
+index **8**, count **1**, to index **9**, count **0**, and leaves the list
+unchanged. Its result records **2 draws**, **10 vertices**, **4 triangles**,
+**384000 raster pixel writes** and **103345 changed VRAM byte positions**.
+Raster pixel-write counts can include repeated writes to the same pixel.
+
+One ordinary run and one final capture use the existing **100 million block
+limit**, **65536 host-event limit** and **240-second ordinary timeout**.
+Original inputs and four authenticated AOT supplements are unchanged.
+The final comparison passes **21 checks** across normalized launch arguments,
+stdout, CPU/IPC, complete filesystem inventories and all **3708736 audio
+bytes / 231794 records**, with complete streams and successful close status.
+The queue proof passes **13 checks**, and complete integrity retains all
+**231 capture members**. Neither selected capture was retried; no GPU replay
+or captured-byte repair was used. Exact-revision hosted CI is recorded separately.
+
+The final capture reaches the same HostEventLimit and explicitly marks its
+last router request as historical. It records no terminal unsupported GPU
+queue. Prior SaveData semantic proofs remain historical evidence and are not
+counted as newly repeated semantic tests in this graphics milestone.
+
+## Image and practical limits
+
+The native-size export contains a **400x240** top screen and **320x240** bottom
+screen, decoded losslessly from captured BGR display buffers with integer
+rotation. The top contains **26722 nonblack pixels** and the bottom **9287**;
+both LCD force-black controls are disabled. Only neutral spacing is added
+around the original pixels. Earlier black-screen and save-preparation images
+remain historical evidence.
+
+This establishes startup-screen rendering in the headless runtime. Host-window
+presentation, usable menus, audible playback and playable gameplay remain
+unproven. Game-derived images, command lists and assets stay private.
+
+## Private evidence and source identity
+
+- `texture_state_capture/closed-verification.json` and
+  `texture-state-capture-uu0k2f__/texture-state-proof.json`: initial diagnosis.
+- `texture-sampler-build.json`, `texture-sampler-tests.{json,log,xml}` and
+  `texture-sampler-independent-gate-review.json`: build, complete gate and
+  independent source/artifact/ordinary-run verification.
+- `texture-sampler-native-21ray1rl/`: selected ordinary run.
+- `texture-sampler-capture-m390xz4a/`: actual queue proof, strict comparison,
+  complete payload integrity and final CPU/GPU/GSP/VRAM/LCD state.
+- `texture_sampler_capture/closed-verification.json`: final capture closure
+  and release of the source/build freeze.
+- `screenshot-texture-sampler/`: actual startup-screen export and provenance.
+- `texture-state-references/`: pinned primary register/layout/sampler references.
+
+Native SHA-256:
+`04b88cd0aa777c8d78c684de3616e34661c723a9344db222cd79c3e8d3fc418e`
+(**11726648 bytes**).
+CTR library SHA-256:
+`6d5aec57fbbebebfc598bd33e7909e8ffb337f872e7eee6a082a3d4d99639182`
+(**1397640 bytes**).
+This follows published SaveData Read milestone
+`bb9aa0521009acc8d18c90a75c3cbe5f72d9ddb1`. The complete prior handoff,
+including its failures, corrections and evidence limitations, remains
+byte-identical below.
+
+---
+
 # October 28, 2026 — SaveData reads and the next graphics stop
 
 ## Current result and next task

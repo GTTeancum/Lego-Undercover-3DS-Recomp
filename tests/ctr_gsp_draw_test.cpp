@@ -95,10 +95,10 @@ struct Fixture {
         Set(0x80,1);Set(0x82,0x00100010);Set(0x83,6);Set(0x84,0);Set(0x8E,texture_format);
         Set(0x85,(private_texture?kTextureVa-0x14000000U+0x20000000U:kGpuVramPhysicalBase+kTexture)/8);
         Set(0xC0,0x00030003); // Replace RGB and alpha with texture0.
-        const bool ia8=texture_format==5;
+        const bool rgb8=texture_format==1,ia8=texture_format==5;
         const bool etc=texture_format==12 || texture_format==13;
         const bool etc_alpha=texture_format==13;
-        std::vector<std::uint8_t> texture(etc?(etc_alpha?256:128):(ia8?512:1024));
+        std::vector<std::uint8_t> texture(etc?(etc_alpha?256:128):(ia8?512:rgb8?768:1024));
         if(etc) {
             // Hand-authored uniform ETC block: both RGB bases3*17 with
             // modifier+2 produce53. A4 nibble8 gives alpha136; ETC1 is opaque.
@@ -107,6 +107,8 @@ struct Fixture {
                 if(etc_alpha)for(unsigned i=0;i<8;++i)texture[offset+i]=0x88;
                 for(unsigned i=0;i<8;++i)texture[offset+(etc_alpha?8:0)+i]=rgb[i];
             }
+        } else if(rgb8)for(unsigned i=0;i<texture.size();i+=3) {
+            texture[i]=0x30;texture[i+1]=0x20;texture[i+2]=0x10;
         } else for(unsigned i=0;i<texture.size();i+=ia8?2:4) {
             texture[i]=0x80;texture[i+1]=ia8?0x40:0x30;
             if(!ia8) {texture[i+2]=0x20;texture[i+3]=0x10;}
@@ -276,6 +278,55 @@ void Ia8EncodedSpansAndFeedback() {
     feedback.Draw();feedback.Submit();feedback.Stop("texture source overlaps");
 }
 
+void Rgb8RepeatQueueAndEncodedExtent() {
+    const auto configure=[](Fixture& f,bool private_source=false) {
+        f.TexturedDepth(private_source,1);
+        // Independently authored BGR corner texels at literal Morton offsets:
+        // logical(0,0),(15,0),(0,15),(15,15). RGB8 has no stored alpha.
+        constexpr std::array<unsigned,4> offsets{510,765,0,255};
+        constexpr std::array<std::array<std::uint8_t,3>,4> bgr{{
+            {48,32,16},{16,80,208},{96,192,32},{240,224,160}}};
+        for(unsigned corner=0;corner<4;++corner) {
+            if(private_source)CHECK(f.memory.LoadBytes(kTextureVa+offsets[corner],bgr[corner]));
+            else CHECK(f.bank->Write(kTexture+offsets[corner],bgr[corner]));
+        }
+        // Repeat on both axes, equal linear spatial filters and linear mip
+        // selection. The existing min=max=0 LOD confines sampling to level 0.
+        f.Set(0x83,0x01002206);
+        for(unsigned vertex=0;vertex<4;++vertex) {
+            CHECK(f.memory.Write32(kVertices+32*vertex+16,std::bit_cast<std::uint32_t>(-1.0f)));
+            CHECK(f.memory.Write32(kVertices+32*vertex+20,std::bit_cast<std::uint32_t>(2.0f)));
+        }
+    };
+    Fixture success;configure(success);success.Draw();success.Irq();success.Submit();success.Success();
+    // Integer repeat coordinates lie halfway across each edge. The four opaque
+    // colors have literal mean RGB(104,132,100); framebuffer alpha is masked.
+    success.Pixels({0x55,100,132,104});success.DepthPixels();
+    CHECK(success.gpu->last_pica_result().draws==1 &&
+          success.gpu->last_pica_result().pixels_covered==64 &&
+          success.gpu->last_pica_result().pixels_written==64 &&
+          success.Page()[1]==1 && success.Page()[12]==5 && success.event->signaled());
+
+    Fixture rollback;configure(rollback);rollback.Draw();rollback.Irq();rollback.Submit(0,2);
+    rollback.PacketAt(1,{0x7F,0,0,0,0,0,0,0});rollback.Stop("queue packet");
+
+    // A 16x16 RGB8 source occupies 768 encoded bytes. Stale reads of the final
+    // 128 bytes reject the whole queue; an immediately adjacent transfer is safe.
+    Fixture overlap;configure(overlap,true);overlap.Draw();overlap.Irq();overlap.Submit(1,2);
+    overlap.PacketAt(0,{3,kGpuVramVirtualBase+kTransfer,kTextureVa+640,0x80008,0x80008,0x4400,0,0});
+    const auto before=overlap.PrivateBytes(kTextureVa,768);
+    overlap.Stop("PICA texture source depends on an earlier staged FCRAM transfer");
+    CHECK(overlap.PrivateBytes(kTextureVa,768)==before);
+
+    Fixture adjacent;configure(adjacent,true);adjacent.Draw();adjacent.Irq();adjacent.Submit(1,2);
+    adjacent.PacketAt(0,{3,kGpuVramVirtualBase+kTransfer,kTextureVa+768,0x80008,0x80008,0x4400,0,0});
+    const auto source=adjacent.PrivateBytes(kTextureVa,768);
+    adjacent.Success();adjacent.Pixels({0x55,100,132,104});adjacent.DepthPixels();
+    CHECK(adjacent.PrivateBytes(kTextureVa,768)==source);
+    CHECK(adjacent.PrivateBytes(kTextureVa+768,128)==std::vector<std::uint8_t>(128,0xA5));
+    CHECK(adjacent.Page()[1]==2 && adjacent.Page()[12]==4 && adjacent.Page()[13]==5 && adjacent.event->signaled());
+}
+
 void EtcRealPixelsAndEncodedDependencies() {
     for(const unsigned format:{12U,13U}) {
         const unsigned encoded_bytes=format==13?256:128;
@@ -316,7 +367,7 @@ void EtcRealPixelsAndEncodedDependencies() {
 
 int main(){RealPixelsThenIrq();WholeQueueRollback();OrderedDrawsAndTransfers();FillForwardingAndPrivateSourceGuard();
     TextureSnapshotAndDepthWrites();TextureFcramDependenciesAndRollback();Ia8EncodedSpansAndFeedback();
-    EtcRealPixelsAndEncodedDependencies();
+    Rgb8RepeatQueueAndEncodedExtent();EtcRealPixelsAndEncodedDependencies();
     if(failures)return EXIT_FAILURE;
     std::cout<<"PASS: native draw/texture/depth bytes, ordered device staging, restart, IRQ and complete-queue rollback\n";
 }

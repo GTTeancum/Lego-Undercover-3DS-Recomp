@@ -38,6 +38,7 @@ float Add(float a,float b) noexcept {volatile float out=a+b;return out;}
 std::uint32_t TileBytes(PicaTextureFormat format) noexcept {
     switch (format) {
     case PicaTextureFormat::RGBA8: return 256;
+    case PicaTextureFormat::RGB8: return 192;
     case PicaTextureFormat::IA8: return 128;
     case PicaTextureFormat::ETC1: return 32;
     case PicaTextureFormat::ETC1A4: return 64;
@@ -112,6 +113,8 @@ bool Texel(const PicaTexturePlan& plan,std::uint32_t x,std::uint32_t y,Color& co
     if (plan.format==PicaTextureFormat::IA8) {
         const auto intensity=plan.bytes[offset+1];
         color={intensity,intensity,intensity,plan.bytes[offset]};
+    } else if (plan.format==PicaTextureFormat::RGB8) {
+        color={plan.bytes[offset+2],plan.bytes[offset+1],plan.bytes[offset],255};
     } else {
         color={plan.bytes[offset+3],plan.bytes[offset+2],plan.bytes[offset+1],plan.bytes[offset]};
     }
@@ -122,16 +125,32 @@ struct Axis {
     std::uint32_t first{},second{};
     float fraction{};
 };
-Axis LinearAxis(float normalized,std::uint32_t size) noexcept {
-    // For clamp-to-edge, clamping normalized coordinates first is equivalent
-    // outside [0,1] and prevents large finite inputs from overflowing the scale
-    // or integer conversion. No repeat/border semantics are inferred here.
-    const auto position=Add(Mul(std::clamp(normalized,0.0f,1.0f),static_cast<float>(size)),-0.5f);
+bool SupportedWrap(PicaTextureWrap mode) noexcept {
+    return mode==PicaTextureWrap::ClampToEdge || mode==PicaTextureWrap::Repeat;
+}
+float BoundedCoordinate(float normalized,PicaTextureWrap mode) noexcept {
+    // Preserve the signed remainder: adding one to a tiny negative value can
+    // round to 1 and incorrectly select texel zero in nearest filtering.
+    // A power-of-two scale is exact here, and all integer conversions stay
+    // bounded even when the original finite coordinate is enormous.
+    return mode==PicaTextureWrap::Repeat?std::fmod(normalized,1.0f):std::clamp(normalized,0.0f,1.0f);
+}
+std::uint32_t WrapTexel(std::int32_t coordinate,std::uint32_t size,PicaTextureWrap mode) noexcept {
+    const auto extent=static_cast<std::int32_t>(size);
+    if (mode==PicaTextureWrap::ClampToEdge)
+        return static_cast<std::uint32_t>(std::clamp(coordinate,0,extent-1));
+    const auto remainder=coordinate%extent;
+    return static_cast<std::uint32_t>(remainder<0?remainder+extent:remainder);
+}
+std::uint32_t NearestAxis(float normalized,std::uint32_t size,PicaTextureWrap mode) noexcept {
+    const auto position=Mul(BoundedCoordinate(normalized,mode),static_cast<float>(size));
+    return WrapTexel(static_cast<std::int32_t>(std::floor(position)),size,mode);
+}
+Axis LinearAxis(float normalized,std::uint32_t size,PicaTextureWrap mode) noexcept {
+    const auto position=Add(Mul(BoundedCoordinate(normalized,mode),static_cast<float>(size)),-0.5f);
     const auto lower=std::floor(position);
-    const auto integer=static_cast<std::int32_t>(lower); // Proven [-1,1023].
-    const auto upper=static_cast<std::int32_t>(size-1);
-    return {static_cast<std::uint32_t>(std::clamp(integer,0,upper)),
-            static_cast<std::uint32_t>(std::clamp(integer+1,0,upper)),Add(position,-lower)};
+    const auto integer=static_cast<std::int32_t>(lower); // Proven [-1025,1023].
+    return {WrapTexel(integer,size,mode),WrapTexel(integer+1,size,mode),Add(position,-lower)};
 }
 float Lerp(float left,float right,float fraction) noexcept {
     const auto left_weight=Add(1,-fraction);
@@ -149,18 +168,25 @@ bool StagePicaTexture0(const PicaGpuRegisters& registers,const PicaUploadState& 
         !Known(uploads,0x84,0x0F0F1FFFU) || !Known(uploads,0x85,0x0FFFFFFFU) ||
         !Known(uploads,0x8E,15))
         return fail("PICA texture0 consumed register state is unknown");
-    if ((reg(0x83)&0x71007700U) || (reg(0x84)&0x0F0F1FFFU))
-        return fail("PICA texture0 requires ordinary 2D, base level0 and clamp-to-edge");
+    if ((reg(0x83)&0x70000000U) || (reg(0x84)&0x0F0F1FFFU))
+        return fail("PICA texture0 requires ordinary 2D, base level0 and zero LOD bias");
+    const auto wrap_s=static_cast<PicaTextureWrap>((reg(0x83)>>12)&7U);
+    const auto wrap_t=static_cast<PicaTextureWrap>((reg(0x83)>>8)&7U);
+    if (!SupportedWrap(wrap_s) || !SupportedWrap(wrap_t))
+        return fail("PICA texture0 requires clamp-to-edge or repeat wrapping");
     const auto format=static_cast<PicaTextureFormat>(reg(0x8E)&15U);
     const auto tile_bytes=TileBytes(format);
     if (!tile_bytes)
-        return fail("PICA texture0 format is outside the supported RGBA8/IA8/ETC1/ETC1A4 slice");
+        return fail("PICA texture0 format is outside the supported RGBA8/RGB8/IA8/ETC1/ETC1A4 slice");
     const auto magnify=(reg(0x83)>>1)&1U,minify=(reg(0x83)>>2)&1U;
     if (magnify!=minify)
         return fail("PICA texture0 requires identical minification and magnification filters");
+    // Pinned Azahar forwards min/max LOD to its host sampler. With both zero
+    // and equal min/mag filters, either mip-filter bit selects the same base
+    // samples (OpenGL3.3 sections3.8.11-12). This does not enable mipmap storage.
 
     PicaTexturePlan staged;
-    staged.format=format;
+    staged.format=format;staged.wrap_s=wrap_s;staged.wrap_t=wrap_t;
     staged.width=(reg(0x82)>>16)&0x7FFU;staged.height=reg(0x82)&0x7FFU;
     if (!Dimensions(staged.width,staged.height))
         return fail("PICA texture0 dimensions are outside supported power-of-two bounds");
@@ -206,8 +232,9 @@ bool SamplePicaTexture(const PicaTexturePlan& plan,float u,float v,
     const auto tile_bytes=TileBytes(plan.format);
     const auto bytes=std::uint64_t(plan.width/8)*(plan.height/8)*tile_bytes;
     if (!tile_bytes || bytes>kPicaTextureMaxBytes || plan.bytes.size()!=bytes || plan.read.bytes!=bytes ||
-        (plan.filter!=PicaTextureFilter::Nearest && plan.filter!=PicaTextureFilter::Linear))
-        return fail("PICA texture sample has an invalid staged format, extent or filter");
+        (plan.filter!=PicaTextureFilter::Nearest && plan.filter!=PicaTextureFilter::Linear) ||
+        !SupportedWrap(plan.wrap_s) || !SupportedWrap(plan.wrap_t))
+        return fail("PICA texture sample has an invalid staged format, extent, filter or wrap mode");
     if (!NormalOrZero(u) || !NormalOrZero(v) || std::fegetround()!=FE_TONEAREST)
         return fail("PICA texture sample requires finite normal/zero coordinates and nearest host rounding");
     const auto tap=[&](std::uint32_t x,std::uint32_t y,Color& value) {
@@ -216,11 +243,10 @@ bool SamplePicaTexture(const PicaTexturePlan& plan,float u,float v,
     };
     Color sampled{};
     if (plan.filter==PicaTextureFilter::Nearest) {
-        const auto x=static_cast<std::uint32_t>(Mul(std::clamp(u,0.0f,1.0f),static_cast<float>(plan.width)));
-        const auto y=static_cast<std::uint32_t>(Mul(std::clamp(v,0.0f,1.0f),static_cast<float>(plan.height)));
-        if (!tap(std::min(x,plan.width-1),std::min(y,plan.height-1),sampled)) return false;
+        const auto x=NearestAxis(u,plan.width,plan.wrap_s),y=NearestAxis(v,plan.height,plan.wrap_t);
+        if (!tap(x,y,sampled)) return false;
     } else {
-        const auto x=LinearAxis(u,plan.width),y=LinearAxis(v,plan.height);
+        const auto x=LinearAxis(u,plan.width,plan.wrap_s),y=LinearAxis(v,plan.height,plan.wrap_t);
         Color a{},b{},c{},d{};
         if (!tap(x.first,y.first,a) || !tap(x.second,y.first,b) ||
             !tap(x.first,y.second,c) || !tap(x.second,y.second,d)) return false;
