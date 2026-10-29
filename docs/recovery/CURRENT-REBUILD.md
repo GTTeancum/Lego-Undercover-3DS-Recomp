@@ -1,3 +1,74 @@
+# October 29, 2026 — recovery of the published priority checkpoint
+
+The tested runtime remains code commit
+[`598fe338f41d5af57a21e622ca1566bfc5909b59`](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/commit/598fe338f41d5af57a21e622ca1566bfc5909b59).
+A subsequent workspace reset lost this milestone's original build/test logs,
+raw ordinary/capture evidence and both compiled executables before their
+private checkpoint was saved. **Those original files remain lost.** The saved
+`284e3d1` evidence and authenticated game inputs were restored. The results
+below are fresh recovery reproductions; this update changes documentation only.
+
+## Verified recovery result
+
+| Check | New result |
+| --- | --- |
+| Release build and local gate | One build; **79/79 suites passed**. |
+| Ordinary/capture equivalence | **21/21 strict checks passed**, including complete audio and filesystem state. |
+| Actual priority calls | **5/5 succeed**; the previous blocker changes thread **12**, `WaitArb`, **48 → 47**, Result **0**, without waking it. |
+| Retained capture bodies | **14/14** identities verified; their aggregate manifest matches the retained historical digest. |
+| Final evidence closure | **24/24 checks passed**. |
+| Hosted CI for code commit `598fe33` | **3 workflows / 7 jobs pass**, including **5 × 79** suite passes. |
+
+Both fresh runs stop at **MissingBlock `0x00151B48`**, thread **7**, dispatch
+round **21,843**, guest time **8,748,407,941 ns**. They use **131,072 host events**,
+`--block-limit 100000000` (the diagnostic bound between SVC boundaries), a
+**600-second wall timeout** and **630-second outer guard**, with fresh owned
+SaveData/SharedExtData. The last `fs:RomFS` request is historical.
+
+The complete **4,571,648-byte / 285,726-record** audio stream matches its
+retained historical SHA-256. All fourteen new payload identities also reproduce
+the historical aggregate-manifest digest, covering the three individual hashes
+that were unavailable separately. This establishes matching new outputs;
+it does not restore the missing original files.
+
+Both active headless framebuffers are black, with LCD fill **0** and force-black
+disabled. The new lossless export matches the recorded historical PNG digest.
+The export does not establish a usable menu, gameplay or host-window presentation.
+The original **599 AOT pages** and **four supplements** are unchanged.
+
+## Current private artifacts
+
+The new executable hashes differ from the lost originals. The changed Teakra
+library embeds the new checkout path; this is a plausible contributor to the
+identity difference, not a bytewise explanation of unavailable original files.
+Each new executable is saved in its own private archive:
+
+- Native SHA-256: `62d69f293cb7737e9ef3ea3634e0809593b80397c46e184019210c098a943479`.
+  Archive: `LEGO-Chase-recovery-native-598fe33.tgz`.
+- Capture SHA-256: `aee57cef7b9e294138bf5865f7968a83d50a7edb4c82842db18aa5dd08769307`.
+  Archive: `LEGO-Chase-private-recovery-capture-598fe33.tgz`.
+
+Current private evidence paths, relative to the recovery root:
+
+- `recovery-records/thread-priority-recovery-restoration.json`: restored prior bytes, inputs and recorded verification corrections.
+- `evidence/thread-priority-recovery-build.json`, `evidence/thread-priority-recovery-tests.{json,log,xml}` and `evidence/thread-priority-recovery-LastTest.log`: new build and complete local gate.
+- `evidence/thread-priority-recovery-native-131072-hu_25kfg/`: new ordinary run.
+- `evidence/thread-priority-recovery-capture-131072-2x3cot2l/`: new capture, strict comparison, five-call proof and historical aggregate comparison.
+- `evidence/thread-priority-recovery/capture-run/closed-verification.json` and `evidence/thread-priority-recovery/screens/provenance.json`: current closure and image provenance.
+- `evidence/hosted-ci-598fe33/`: exact code-revision hosted CI.
+- `evidence/thread-priority-recovery/native-saved.json` and `evidence/thread-priority-recovery/capture-saved.json`: successful separate private executable preservation.
+
+Only source and metadata are public; game-derived executable bodies, raw game
+inputs, captures and audio remain private. The earlier priority section below
+is retained **byte-identically as a historical account**; its original-run paths
+and hashes are not substitutes for the current recovery evidence above.
+
+**Next:** verify the missing A32 fragment at `0x00151B48`, its instruction-admission
+policy and four unrecorded branch targets before adding authenticated supplements.
+The detailed next-task analysis below remains applicable.
+
+---
+
 # October 29, 2026 — active thread priority changes and the next AOT gap
 
 ## Current result and next task
