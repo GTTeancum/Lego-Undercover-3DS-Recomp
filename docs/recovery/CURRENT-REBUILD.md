@@ -1,3 +1,119 @@
+# October 28, 2026 — SaveData commit acknowledgement and archive closing
+
+## Current result and next task
+
+The unchanged original game now passes the observed **ControlArchive** commit
+request and **CloseArchive**. It preserves the existing **42644-byte**
+application file, retires the first title-save mount, opens a fresh mount and
+reopens that same file. GetSize reports **42644**.
+
+The current explicit stop is **fs:File Read**, request header **0x080200C2**,
+requesting **42644 bytes at offset 0**. It occurs at dispatch round **8275**,
+guest time **2724472618 ns**, thread **11**, PC `0x0025947C`, with
+`UnsupportedIpc` detail `0x32`.
+
+**Next task: implement the observed bounded file Read operation.** The captured
+Read has not executed. Its destination already contained bytes equal to the
+file before the unsupported call; that preexisting content is not evidence
+of a successful read. The complete request, transport, filename and save bytes
+remain private.
+
+## Supported command behavior
+
+ControlArchive accepts the observed SaveData commit-action shape with one-byte
+input and output buffers. It validates the initialized title's archive mount,
+bounded private transport and complete reply backing. Both output and reply
+writes are prepared before either changes. The input remains opaque; successful
+execution writes a zero output byte and returns the reference success result.
+
+This follows the pinned local SaveData implementation's success-only control
+operation. The acknowledgement adds no file modification, filesystem journal,
+flush or power-loss durability guarantee. The preceding file writes retain
+their actual host effects. Unsupported action/buffer shapes remain explicit.
+
+CloseArchive validates ownership and prepares the private guest reply before
+retiring that mount. The archive manager preserves its next-handle sequence,
+so reopening produces a fresh mount identity. Files, metadata and kernel file
+session handles are unchanged by archive closing. File sessions own separate
+descriptors and remain independent of the mount's lifetime.
+
+The observed capture confirms successful ControlArchive and CloseArchive
+replies, unchanged input/file/metadata bytes, zeroed control output and the
+mount count changing **1 to 0** at CloseArchive. A subsequent OpenArchive
+creates a fresh mount; OpenFile preserves the existing file and GetSize returns
+its real extent before the unsupported Read request.
+
+## Verification and retained history
+
+The final combined implementation passes the complete **79-suite local gate**.
+Authored cases cover exact commit/close replies, initialized title ownership,
+stale handles, mount retirement and fresh reopening, surviving file endpoints,
+invalid transport, aliasing and private reply preparation. Byte-identical
+executable copies preserve the original test arguments, properties and
+working directories. Source, native, CTR and AOT identities remain frozen
+through the selected gate and ordinary run.
+
+An earlier Control-only build attempt was interrupted. A subsequent prelaunch
+artifact guard found an empty unrelated generated test executable before any
+tests or guest run could start. The failure and original artifact were retained;
+that target was relinked from unchanged source. The intermediate Control-only
+79-suite pass and its ordinary stop at CloseArchive, round **5350**, remain
+separate historical evidence. The final ControlArchive-plus-CloseArchive build
+and all 79 suites pass without a current gate failure.
+
+For that final combined implementation, **one ordinary run and one selective
+capture** use the established **65536 host-event budget**, **100 million block
+limit** and **240-second ordinary timeout**. This milestone does not raise the
+limits further. Original code/RomFS/ExHeader inputs and four authenticated
+build-time AOT supplements are unchanged.
+
+The strict comparison passes **21 checks**. Complete normalized launch
+arguments/stdout, final CPU/IPC state, recursive SaveData/SharedExtData
+inventories and all **1417152 audio bytes / 88570 records** match. Both audio
+streams retain complete headers and reported tails with successful close
+status. The actual command sequence passes **596 semantic proof checks**.
+Portable integrity and its readback check cover **230 retained files and all
+188 capture members**. No guest rerun or captured-byte repair was used to
+produce this final comparison.
+
+The capture retains the full next Read request and bounded transport,
+GPU/GSP state, all **6 MiB of VRAM** and both LCD control words. A private
+lossless export shows **both actual screen buffers black**. Both LCD
+force-black controls are disabled; the black pixels are present in the
+retained buffers. The earlier save-preparation notice is historical evidence
+from the preceding stop, not the current frame. Host-window presentation,
+a usable menu, audible playback and playable gameplay remain unproven.
+
+GPU code is unchanged and no GPU queue is replayed for this filesystem
+milestone. Exact-revision hosted CI results are recorded separately from
+local and original-game verification.
+
+## Private evidence and source identity
+
+- `save-complete-build.json` and `save-complete-tests.{json,log,xml}` retain
+  the final combined production build and complete local gate.
+- `save-complete-native-btkpe5se/` is the selected ordinary run.
+- `save-commit-capture-wnrzzlh4/` retains the strict comparison, successful
+  `save-commit-proof.json`, portable integrity and complete capture payloads.
+- `save_commit_capture/closed-verification.json` records the closed capture
+  verification and release of the source/build freeze.
+- `screenshot-save-complete/` retains the actual framebuffer export and
+  its provenance; both screen buffers are black at the current stop.
+- `save-commit-execution-interruption.json`, `save-commit-pass-failure.json`,
+  `save-commit-relink.json`, `save-commit-tests.{json,log,xml}` and
+  `save-commit-native-a00cvy6q/` preserve the earlier Control-only sequence.
+
+Native SHA-256:
+`93e79869cdc41b07973fb6d861702c34d5854c52a6431487aba34eb3f0e0875b`.
+CTR library SHA-256:
+`c1675dd0ebcd0f7b62d571a6a5a23346ae8cfa4e4f0522debe6b166432591b6e`.
+This follows the published file-opening/growth milestone
+`110d7e5330ba9a1b23a70b2932c9dfc1aa776604`. The complete earlier handoff,
+including the OpenFile ordering correction, Format failures and other
+historical evidence limits, is preserved unchanged below.
+
+---
+
 # October 28, 2026 — SaveData files and growing writes
 
 ## Current result and next task

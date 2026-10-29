@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <stdexcept>
 #include <system_error>
 #include <vector>
@@ -682,6 +683,235 @@ void SaveFilePreflightAndCapacity() {
     CHECK(Bytes(Title(full.Root())/"capacity.bin").empty() && !HasStagedSaveFile(Title(full.Root())));
 }
 
+constexpr std::uint32_t kCommitInput=0x08003001,kCommitOutput=0x08004001;
+IpcCommandBuffer CommitRequest(std::uint64_t archive) {
+    return {0x080D0144,static_cast<std::uint32_t>(archive),static_cast<std::uint32_t>(archive>>32),
+            0,1,1,0x1A,kCommitInput,0x1C,kCommitOutput};
+}
+void CommitBuffers(GuestMemory& memory) {
+    CHECK(memory.Map(kCommitInput-1,3,MemoryPermission::Read));
+    CHECK(memory.Map(kCommitOutput-1,3,RW));
+    CHECK(memory.LoadBytes(kCommitInput-1,std::array<std::uint8_t,3>{0x49,0x87,0x63}));
+    CHECK(memory.LoadBytes(kCommitOutput-1,std::array<std::uint8_t,3>{0x5B,0xA7,0x3E}));
+}
+std::array<std::uint8_t,3> CommitBytes(GuestMemory& memory,std::uint32_t address) {
+    std::array<std::uint8_t,3> bytes{};
+    for (unsigned i=0;i<bytes.size();++i) CHECK(memory.Read8(address-1+i,&bytes[i]));
+    return bytes;
+}
+std::map<std::string,std::string> CommitInventory(const fs::path& root) {
+    std::map<std::string,std::string> result;
+    for (const auto& entry:fs::recursive_directory_iterator(root)) {
+        const auto path=entry.path().lexically_relative(root).generic_string();
+        if (entry.is_symlink()) result[path]="link:"+fs::read_symlink(entry.path()).generic_string();
+        else if (entry.is_directory()) result[path]="directory";
+        else if (entry.is_regular_file()) result[path]="file:"+Bytes(entry.path());
+        else result[path]="other";
+    }
+    return result;
+}
+void CommitReply(Fixture& f,const IpcCommandBuffer& request,Result result) {
+    const auto handles=f.kernel.handles().OpenHandleCount(),mounts=f.endpoint->save_archives().size();
+    const auto inventory=CommitInventory(f.temp.root);
+    f.Put(request);const auto before=f.cpu;
+    CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==0 && !f.router.unsupported_request());
+    CHECK((f.Read()==IpcCommandBuffer{0x080D0040,result}));
+    for (unsigned i=1;i<15;++i) CHECK(f.cpu.r[i]==before.r[i]);
+    CHECK(f.cpu.r[15]==before.r[15]+4 && f.cpu.cpsr==before.cpsr && f.cpu.fpscr==before.fpscr);
+    CHECK(f.kernel.handles().OpenHandleCount()==handles && f.endpoint->save_archives().size()==mounts);
+    CHECK(f.kernel.now_ns()==0 && CommitInventory(f.temp.root)==inventory);
+}
+
+void SaveCommitAcknowledgementAndOwnership() {
+    Fixture f;f.FormatReply(Fixture::FormatRequest());const auto archive=f.Reply(Fixture::Request(),0);
+    Write(Title(f.Root())/"progress.bin","authored saved progress remains byte-for-byte intact");
+    CommitBuffers(f.memory);const auto input=CommitBytes(f.memory,kCommitInput);
+    CommitReply(f,CommitRequest(archive),0);
+    CHECK(CommitBytes(f.memory,kCommitInput)==input);
+    CHECK((CommitBytes(f.memory,kCommitOutput)==std::array<std::uint8_t,3>{0x5B,0,0x3E}));
+    CheckFormatMetadata(Title(f.Root()));
+    CHECK(f.memory.LoadBytes(kCommitOutput,std::array<std::uint8_t,1>{0xA7}));
+    const auto untouched=CommitBytes(f.memory,kCommitOutput);
+    CommitReply(f,CommitRequest(archive+99),kResultFsInvalidArchiveHandle);
+    CHECK(CommitBytes(f.memory,kCommitOutput)==untouched && CommitBytes(f.memory,kCommitInput)==input);
+
+    // Host fixture setup opens a different title through the real backend. The
+    // underlying object is mutable; its public diagnostic view is const-only.
+    const auto other=f.Root()/"00040000"/"000ad501"/"data"/"00000001";
+    fs::create_directories(other);Write(other/"foreign.bin","another title is not selected");
+    auto& backend=const_cast<SaveDataArchiveMounts&>(f.endpoint->save_archives());
+    std::uint64_t foreign=0;CHECK(backend.Open(kProgram+1,&foreign)==0);
+    CHECK(backend.Find(foreign) && backend.Find(foreign)->program_id==kProgram+1);
+    CommitReply(f,CommitRequest(foreign),kResultFsInvalidArchiveHandle);
+    CHECK(CommitBytes(f.memory,kCommitOutput)==untouched && CommitBytes(f.memory,kCommitInput)==input);
+    CommitReply(f,CommitRequest(archive),0); // Repeated acknowledgement leaves storage untouched.
+    CHECK((CommitBytes(f.memory,kCommitOutput)==std::array<std::uint8_t,3>{0x5B,0,0x3E}));
+}
+
+void SaveCommitRequestAndReplyPreflight() {
+    Fixture unconfigured(false);unconfigured.Unsupported(CommitRequest(kSaveDataArchiveHandleTag|1));
+    Fixture uninitialized(true,false);uninitialized.Unsupported(CommitRequest(kSaveDataArchiveHandleTag|1));
+    Fixture f;f.FormatReply(Fixture::FormatRequest());const auto archive=f.Reply(Fixture::Request(),0);
+    Write(Title(f.Root())/"preserve.bin","real existing bytes");CommitBuffers(f.memory);
+    const auto input=CommitBytes(f.memory,kCommitInput),output=CommitBytes(f.memory,kCommitOutput);
+    const auto inventory=CommitInventory(f.temp.root);
+    const auto request=CommitRequest(archive);
+    for (const auto [word,value]:std::array<std::pair<unsigned,std::uint32_t>,9>{{
+            {0,0x080D0142},{2,0},{3,1},{4,0},{4,2},{5,0},{5,2},{6,0x1E},{8,0x1A}}}) {
+        auto bad=request;bad[word]=value;f.Unsupported(bad);
+    }
+    CHECK(f.memory.Map(0x08100000,1,MemoryPermission::Read));
+    CHECK(f.memory.LoadBytes(0x08100000,std::array<std::uint8_t,1>{0x56}));
+    for (const auto [word,value]:std::array<std::pair<unsigned,std::uint32_t>,3>{{
+            {7,0},{9,0},{9,0x08100000}}}) {
+        auto bad=request;bad[word]=value;f.Put(bad);
+        CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==kResultInvalidPointer);
+        CHECK(f.Read()==bad);
+    }
+    // A device source/output must not receive a callback. Shared service bytes
+    // are also outside this bounded private-memory command.
+    auto device=std::make_shared<FailingReplyDevice>();device->bytes[0]=0x69;
+    CHECK(f.memory.MapDeviceMemory(0x18000000,device,RW));
+    auto shared=std::make_shared<ServiceSharedMemoryObject>();
+    CHECK(shared->Write(0,std::array<std::uint8_t,1>{0x73}));
+    CHECK(f.memory.MapSharedServicePage(0x18100000,shared,RW));
+    const auto epoch=shared->Epoch(0);
+    for (unsigned word:{7U,9U}) {
+        auto bad=request;bad[word]=0x18000000;f.Unsupported(bad);
+        bad[word]=0x18100000;f.Unsupported(bad);
+    }
+    CHECK(device->reads==0 && device->writes==0 && device->bytes[0]==0x69);
+    CHECK(shared->bytes()[0]==0x73 && shared->Epoch(0)==epoch);
+    for (unsigned mode=0;mode<3;++mode) {
+        GuestMemory alternate;CommitBuffers(alternate);
+        const auto length=mode==1?sizeof(IpcCommandBuffer)-4:sizeof(IpcCommandBuffer);
+        auto reply_device=std::make_shared<FailingReplyDevice>();
+        if (mode==2) {
+            const auto base=f.cb()&~0xFFFU,offset=f.cb()&0xFFFU;
+            std::memcpy(reply_device->bytes.data()+offset,request.data(),sizeof(request));
+            CHECK(alternate.MapDeviceMemory(base,reply_device,RW));
+        } else {
+            CHECK(alternate.Map(f.cb(),length,mode==0?MemoryPermission::Read:RW));
+            CHECK(alternate.LoadBytes(f.cb(),{reinterpret_cast<const std::uint8_t*>(request.data()),length}));
+        }
+        f.Put(request);const auto before=f.cpu;const auto handles=f.kernel.handles().OpenHandleCount();
+        const auto result=f.Call(&alternate);
+        if (mode==2) CHECK(result.kind==a32::ExitKind::Svc && f.cpu.r==before.r && f.router.unsupported_request());
+        else CHECK(result.kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==kResultInvalidPointer);
+        std::uint32_t header=0;CHECK(alternate.Read32(f.cb(),&header) && header==request[0]);
+        CHECK(reply_device->writes==0 && f.kernel.handles().OpenHandleCount()==handles);
+        CHECK(CommitBytes(alternate,kCommitInput)==input && CommitBytes(alternate,kCommitOutput)==output);
+    }
+    // Distinct virtual addresses can still target the same physical reply.
+    constexpr std::uint32_t reply_page=0x08008000,alias_page=0x0E100000;
+    CHECK(f.memory.Map(reply_page,0x1000,RW));
+    CHECK(f.memory.MapUserAlias(alias_page,reply_page,0x1000,3)==0);
+    f.kernel.current_thread()->tls_address=reply_page;
+    for (unsigned word:{7U,9U}) {
+        auto bad=request;bad[word]=alias_page+kIpcCommandBufferOffset;f.Unsupported(bad);
+    }
+    CHECK(CommitBytes(f.memory,kCommitInput)==input && CommitBytes(f.memory,kCommitOutput)==output);
+    CHECK(CommitInventory(f.temp.root)==inventory);
+}
+
+IpcCommandBuffer CloseSaveRequest(std::uint64_t archive) {
+    return {0x080E0080,static_cast<std::uint32_t>(archive),static_cast<std::uint32_t>(archive>>32)};
+}
+void CloseSaveReply(Fixture& f,std::uint64_t archive,Result result=kResultSuccess) {
+    const auto handles=f.kernel.handles().OpenHandleCount(),mounts=f.endpoint->save_archives().size();
+    const auto shared=f.endpoint->archives().size();const auto inventory=CommitInventory(f.temp.root);
+    f.Put(CloseSaveRequest(archive));const auto before=f.cpu;
+    CHECK(f.Call().kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==0 && !f.router.unsupported_request());
+    CHECK((f.Read()==IpcCommandBuffer{0x080E0040,result}));
+    for (unsigned i=1;i<15;++i) CHECK(f.cpu.r[i]==before.r[i]);
+    CHECK(f.cpu.r[15]==before.r[15]+4 && f.cpu.cpsr==before.cpsr && f.cpu.fpscr==before.fpscr);
+    CHECK(f.endpoint->save_archives().size()==mounts-(result==0));
+    CHECK(f.endpoint->archives().size()==shared && f.kernel.handles().OpenHandleCount()==handles);
+    CHECK(f.kernel.now_ns()==0 && CommitInventory(f.temp.root)==inventory);
+}
+
+void SaveArchiveCloseAndLiveFiles() {
+    Fixture f;f.FormatReply(Fixture::FormatRequest());
+    const auto first=f.Reply(Fixture::Request(),0),other=f.Reply(Fixture::Request(),0);
+    CHECK(first!=other && f.endpoint->save_archives().size()==2);
+    Write(Title(f.Root())/"neighbor.bin","preserve this file and its directory");
+    const auto file=OpenSaveFile(f,first,u"/live.bin");
+    const std::array<std::uint8_t,5> payload{'A','R',0,0x93,0x7D};
+    CHECK(f.memory.Map(kSaveFilePayload,payload.size(),MemoryPermission::Read));
+    CHECK(f.memory.LoadBytes(kSaveFilePayload,payload));
+    SaveFileReply(f,file,SaveWriteRequest(0,3),{0x08030082,0,3,0x3A,kSaveFilePayload});
+    CloseSaveReply(f,first);
+    CHECK(!f.endpoint->save_archives().Find(first) && f.endpoint->save_archives().Find(other));
+    CHECK(SaveFileService(f,file)->file().is_open());
+    CloseSaveReply(f,first,kResultFsInvalidArchiveHandle);
+    OpenSaveFile(f,first,u"/stale.bin",kResultFsInvalidArchiveHandle);
+    CHECK(!fs::exists(Title(f.Root())/"stale.bin"));
+    SaveFileReply(f,file,SaveWriteRequest(3,5),{0x08030082,0,5,0x5A,kSaveFilePayload});
+    SaveFileReply(f,file,{0x08040000},{0x080400C0,0,8,0});
+    std::string expected(reinterpret_cast<const char*>(payload.data()),3);
+    expected.append(reinterpret_cast<const char*>(payload.data()),payload.size());
+    CHECK(Bytes(Title(f.Root())/"live.bin")==expected);
+    const auto reopened=f.Reply(Fixture::Request(),0);
+    CHECK(reopened==other+1 && reopened!=first && f.endpoint->save_archives().Find(other));
+    const auto new_file=OpenSaveFile(f,reopened,u"/live.bin");
+    SaveFileReply(f,new_file,{0x08040000},{0x080400C0,0,8,0});
+    CloseSaveReply(f,other);CHECK(f.endpoint->save_archives().Find(reopened));
+    CloseSaveReply(f,reopened);CHECK(f.endpoint->save_archives().size()==0);
+    for (const auto endpoint:{file,new_file}) {
+        SaveFileReply(f,endpoint,{0x08040000},{0x080400C0,0,8,0});
+        SaveFileReply(f,endpoint,{0x08080000},{0x08080040,0});
+        CHECK(f.kernel.CloseHandle(endpoint)==0);
+    }
+    CHECK(Bytes(Title(f.Root())/"live.bin")==expected);
+    CHECK(Bytes(Title(f.Root())/"neighbor.bin")=="preserve this file and its directory");
+    CheckFormatMetadata(Title(f.Root()));
+}
+
+void SaveArchiveCloseOwnershipAndReplyPreflight() {
+    Fixture unconfigured(false);unconfigured.Unsupported(CloseSaveRequest(kSaveDataArchiveHandleTag|1));
+    Fixture uninitialized(true,false);uninitialized.Unsupported(CloseSaveRequest(kSaveDataArchiveHandleTag|1));
+    Fixture f;f.FormatReply(Fixture::FormatRequest());const auto archive=f.Reply(Fixture::Request(),0);
+    Write(Title(f.Root())/"keep.bin","real file bytes stay intact");
+    const auto foreign_path=f.Root()/"00040000"/"000ad501"/"data"/"00000001";
+    fs::create_directories(foreign_path);Write(foreign_path/"foreign.bin","foreign title remains mounted");
+    auto& backend=const_cast<SaveDataArchiveMounts&>(f.endpoint->save_archives());
+    std::uint64_t foreign=0;CHECK(backend.Open(kProgram+1,&foreign)==0);
+    CHECK(backend.Close(archive,0)==kResultFsInvalidArchiveHandle);
+    CloseSaveReply(f,foreign,kResultFsInvalidArchiveHandle);
+    CloseSaveReply(f,archive+123,kResultFsInvalidArchiveHandle);
+    CHECK(backend.Find(foreign) && backend.Find(archive));
+    auto bad=CloseSaveRequest(archive);bad[0]=0x080E0082;f.Unsupported(bad);
+    bad=CloseSaveRequest(archive);bad[2]=0;f.Unsupported(bad); // SharedExtData close stays unsupported.
+    const auto request=CloseSaveRequest(archive);const auto inventory=CommitInventory(f.temp.root);
+    for (unsigned mode=0;mode<4;++mode) {
+        GuestMemory alternate;
+        auto device=std::make_shared<FailingReplyDevice>();
+        auto shared=std::make_shared<ServiceSharedMemoryObject>();
+        const auto base=f.cb()&~0xFFFU,offset=f.cb()&0xFFFU;
+        const auto length=mode==1?sizeof(IpcCommandBuffer)-4:sizeof(IpcCommandBuffer);
+        const auto data=std::span(reinterpret_cast<const std::uint8_t*>(request.data()),sizeof(request));
+        if (mode==2) {
+            std::memcpy(device->bytes.data()+offset,request.data(),sizeof(request));
+            CHECK(alternate.MapDeviceMemory(base,device,RW));
+        } else if (mode==3) {
+            CHECK(shared->Write(offset,data));CHECK(alternate.MapSharedServicePage(base,shared,RW));
+        } else {
+            CHECK(alternate.Map(f.cb(),length,mode==0?MemoryPermission::Read:RW));
+            CHECK(alternate.LoadBytes(f.cb(),data.first(length)));
+        }
+        const auto epoch=shared->Epoch(offset);const auto handles=f.kernel.handles().OpenHandleCount();
+        f.Put(request);const auto before=f.cpu;const auto result=f.Call(&alternate);
+        if (mode>=2) CHECK(result.kind==a32::ExitKind::Svc && f.cpu.r==before.r && f.router.unsupported_request());
+        else CHECK(result.kind==a32::ExitKind::Fallthrough && f.cpu.r[0]==kResultInvalidPointer);
+        std::uint32_t header=0;CHECK(alternate.Read32(f.cb(),&header) && header==request[0]);
+        CHECK(device->writes==0 && shared->Epoch(offset)==epoch);
+        CHECK(backend.Find(archive) && backend.Find(foreign) && backend.size()==2);
+        CHECK(f.kernel.handles().OpenHandleCount()==handles && CommitInventory(f.temp.root)==inventory);
+    }
+    CloseSaveReply(f,archive);
+    CHECK(backend.Find(foreign) && backend.size()==1 && CommitInventory(f.temp.root)==inventory);
+}
+
 void FormatRequestAndReplyPreflight() {
     Fixture unconfigured(false); unconfigured.Unsupported(Fixture::FormatRequest());
     CHECK(fs::is_empty(unconfigured.Root()));
@@ -808,8 +1038,10 @@ int main() {
     FirstFormatAndTitleBinding(); FormatRequestAndReplyPreflight();
     FormatContainmentAndExistingData(); PartialMetadataFailureRollsBack();
     SaveFileLifecycleAndGrowth(); SaveFilePublicationAndContainment(); SaveFilePreflightAndCapacity();
+    SaveCommitAcknowledgementAndOwnership(); SaveCommitRequestAndReplyPreflight();
+    SaveArchiveCloseAndLiveFiles(); SaveArchiveCloseOwnershipAndReplyPreflight();
 #endif
     if (failures) return EXIT_FAILURE;
-    std::cout << "PASS: per-title SaveData mounting/formatting, atomic file opens, bounded growing writes, live sizes and private reply preflight\n";
+    std::cout << "PASS: per-title SaveData storage, file growth, commit acknowledgement, archive close/live-file lifetime and private reply preflight\n";
     return EXIT_SUCCESS;
 }

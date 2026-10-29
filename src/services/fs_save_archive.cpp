@@ -308,6 +308,18 @@ Result SaveDataArchiveMounts::Open(std::uint64_t program_id, std::uint64_t* out_
 #endif
 }
 
+Result SaveDataArchiveMounts::Close(std::uint64_t handle,std::uint64_t program_id) noexcept {
+    const auto found=mounts_.find(handle);
+    if (found==mounts_.end() || !program_id || found->second.mount.program_id!=program_id)
+        return kResultFsInvalidArchiveHandle;
+    // Pinned local SaveData inherits an empty ArchiveBackend::Close. Its manager
+    // removes the mount without deleting files, flushing data or closing file
+    // sessions. Keep title ownership as this runtime's additional isolation rule.
+    // https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/fs/archive.cpp
+    mounts_.erase(found);
+    return kResultSuccess;
+}
+
 bool SaveDataArchiveMounts::CanFormat() const noexcept {
 #ifdef LEGO_HAS_ATOMIC_SAVE_FORMAT
     return configured();

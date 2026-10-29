@@ -47,6 +47,9 @@ public:
     // A configured missing title returns NotFormatted and zero. An unconfigured
     // backend or unbound program is unsupported, not an invented guest result.
     Result Open(std::uint64_t program_id, std::uint64_t* out_handle);
+    // Retire only this program's archive mount. Files opened through it own
+    // separate descriptors and remain valid; storage and next_handle_ are kept.
+    Result Close(std::uint64_t handle, std::uint64_t program_id) noexcept;
     [[nodiscard]] bool CanFormat() const noexcept;
     // Creates a complete missing high/low/data subtree using an atomic exclusive
     // rename. Existing data directories (even empty ones) require a later format

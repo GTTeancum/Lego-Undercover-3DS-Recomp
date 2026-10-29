@@ -1,5 +1,6 @@
 #include "services/fs_user_service.h"
 #include "services/fs_file_service.h"
+#include <array>
 #include <utility>
 #include <string>
 
@@ -25,6 +26,18 @@ bool FsUserService::CanHandle(const IpcCommandBuffer& command) const noexcept {
     if (!initialized_) return false;
     if (command[0] == IpcMakeHeader(0x0862, 1, 0)) return true;
     if (command[0] == IpcMakeHeader(0x0863, 0, 0)) return true;
+    if (command[0] == IpcMakeHeader(0x080E,2,0)) {
+        const auto archive=std::uint64_t(command[1])|(std::uint64_t(command[2])<<32);
+        return shared_->save_archives.configured() && IsSaveDataArchiveHandle(archive);
+    }
+    if (command[0] == IpcMakeHeader(0x080D,5,4)) {
+        const auto archive=std::uint64_t(command[1])|(std::uint64_t(command[2])<<32);
+        // Observed title-save commit acknowledgement: opaque one-byte input
+        // and one-byte output, with the exact read/write mapped descriptors.
+        return shared_->save_archives.configured() && IsSaveDataArchiveHandle(archive) &&
+               command[3]==0 && command[4]==1 && command[5]==1 &&
+               command[6]==0x1A && command[8]==0x1C;
+    }
     if (command[0] == IpcMakeHeader(0x084C,9,2)) {
         // Bounded first-time FormatSaveData: only the initialized program's
         // Empty path and canonical bool are supported. Bucket counts are
@@ -94,6 +107,88 @@ Result FsUserService::Handle(IpcRouter& router, Kernel& kernel, GuestMemory& mem
         command[0] = IpcMakeHeader(id, 2, 0);
         command[1] = kResultSuccess;
         command[2] = priority;
+        return kResultSuccess;
+    }
+    if (id == 0x080E) {
+        const auto reply64=std::uint64_t(thread.tls_address)+kIpcCommandBufferOffset;
+        if (reply64+sizeof(command)>0x100000000ULL ||
+            !memory.IsReadable(static_cast<std::uint32_t>(reply64),sizeof(command)) ||
+            !memory.IsWritable(static_cast<std::uint32_t>(reply64),sizeof(command)))
+            return kResultInvalidPointer;
+        const auto reply=static_cast<std::uint32_t>(reply64);
+        if (!memory.IsCachelessPrivateRange(reply,sizeof(command))) {
+            router.RequestHostStop("SaveData CloseArchive requires private reply backing");
+            return kResultSuccess;
+        }
+        try {
+            // Finish fallible reply preparation before erasing the mount. The
+            // backend erase and remaining private response writes allocate none.
+            if (!memory.PrepareDeviceWrite(reply,sizeof(command))) {
+                router.RequestHostStop("SaveData CloseArchive reply preparation failed");
+                return kResultSuccess;
+            }
+        } catch (const std::exception& error) {
+            router.RequestHostStop(error.what());
+            return kResultSuccess;
+        }
+        const auto archive=std::uint64_t(command[1])|(std::uint64_t(command[2])<<32);
+        const auto result=shared_->save_archives.Close(archive,program_id_);
+        command.fill(0);
+        command[0]=IpcMakeHeader(id,1,0);
+        command[1]=result;
+        return kResultSuccess;
+    }
+    if (id == 0x080D) {
+        const auto input=command[7],output=command[9];
+        const auto reply64=std::uint64_t(thread.tls_address)+kIpcCommandBufferOffset;
+        if (!memory.IsReadable(input,1) || !memory.IsWritable(output,1) ||
+            reply64+sizeof(command)>0x100000000ULL ||
+            !memory.IsReadable(static_cast<std::uint32_t>(reply64),sizeof(command)) ||
+            !memory.IsWritable(static_cast<std::uint32_t>(reply64),sizeof(command)))
+            return kResultInvalidPointer;
+        const auto reply=static_cast<std::uint32_t>(reply64);
+        if (!memory.IsCachelessPrivateRange(input,1) ||
+            !memory.IsCachelessPrivateRange(output,1) ||
+            !memory.IsCachelessPrivateRange(reply,sizeof(command)) ||
+            memory.SpansAlias(input,1,reply,sizeof(command)) ||
+            memory.SpansAlias(output,1,reply,sizeof(command))) {
+            router.RequestHostStop("SaveData commit requires private buffers separate from its reply");
+            return kResultSuccess;
+        }
+        Result result=kResultFsInvalidArchiveHandle;
+        try {
+            std::uint8_t opaque{};
+            if (!memory.Read8(input,&opaque)) return kResultInvalidPointer;
+            // Prepare both guest writes before changing either byte span. These
+            // private synchronous writes cannot invoke a device or allocate.
+            if (!memory.PrepareDeviceWrite(reply,sizeof(command)) ||
+                !memory.PrepareDeviceWrite(output,1)) {
+                router.RequestHostStop("SaveData commit output/reply preparation failed");
+                return kResultSuccess;
+            }
+            const auto archive=std::uint64_t(command[1])|(std::uint64_t(command[2])<<32);
+            const auto* mount=shared_->save_archives.Find(archive);
+            if (mount && mount->program_id==program_id_) {
+                // Pinned Azahar local SaveData inherits the success-only Control
+                // backend. FS_USER copies its zero-initialized output on success:
+                // https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/hle/service/fs/fs_user.cpp
+                // https://github.com/azahar-emu/azahar/blob/86a9f9236ae42bb5a2b995dbc933d599d8ea07ac/src/core/file_sys/archive_backend.h
+                // Existing file writes retain their real host effects. This
+                // acknowledgement adds no journal, flush or durability promise.
+                constexpr std::array<std::uint8_t,1> zero{};
+                if (!memory.CommitDeviceWrite(output,zero)) {
+                    router.RequestHostStop("SaveData commit prepared output invariant failed");
+                    return kResultSuccess;
+                }
+                result=kResultSuccess;
+            }
+        } catch (const std::exception& error) {
+            router.RequestHostStop(error.what());
+            return kResultSuccess;
+        }
+        command.fill(0);
+        command[0]=IpcMakeHeader(id,1,0);
+        command[1]=result;
         return kResultSuccess;
     }
     if (id == 0x084C) {
