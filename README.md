@@ -6,17 +6,17 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 **Resume from [CHECKPOINT.md](CHECKPOINT.md).** It contains the latest state and next task.
 
-**What works:** The previously verified desktop build opens a window and draws the loading image. The whole touchscreen stays in the bottom-right corner; Tab enlarges it, F11 toggles fullscreen, and mouse clicks act as touch input.
+**What works:** The last verified desktop build opens a window and draws the loading image. The whole touchscreen sits in the bottom-right corner; Tab enlarges it and F11 toggles fullscreen.
 
-**What changed:** Three more missing startup sections are filled. Three fresh headless game runs passed their previous stopping points. The game now reaches another unfinished helper.
+**What changed:** 5 more missing startup sections are filled. Each fresh game run passed its previous stopping point. Startup now reaches another unfinished section. Menus and gameplay remain unverified.
 
-**Checks:** Each new build passed all 84 enabled automated tests. Captured audio and save contents match the previous checkpoint. These results confirm the recorded startup behavior, not playable gameplay.
+**Checks:** All 5 builds passed **84/84 enabled tests once each**, with zero failures, errors or skips. Each exact tested executable was saved privately before its fresh game run. Save contents and captured audio remain unchanged from the previous checkpoint. These were headless runs, so there is no new screenshot or visual-progress claim.
 
-**What still blocks play:** Missing startup code remains. No fresh desktop game run or screenshot was taken for this batch. Usable menus, gameplay, audible playback and Windows execution remain unverified.
+**What still blocks play:** Startup still reaches missing game code. Usable menus, gameplay, audible playback and Windows execution remain unverified. This is not yet a ready-to-play release.
 
-**Next:** Add the next reviewed helper using the existing supported operations, then check the next actual stop. See [the current recovery record](docs/recovery/CURRENT-REBUILD.md) for developer details and [desktop build and controls](docs/DESKTOP.md) for the optional window.
+**Next:** Fill the next reviewed startup section and test the next actual stop. See [the checkpoint](CHECKPOINT.md), [desktop controls](docs/DESKTOP.md) and [the recovery record](docs/recovery/CURRENT-REBUILD.md).
 
-Public Git contains source and metadata. Tested executables and complete run/recovery evidence are preserved privately.
+Public Git contains source and metadata. Tested builds and original-game evidence are preserved privately.
 
 ## Historical recovery records
 

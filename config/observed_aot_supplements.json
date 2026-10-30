@@ -195,6 +195,31 @@
       "entry": "0x00150EDC",
       "end": "0x00150EE8",
       "evidence": "Observed headless MissingBlock at 0x00150EDC after the byte-replication helper completed. Three authenticated original instructions form a relative-offset table dispatcher ending in a computed-PC exit. Existing fast and memory handlers cover the forms. Keep the immutable original table as data, preserve normal memory and target validation, and do not include unobserved dispatch targets. End is exclusive at the already supplemented return step 0x00150EE8."
+    },
+    {
+      "entry": "0x00152DCC",
+      "end": "0x00152EB4",
+      "evidence": "Observed headless MissingBlock at 0x00152DCC. Fifty-eight authenticated original instructions save registers, combine guest byte values into row words, restore a working pointer and return through a stack-loaded PC. Existing arithmetic and memory handlers cover the bounded same-page range. Preserve ordinary memory faults, partial effects and target validation. End is exclusive; do not infer the return from live LR or include an unobserved successor."
+    },
+    {
+      "entry": "0x00152B20",
+      "end": "0x00152BC0",
+      "evidence": "Observed headless MissingBlock at 0x00152B20 after the preceding helper completed. Forty authenticated original instructions combine guest byte values into four row words, restore the working pointer through ordinary writeback stores, and return through LR. Existing shifted arithmetic, fast and memory handlers cover the bounded same-page range. Preserve memory faults, partial writes and return-target validation. End is exclusive at the already recorded 0x00152BC0; no unobserved successor is included."
+    },
+    {
+      "entry": "0x00151078",
+      "end": "0x0015108C",
+      "evidence": "Observed headless MissingBlock at 0x00151078 after the preceding byte-combining helper returned. Five authenticated original instructions advance the working pointer, read a guest-stack word, test its flag, establish a return address and conditionally branch to recorded 0x00151028. Existing fast, memory and immediate-TST handlers cover this same-page range. Preserve memory faults, flags and ordinary target validation. End is exclusive; do not include the unobserved fallthrough or eventual return body."
+    },
+    {
+      "entry": "0x0015108C",
+      "end": "0x00151098",
+      "evidence": "Observed headless MissingBlock at 0x0015108C after the preceding flag test selected its fallthrough. Three authenticated original instructions compute the original relative-offset table address, read the selected entry and branch through the computed PC. Existing fast and memory handlers cover the forms. Keep table contents as data, retain ordinary memory faults and target validation, and do not admit unobserved dispatch targets or the later return body. End is exclusive at 0x00151098."
+    },
+    {
+      "entry": "0x00151098",
+      "end": "0x001510B0",
+      "evidence": "Observed headless MissingBlock at 0x00151098 after the preceding table dispatch and helper return completed. Six authenticated original instructions adjust the working pointer, reload a guest-stack word, test a second flag, establish a return address and conditionally branch to recorded 0x00151028. Existing fast, memory and immediate-TST handlers cover this bounded range. Preserve memory faults, flags and target validation. End is exclusive; no unobserved fallthrough or eventual return body is included."
     }
   ]
 }
