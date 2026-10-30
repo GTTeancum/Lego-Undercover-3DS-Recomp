@@ -1,3 +1,71 @@
+# October 30, 2026 — observed startup continuation
+
+## Current continuation
+
+Read [CHECKPOINT.md](../../CHECKPOINT.md) first. This update fills **5 missing pieces of startup code**. The game gets farther through startup in both the windowed and background checks.
+
+The tested candidate starts from `9d3806e`. The continuation adds **5 metadata blocks / 16 instruction words** beyond the prior 26 blocks / 364 words. Totals are **31 supplements / 380 words**, with **111,074 registered blocks / 545,491 verified instruction words**. All **599 original AOT pages / 603 files** and all 26 preceding supplement records remain unchanged.
+
+Each added range followed an authenticated actual preceding stop. Original words and preserved supplemental records were verified before each bounded run; future stops were not assumed.
+
+| Observed round | Added metadata | Actual headless stop | Change from preceding headless |
+| --- | --- | --- | --- |
+| 01 | `[0x00150E88, 0x00150E94)`; 3 words | MissingBlock `0x00150E94` | +39 core-0 instructions / +145 diagnostic ns |
+| 02 | `[0x00150E94, 0x00150EA8)`; 5 words | MissingBlock `0x00150EA8` | +27 core-0 instructions / +101 diagnostic ns |
+| 03 | `[0x00150EA8, 0x00150EB4)`; 3 words | MissingBlock `0x00150EB4` | +3 core-0 instructions / +11 diagnostic ns |
+| 04 | `[0x00150EB4, 0x00150EC0)`; 3 words | MissingBlock `0x00152898` | +3 core-0 instructions / +11 diagnostic ns |
+| 05 | `[0x00152898, 0x001528A0)`; 2 words | MissingBlock `0x001528A0` | +22 core-0 instructions / +82 diagnostic ns |
+
+The first row compares with the published 9d3806e headless baseline; later rows compare with the preceding round. Only the final round also received a fresh desktop run.
+
+Both final modes stop at **MissingBlock `0x001528A0`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
+
+Cumulative change from the preserved same-mode `9d3806e` baseline: headless **+94 core-0 instructions / +350 diagnostic ns**; desktop **+94 core-0 instructions / +350 diagnostic ns**.
+
+| Final actual measurement | Headless | SDL desktop |
+| --- | ---: | ---: |
+| Actual stop | MissingBlock `0x001528A0` | MissingBlock `0x001528A0` |
+| Core-0 instructions | 61,372,077 | 61,368,194 |
+| Core-1 instructions | 99 | 99 |
+| Diagnostic CPU ticks | 2,345,554,024 | 2,345,554,024 |
+| Diagnostic guest time, ns | 8,748,415,900 | 8,748,415,900 |
+| Thread / dispatch round | 7 / 21,843 | 7 / 21,843 |
+| Display periods / presentations | 523 / N/A | 523 / 524 |
+| Native-child / outer-launcher exit | 3 / 3 | 3 / 3 |
+| Wall timeout | False | False |
+| Host duration, seconds | 136.959 | 147.877 |
+| Complete audio records | 285,726 | 285,726 |
+
+Native-child and outer-launcher statuses describe the actual runtime. The runner’s administrative completion status is recorded separately and does not establish a successful game boot.
+
+## Validation and provenance
+
+The exact final native passed **84/84 enabled CTest suites** in its single full-suite invocation. The actual final JUnit records **0 failures, 0 errors and 0 skipped cases**. No test permission correction or automatic retry was used for that final build.
+
+The exact final native was preserved before both final runs. Every round keeps its own actual build/JUnit, selected executable, generated verification, source/input identities, bounded-run receipts and complete outputs. Each new round has an actual **84/84 passing JUnit** from one full invocation. The frozen candidate contained **522 tracked files: 518 other files and the same four existing status documents**. All 522 candidate identities and all 606 original-input identities were checked before and after the build and game runs. Only these four existing status documents were updated after the final desktop capture closed; the tracked file count remains 522.
+
+Cross-mode comparison matches final registers, diagnostic time, complete audio, state contents and save contents. The phase-2 comparison still records **3,883 fewer desktop core-0 instructions** than headless; the difference remains untraced.
+
+The desktop records **524 presentations**. The actual **1280×720 first-nonblack startup capture** has identical decoded RGBA pixels to the original baseline; complete BMP bytes are identical. This records the initial startup image. Usable menus, gameplay, speaker playback and Windows execution remain unverified.
+
+Complete audio, state and save comparisons use their full captured contents. Screenshot comparison uses complete BMP files and decoded RGBA pixels. Original inputs, generated game code, native bodies and runtime outputs remain private.
+
+## Next exact task
+
+Resolve admission for **`[0x001528A0, 0x001529B8)` — 1 candidate block / 70 words / 280 bytes**. The actual stop leads into a 70-instruction section ending at its first conditional branch. Existing execution support covers its arithmetic, but nine AND or shifted SUB instructions are outside supplement admission, and the section exceeds the 256-byte size limit. Resolve both limits before adding it.
+
+Admission blockers: Supplement admission rejects four register AND forms and five shifted SUB forms that the existing evaluator already supports. The reviewed first-exit span is 280 bytes, exceeding the current 256-byte admission limit by 24 bytes.
+
+Reviewed continuations: conditional taken branch to an interior loop entry `0x0015292C` is unrecorded; conditional fallthrough `0x001529B8` is unrecorded. Keep unobserved successor bodies outside this change.
+
+Preserve all 31 supplements unchanged while resolving admission. Recheck the candidate's exact scope before adding any range. Once admission is verified, generate only from authenticated private input, verify exact preservation, build/test, preserve the tested native, and use a finite fresh run to identify the next observed stop. Do not add unobserved successors.
+
+Work in standard chat and the cloud; do not use Codex services, Dot or the user’s computer. Ordinary source/metadata publication to `main` is authorized; do not force-push. Keep original inputs, generated code, executables, captures, audio, saves and private recovery identifiers out of public Git. Keep user updates short and in plain English: what improved, whether the game gets farther, and what still blocks play.
+
+The preceding recovery text is retained byte-for-byte below.
+
+---
+
 # October 30, 2026 — observed dispatcher continuation
 
 ## Current continuation

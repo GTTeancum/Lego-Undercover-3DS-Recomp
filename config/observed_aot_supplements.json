@@ -130,6 +130,31 @@
       "entry": "0x00150E7C",
       "end": "0x00150E88",
       "evidence": "Observed headless MissingBlock at 0x00150E7C. Three authenticated original instructions perform the canonical immediate flag test, establish LR 0x00150E94, and end at a conditional branch to recorded 0x00151028. With captured r4 equal to 8, normal execution sets Z and selects still-unrecorded fallthrough 0x00150E88. End is exclusive; do not add that unobserved fallthrough or the eventual LR continuation. Ordinary registry and execution-state checks remain strict."
+    },
+    {
+      "entry": "0x00150E88",
+      "end": "0x00150E94",
+      "evidence": "Observed headless and desktop MissingBlock at 0x00150E88. Three authenticated original instructions form one bounded table dispatcher ending in a computed-PC exit. Existing fast and memory evaluators handle the forms. With the captured selector, successful authenticated text-table access selects already supplemented 0x00152AFC. End is exclusive; keep table words as data, preserve normal memory and target validation, and do not add the unobserved LR continuation 0x00150E94."
+    },
+    {
+      "entry": "0x00150E94",
+      "end": "0x00150EA8",
+      "evidence": "Observed headless MissingBlock at 0x00150E94. Five authenticated original instructions advance the working pointer, reload two unknown stack words without changing SP, increment an argument and call recorded 0x00150DDC. Existing fast and memory support handles the forms. End is exclusive; preserve strict memory checks and do not include the unobserved return 0x00150EA8."
+    },
+    {
+      "entry": "0x00150EA8",
+      "end": "0x00150EB4",
+      "evidence": "Observed headless MissingBlock at 0x00150EA8. Three authenticated original instructions perform the canonical immediate flag test, establish LR 0x00150EC0 and end at a conditional branch to recorded 0x00151028. Existing immediate TST and fast support handles the forms. End is exclusive; do not include the unobserved fallthrough 0x00150EB4 or eventual LR continuation."
+    },
+    {
+      "entry": "0x00150EB4",
+      "end": "0x00150EC0",
+      "evidence": "Observed headless MissingBlock at 0x00150EB4. Three authenticated original instructions form one bounded table dispatcher ending in a computed-PC exit. Existing fast and memory evaluators handle the forms. With the captured selector, successful authenticated text-table access selects unrecorded 0x00152898. End is exclusive; keep table words as data, preserve normal memory and target validation, and do not add the unobserved target or LR continuation 0x00150EC0."
+    },
+    {
+      "entry": "0x00152898",
+      "end": "0x001528A0",
+      "evidence": "Observed headless MissingBlock at 0x00152898. Two authenticated original instructions save r10 and LR on the stack and call recorded 0x0015117C. Existing memory and branch support handles the forms. End is exclusive; preserve guarded writes and writeback ordering, and do not include the unobserved return 0x001528A0."
     }
   ]
 }

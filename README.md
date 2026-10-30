@@ -4,25 +4,21 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-**Resume from [CHECKPOINT.md](CHECKPOINT.md).** It contains the latest state and next task; the longer recovery document preserves older evidence.
+**Resume from [CHECKPOINT.md](CHECKPOINT.md).** It contains the latest state and next task.
 
-The native SDL3 window shows the whole second screen in the bottom-right corner. Tab enlarges it, F11 toggles fullscreen, and mouse clicks map to the original touchscreen coordinates. See [desktop build and controls](docs/DESKTOP.md).
+**What works:** The program opens a desktop window and draws its startup image. The initial picture matches the saved loading-screen image.
 
-The continuation adds **4 metadata blocks / 43 instruction words** beyond the prior 22 blocks / 321 words. Totals are **26 supplements / 364 words**, with **111,069 registered blocks / 545,475 verified instruction words**. All **599 original AOT pages / 603 files** and all 22 preceding supplement records remain unchanged.
+**What changed:** This update fills **5 missing pieces of startup code**. The game gets farther through startup in both the windowed and background checks.
 
-Both final modes stop at **MissingBlock `0x00150E88`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
+**What still blocks play:** The background check still stops when it reaches missing game code. The tool that adds missing code cannot accept the next section yet. Usable menus, gameplay, audible sound and Windows execution remain unverified.
 
-Cumulative change from the preserved same-mode `c1c85af` baseline: headless **+65 core-0 instructions / +243 diagnostic ns**; desktop **+65 core-0 instructions / +243 diagnostic ns**.
+**Checks:** All **5 new builds** passed **84/84 automated native tests**. The final build was also checked with the desktop window open. These checks confirm the recorded startup behavior.
 
-The exact final native passed **84/84 enabled CTest suites** in its single full-suite invocation. The actual final JUnit records **0 failures, 0 errors and 0 skipped cases**. No test permission correction or automatic retry was used for that final build.
+The whole touchscreen stays in the bottom-right corner. **Tab** enlarges it, **F11** toggles fullscreen, and mouse clicks act as touch input. See [desktop build and controls](docs/DESKTOP.md).
 
-Cross-mode comparison matches final registers, diagnostic time, complete audio, state contents and save contents. The phase-2 comparison still records **3,883 fewer desktop core-0 instructions** than headless; the difference remains untraced.
+**Next:** Fix the checks that reject the next piece of startup code before adding it. The exact developer handoff is in [CHECKPOINT.md](CHECKPOINT.md); detailed measurements are in [the latest recovery section](docs/recovery/CURRENT-REBUILD.md).
 
-The desktop records **524 presentations**. The actual **1280×720 first-nonblack startup capture** has identical decoded RGBA pixels to the original baseline; complete BMP bytes are different. This records the initial startup image. Usable menus, gameplay, speaker playback and Windows execution remain unverified.
-
-**Next:** Append only **`[0x00150E88, 0x00150E94)` — 1 block / 3 words / 12 bytes**. Three original instructions form one bounded table dispatcher using existing fast and memory evaluators. Keep its table words as data and preserve ordinary memory and target validation. See the checkpoint for reviewed continuation coverage.
-
-Public Git contains source and metadata. The exact tested native was preserved before its finite fresh runs; original inputs, generated code, executables, captures, saves and audio remain private.
+Public Git contains source and metadata. The tested builds and recovery evidence are preserved privately.
 
 ## Historical recovery records
 

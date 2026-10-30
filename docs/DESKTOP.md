@@ -101,16 +101,26 @@ restore.
   A future verified minimap crop can use that seam; no game-specific minimap
   crop or automatic screen/menu integration is enabled now.
 
-The current original-game desktop evidence comes from the final frozen native. Both final modes stop at **MissingBlock `0x00150E88`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
+The current original-game desktop evidence comes from the final frozen native.
 
-Cumulative change from the preserved same-mode `c1c85af` baseline: headless **+65 core-0 instructions / +243 diagnostic ns**; desktop **+65 core-0 instructions / +243 diagnostic ns**.
+**What works:** The program opens a desktop window and draws its startup image. The initial picture matches the saved loading-screen image.
 
-The desktop records **524 presentations**. The actual **1280×720 first-nonblack startup capture** has identical decoded RGBA pixels to the original baseline; complete BMP bytes are different. This records the initial startup image. Usable menus, gameplay, speaker playback and Windows execution remain unverified.
+**What changed:** This update fills **5 missing pieces of startup code**. The game gets farther through startup in both the windowed and background checks.
+
+**What still blocks play:** The background check still stops when it reaches missing game code. The tool that adds missing code cannot accept the next section yet. Usable menus, gameplay, audible sound and Windows execution remain unverified.
+
+Both final modes stop at **MissingBlock `0x001528A0`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
+
+Cumulative change from the preserved same-mode `9d3806e` baseline: headless **+94 core-0 instructions / +350 diagnostic ns**; desktop **+94 core-0 instructions / +350 diagnostic ns**.
+
+The desktop records **524 presentations**. The actual **1280×720 first-nonblack startup capture** has identical decoded RGBA pixels to the original baseline; complete BMP bytes are identical. This records the initial startup image. Usable menus, gameplay, speaker playback and Windows execution remain unverified.
 
 Cross-mode comparison matches final registers, diagnostic time, complete audio, state contents and save contents. The phase-2 comparison still records **3,883 fewer desktop core-0 instructions** than headless; the difference remains untraced.
 
-The next bounded task is **`[0x00150E88, 0x00150E94)` — 1 block / 3 words / 12 bytes**. Three original instructions form one bounded table dispatcher using existing fast and memory evaluators. Keep its table words as data and preserve ordinary memory and target validation.
+Resolve admission for **`[0x001528A0, 0x001529B8)` — 1 candidate block / 70 words / 280 bytes**. The actual stop leads into a 70-instruction section ending at its first conditional branch. Existing execution support covers its arithmetic, but nine AND or shifted SUB instructions are outside supplement admission, and the section exceeds the 256-byte size limit. Resolve both limits before adding it.
 
-Reviewed continuations: computed target if authenticated table read succeeds `0x00152AFC` is recorded supplement; captured unchanged LR; eventual return remains conditional `0x00150E94` is unrecorded. Keep unobserved successor bodies outside this change.
+Admission blockers: Supplement admission rejects four register AND forms and five shifted SUB forms that the existing evaluator already supports. The reviewed first-exit span is 280 bytes, exceeding the current 256-byte admission limit by 24 bytes.
+
+Reviewed continuations: conditional taken branch to an interior loop entry `0x0015292C` is unrecorded; conditional fallthrough `0x001529B8` is unrecorded. Keep unobserved successor bodies outside this change.
 
 See [the short checkpoint](../CHECKPOINT.md) for the current continuation and [the recovery record](recovery/CURRENT-REBUILD.md) for the complete round comparisons. Original inputs, generated AOT, executables, saves, screenshots and audio remain private.
