@@ -180,6 +180,21 @@
       "entry": "0x00152BC0",
       "end": "0x00152CC4",
       "evidence": "Observed headless MissingBlock at 0x00152BC0 after the flag-driven dispatch. Sixty-five authenticated original instructions form one bounded helper ending at its first stack-loaded return. Canonical immediate AND admission uses the existing arithmetic evaluator; shifted arithmetic, memory and fast forms retain their existing handlers. The 260-byte interval fits the same-page 512-byte limit. Preserve ordinary memory faults, partial effects and return-target validation. End is exclusive; do not infer the return from live LR or include the unobserved successor body."
+    },
+    {
+      "entry": "0x00150EE8",
+      "end": "0x00150EF4",
+      "evidence": "Observed headless MissingBlock at 0x00150EE8 after the larger startup helper returned. Three authenticated original instructions adjust the working pointer and load the return PC from the guest stack. Existing fast and memory handlers cover this range. End is exclusive; retain guarded reads, stack writeback and ordinary target validation. Do not infer the return from live LR or include an unobserved successor."
+    },
+    {
+      "entry": "0x00152850",
+      "end": "0x00152898",
+      "evidence": "Observed headless MissingBlock at 0x00152850 after the authenticated stack-loaded return. Eighteen original instructions replicate four guest bytes across row words, restore the working pointer and return through LR. Existing shifted ORR, fast arithmetic and memory handlers cover this bounded same-page range. End is exclusive at the next recorded entry 0x00152898; retain ordinary memory faults, partial writes and return-target validation. No unobserved successor is included."
+    },
+    {
+      "entry": "0x00150EDC",
+      "end": "0x00150EE8",
+      "evidence": "Observed headless MissingBlock at 0x00150EDC after the byte-replication helper completed. Three authenticated original instructions form a relative-offset table dispatcher ending in a computed-PC exit. Existing fast and memory handlers cover the forms. Keep the immutable original table as data, preserve normal memory and target validation, and do not include unobserved dispatch targets. End is exclusive at the already supplemented return step 0x00150EE8."
     }
   ]
 }

@@ -4,9 +4,11 @@ The SDL3 frontend displays both original LCD images in one resizable window. The
 
 ## Current verification scope
 
-The latest three startup fixes were checked with **headless builds only**. SDL3 was unavailable in the local build environment, so there is no new windowed game run, screenshot or visual comparison. The last verified desktop result remains the loading image from `b9353b7`.
+The latest batch starts from `c656402` and adds three missing startup sections. Each new headless build passed 84/84 enabled tests, and each fresh headless game run passed its previous stopping point. The final stop is MissingBlock `0x00152DCC`, 957 executed core-0 instructions beyond the saved same-mode baseline. Captured audio, state and save contents match that baseline.
 
-The current headless build reaches MissingBlock `0x00150EE8`, beyond the preceding headless stop. It passes 84 enabled tests, including a new arithmetic suite, but not the optional desktop smoke test. These results do not establish menus, gameplay, speaker playback or Windows support. See [CHECKPOINT.md](../CHECKPOINT.md) and [the current recovery record](recovery/CURRENT-REBUILD.md).
+No fresh original-game desktop run or screenshot was taken in this batch. The earlier loading image remains the last verified visible result. These headless results do not establish a visual change, usable menus, gameplay, speaker playback or Windows compatibility.
+
+The next reviewed interval is `[0x00152DCC, 0x00152EB4)`, 58 instruction words, using already supported operations. See [the checkpoint](../CHECKPOINT.md) and [current recovery record](recovery/CURRENT-REBUILD.md) for the exact continuation. Executables, generated game code and runtime evidence remain private.
 
 ## Build
 

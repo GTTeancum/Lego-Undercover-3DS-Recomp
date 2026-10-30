@@ -1,47 +1,39 @@
-# October 30, 2026 — three observed startup gaps cleared
+# October 30, 2026 — startup return and dispatch continuation
 
 ## What changed
 
-Read [CHECKPOINT.md](../../CHECKPOINT.md) first. Three missing startup sections were added after their actual preceding stops. The last section needed canonical A32 AND-immediate admission in the rebuild tool. Fresh headless runs passed all three gaps; menus and gameplay remain unverified.
+Starting from `c656402`, three missing startup sections were added after actual missing-code stops. Each fresh headless run passed the preceding stop. This batch changes only the supplement manifest and four status documents; runtime, generator, tests and build configuration are unchanged.
 
-Base commit: `b9353b73cd07e4c762dc9dd23d93d1ad1628b1c5`.
+The original 599 AOT pages / 603 files and all 36 earlier supplemental records remain unchanged. Current totals are **39 supplemental blocks / 549 words**, **111,082 registered blocks / 545,660 verified instruction words**. Each generated C++ operation and its JSON record were compared, and all words were checked against the authenticated original executable.
 
-Added 3 blocks / 72 words. Totals are **36 supplements / 525 words**, **111,079 registered blocks / 545,636 verified instruction words**. All **599 original AOT pages / 603 files** and the 33 preceding supplemental records are unchanged.
+| Round | Added interval | Words | Actual next stop | Additional executed instructions |
+| --- | --- | ---: | --- | ---: |
+| 01 | `[0x00150EE8, 0x00150EF4)` | 3 | `0x00152850` | 465 |
+| 02 | `[0x00152850, 0x00152898)` | 18 | `0x00150EDC` | 489 |
+| 03 | `[0x00150EDC, 0x00150EE8)` | 3 | `0x00152DCC` | 3 |
 
-## Actual fresh runs
+The first delta uses the saved same-mode `c656402` baseline; later deltas use the preceding fresh run. The cumulative advance is **957 core-0 instructions / 3,569 diagnostic ns**. This is startup execution progress, not a percentage of gameplay completion.
 
-| Round | Added interval | Actual next missing block | Extra core-0 instructions over preceding run |
-| --- | --- | --- | ---: |
-| 01 | `[0x00150EC0, 0x00150ED0)`; 4 words | `0x00150ED0` | 26 |
-| 02 | `[0x00150ED0, 0x00150EDC)`; 3 words | `0x00152BC0` | 9 |
-| 03 | `[0x00152BC0, 0x00152CC4)`; 65 words | `0x00150EE8` | 452 |
+## Actual final result
 
-Every run used its frozen tested native, authenticated original inputs, new owned state/save directories and a finite 600-second wall bound. All completed before that bound, with native exit **3**, **MissingBlock**, empty stderr and unchanged source, executable and original AOT inventories. The wrapper's administrative success means the expected diagnostic stop was recorded, not that the game booted successfully.
+The final run stopped at **MissingBlock `0x00152DCC`**, thread 7, dispatch round 21,843. It recorded 61,373,699 core-0 instructions, 99 core-1 instructions, 2,345,555,646 diagnostic CPU ticks and 8,748,421,950 diagnostic guest ns. Display periods remained 523; captured audio records remained 285,726.
 
-The final headless run executed **61,372,742 core-0 instructions** and **99 core-1 instructions**. It recorded **2,345,554,689 diagnostic CPU ticks**, **8,748,418,381 ns** guest time, **523 display periods**, and **285,726 audio records**. The stop was thread 7, dispatch round 21,843. Elapsed host time was 122.053 seconds; this is not a game-performance measurement.
+All three runs used separate fresh state/save folders. Each native exited 3 at its missing-code stop, without a timeout or stderr output. Source, executable and original AOT identities stayed unchanged during each run. Full captured audio, state contents and save contents match the saved baseline.
 
-Against the retained same-mode baseline: **+487 core-0 instructions / +487 diagnostic ticks / +1,817 diagnostic ns**. Complete audio bytes, state contents and save contents match the baseline in every round. This does not establish audible playback or gameplay correctness.
+All three builds passed **84/84 enabled CTest suites once**, with zero failures, errors or skipped cases. Each exact executable was saved privately before its run. The builds used the existing headless Release configuration. No new original-game desktop run or screenshot was taken. Menus, gameplay, audible playback and Windows execution remain unverified; the earlier loading image is still the last verified visible result.
 
-## Build and instruction verification
+The source snapshot was matched to the real published base tree before changes. Publication uses the GitHub connector with the exact parent and a checked branch head, not fabricated local ancestry. The final published source matches the tested candidate except for the four status documents updated after the final run. Hosted checks are separate from these local build/run results; consult the commit's Actions status and private publication receipt.
 
-Enabled CTest suites passed once per build: **83/83, 83/83 and 84/84**, with no failures, errors or skipped enabled cases. All three local builds had `LEGO_BUILD_DESKTOP=OFF`. The final count includes the new `ctr_and_immediate_test` and excludes the optional SDL smoke test. The Python policy suite has 35 passing methods.
+## Next reviewed task
 
-The new build-time admission accepts only classic A32 immediate AND/ANDS with ordinary source/destination registers and conditions 0 through 14. It retains the complete rotated immediate and flag bit, rejects PC operands and reserved conditions, and uses the unchanged existing CoreAlu evaluator. All prior text-range, first-exit, same-page, nonoverlap and original-input checks remain in place. Runtime, service and renderer source files are unchanged.
+Add only **`[0x00152DCC, 0x00152EB4)`**, one block / 58 words / 232 bytes. The authenticated offline review accepts the section with existing immediate-AND, shifted arithmetic, memory and fast handlers. Its first control exit is the final stack-loaded return. No runtime or admission-rule change is currently required.
 
-Independent synthetic tests cover rotations, values, NZCV, false and true conditions, overlapping registers, SP/LR, preservation of unrelated CPU state, and strict missing-code stops. Python tests also cover all immediate bytes, allowed register/condition combinations, neighboring rejected encodings and exact generated metadata. No game words are included in public tests.
+The section saves registers, combines guest byte values into several row words, restores its working pointer and returns through the stack. Memory values, successful completion and the actual return target remain unobserved. Preserve normal memory faults, partial effects, stack writeback and target validation; do not substitute live LR or add an unobserved successor. The candidate fits the existing same-page 512-byte bound.
 
-Each round preserves the original build log, actual JUnit, full source identities, generated verification, exact native and full run output. Final publication changes only four status documents after the last game run; all non-status source bytes match the tested candidate. The public tree contains 524 source files. Private recovery stores the current evidence directly rather than recursively duplicating older archives; older backups remain separately preserved.
+Preserve all 39 current supplements. Generate from authenticated private input, verify exact preservation and words, build/test once, preserve the exact executable, and run with fresh private storage and finite limits. Conditional totals after that one addition would be 40 supplements / 607 words; these are not current built totals.
 
-## Visual and platform limits
+## Working rules and history
 
-**No fresh desktop game run or screenshot was performed for this checkpoint.** SDL3 was unavailable in this local build environment. The last verified windowed result is the loading image from the preceding checkpoint, not new visual evidence. The prior 3,883-instruction desktop/headless difference remains untraced. Menus, gameplay, speaker playback and Windows execution remain unverified.
+Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Publish ordinary source and metadata to `main` without force-pushing. Original inputs, generated game code, executable bodies, captures, audio, saves and recovery identifiers stay private. Keep user updates focused on what improved and what still blocks play.
 
-## Next exact task
-
-Add only **`[0x00150EE8, 0x00150EF4)`**, one block / three words / 12 bytes. This actual observed stop has two pointer adjustments followed by a post-indexed stack load into PC. All forms are already supported. Preserve guarded memory access and ordinary target validation; the stack-loaded return value is unobserved and must not be inferred from live LR.
-
-Preserve the 36 existing records. Adding that reviewed range alone would give 37 supplements / 528 words. Authenticate, generate, verify, build/test, preserve the exact native, then use one bounded fresh run. Do not add an unobserved successor.
-
-Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Publish source/metadata to `main` without force-pushing. Keep original inputs, generated code, executables and run outputs private. User summaries should say what improved, whether startup gets farther, and what still blocks play.
-
-The preceding checkpoint remains in Git history at `b9353b7`; earlier recovery history is in [HISTORY-7cf0d2a.md](HISTORY-7cf0d2a.md).
+The prior checkpoint remains in Git history at `c656402`. Older recovery history is retained in [HISTORY-7cf0d2a.md](HISTORY-7cf0d2a.md). Read [CHECKPOINT.md](../../CHECKPOINT.md) first next time.

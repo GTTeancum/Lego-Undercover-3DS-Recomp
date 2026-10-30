@@ -4,23 +4,23 @@ Updated October 30, 2026. Read this first and resume from `main`.
 
 ## Plain-English status
 
-Three more startup gaps are cleared. The rebuild tool now accepts a required kind of arithmetic instruction, allowing the larger helper to run. Fresh background runs get past the old stop. Menus and gameplay remain unverified.
+Three more missing startup sections are filled: a return step, a small byte-replication helper, and a dispatch step. Each fresh game run passed its previous stopping point. The game now reaches another unfinished helper. Menus and gameplay remain unverified.
 
-This checkpoint was tested without a desktop window. There is no new screenshot or visual-progress claim; the last verified windowed result remains the loading image.
+These runs were headless. There is no new screenshot or visual-progress claim; the last verified windowed result remains the earlier loading image.
 
 ## Verified developer state
 
-Base: `b9353b7`. Added 3 supplemental blocks / 72 words. Totals: **36 supplements / 525 words**, **111,079 runtime blocks / 545,636 verified words**. All 599 original pages / 603 files and all 33 preceding supplemental records are preserved.
+Base: `c656402`. Added 3 supplemental blocks / 24 words. Totals: **39 supplements / 549 words**, **111,082 runtime blocks / 545,660 verified words**. All 599 original pages / 603 files and all 36 preceding supplemental records are preserved. Runtime, generator, tests and build configuration are unchanged.
 
-Final headless stop: **MissingBlock `0x00150EE8`**. Relative to the saved same-mode baseline: **+487 executed core-0 instructions / +1,817 diagnostic ns**. All three fresh runs ended normally at missing code with native exit 3, no timeout and empty stderr. Complete captured audio, state and save contents match the baseline.
+Final headless stop: **MissingBlock `0x00152DCC`**. Relative to the saved same-mode baseline: **+957 executed core-0 instructions / +3,569 diagnostic ns**. All three fresh runs ended at missing code with native exit 3, no timeout and empty stderr. Complete captured audio, state and save contents match the baseline.
 
-Enabled tests passed once per build: **83/83, 83/83, 84/84**, with zero failures/errors/skips. The final count includes the new immediate-AND suite and excludes the optional desktop smoke test. A passing diagnostic gate is not a successful game boot.
+Each of the three builds passed **84/84 enabled tests once**, with zero failures/errors/skips. Each exact tested executable was saved privately before its fresh run. Passing these checks is not evidence of playable gameplay.
 
 ## Next exact task
 
-Append only **`[0x00150EE8, 0x00150EF4)`**, one block / three words. Two pointer adjustments are followed by a stack-loaded PC return. Existing fast and memory handlers cover this range. The future stack value and return target are unobserved; do not infer them from live LR or add a successor body.
+Append only **`[0x00152DCC, 0x00152EB4)`**, one block / 58 words / 232 bytes. Offline review of the authenticated input accepts all instructions with existing handlers. The section saves registers, combines guest byte values into several row words, restores its working pointer and returns through a stack-loaded PC. The future memory values and return target remain unobserved; do not infer the return from live LR or add a successor body.
 
-Authenticate the original inputs, preserve all 36 supplements, generate and verify exact words, build/test, preserve the exact native, and make one finite fresh run. No runtime decoding, forced returns, fabricated GPU completion or automatic retries.
+Preserve all 39 supplements. Authenticate, generate and verify exact words, build/test, save the exact native, and make a finite fresh run. No runtime decoding, forced returns, fabricated GPU completion or automatic retries.
 
 ## Continuation rules
 
