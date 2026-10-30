@@ -6,15 +6,15 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 **The native SDL3 window now shows the whole second screen in the bottom-right corner.** Tab enlarges it, F11 toggles fullscreen, and mouse clicks map to the original touchscreen coordinates. The main screen keeps its proportions. See [desktop build, controls and current limits](docs/DESKTOP.md).
 
-The actual original-game desktop run presents **524 frames** and saves a real 1280×720 startup image, with the lower-screen loading indicator visible in the inset. This establishes live host-window presentation. Usable menus, gameplay, speaker playback and a working Windows release remain unproven.
+Startup now passes the `0x00150A54` dispatch gap. Narrow, independently tested **TST-immediate admission** enables seven authenticated blocks: **29 instruction words / 116 bytes**. Both headless and desktop advance **238 core-0 instructions** beyond their respective previous runs and stop at **MissingBlock `0x00150CE8`**. The original **599 AOT pages**, previous 11 supplement records and game inputs are unchanged; there are now **18 supplements**.
 
-The next two A32 blocks are also translated: **44 instruction words / 176 bytes**, using the existing admission policy. The headless game advances **282 core-0 instructions** through the loop and stack return to a new **MissingBlock at `0x00150A54`**. The original **599 AOT pages**, original nine supplement records and game inputs are unchanged; there are now **11 supplements**.
+All **84 local test suites pass**, including **26 Python policy cases**, and a separate real X11/software-renderer smoke passes. Both completed game runs agree on final registers, diagnostic guest time, complete audio bytes and current filesystem state. Desktop still reports **3,883 fewer core-0 instructions**; the cause remains untraced. The first desktop attempt encountered a cloud X11 setup failure before guest execution; its outputs are retained separately from the corrected run.
 
-All **84 local test suites pass**, and a separate real X11/software-renderer smoke passes. Headless and desktop reach the same stop, final registers, diagnostic guest time, complete audio bytes and filesystem state. Desktop enables real HID sampling and reports **3,883 fewer core-0 instructions**; the cause has not been traced, and instruction-for-instruction equivalence is not claimed.
+The actual desktop run presents **524 frames**. Its real 1280×720 startup image is byte-identical to the previous capture, with the lower-screen loading indicator visible in the inset. Usable menus, gameplay, speaker playback and a working Windows release remain unproven.
 
-**Next:** review the narrow TST-immediate admission needed at `0x00150A54`, add independent policy/semantic tests, then translate its bounded dispatch region. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md) for evidence and remaining work.
+**Next:** add the three reviewed continuation blocks at `0x00150CE8..0x00150D18` (**12 words**), using existing instruction support. The next stack-dependent branch and final return target remain unknown. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md) for evidence and remaining work.
 
-This continuation uses the intact `8fd18d4` checkpoint. The exact tested executable was saved privately before both game runs. Public Git contains source and metadata; game inputs, generated game code, executable bodies, captures and audio remain private.
+This continuation restored the complete saved `2fec57b` checkpoint after workspace cleanup. The exact tested executable was saved privately before game testing. Public Git contains source and metadata; game inputs, generated game code, executable bodies, captures and audio remain private.
 
 ## Historical recovery records
 

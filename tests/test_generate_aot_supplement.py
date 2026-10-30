@@ -30,6 +30,14 @@ def shifted(opcode, *, condition=14, flags=False, rn=1, rd=2, rm=3,
             (rn << 16) | (rd << 12) | (amount << 7) | (shift << 5) | rm)
 
 
+def immediate_test(*, opcode=8, condition=14, flags=True, rn=6, rd=0,
+                   rotate=0, value=0x53, primary=1):
+    """Author a data-processing immediate test and deliberately varied neighbors."""
+    return ((condition << 28) | (primary << 25) | (opcode << 21) |
+            (int(flags) << 20) | (rn << 16) | (rd << 12) |
+            (rotate << 8) | value)
+
+
 class AluAdmissionTests(unittest.TestCase):
     def test_supported_forms_keep_all_conditions_s_bits_and_shift_encodings(self):
         for opcode, name, rn in ((4, "add", 8), (12, "orr", 8), (13, "mov", 0)):
@@ -101,6 +109,67 @@ class AluAdmissionTests(unittest.TestCase):
                     self.assertIsNone(mod.verified_alu_candidate(other))
 
 
+class TstImmediateAdmissionTests(unittest.TestCase):
+    def test_conditions_and_source_registers_are_generic(self):
+        for condition in range(15):
+            for rn in range(15):
+                with self.subTest(condition=condition, rn=rn):
+                    self.assertEqual(mod.verified_alu_candidate(
+                        immediate_test(condition=condition, rn=rn, rotate=5)),
+                        "tst_immediate")
+
+    def test_all_rotation_encodings_and_immediate_boundaries_are_retained(self):
+        for rotate in range(16):
+            for value in (0, 1, 0x7F, 0x80, 0xFF):
+                with self.subTest(rotate=rotate, value=value):
+                    self.assertEqual(mod.verified_alu_candidate(
+                        immediate_test(rotate=rotate, value=value)),
+                        "tst_immediate")
+
+    def test_s_bit_and_unused_destination_must_be_canonical(self):
+        self.assertIsNone(mod.verified_alu_candidate(immediate_test(flags=False)))
+        for rd in range(1, 16):
+            for flags in (False, True):
+                with self.subTest(rd=rd, flags=flags):
+                    self.assertIsNone(mod.verified_alu_candidate(
+                        immediate_test(rd=rd, flags=flags)))
+
+    def test_pc_source_is_not_admitted(self):
+        for condition in range(15):
+            with self.subTest(condition=condition):
+                self.assertIsNone(mod.verified_alu_candidate(
+                    immediate_test(condition=condition, rn=15)))
+
+    def test_unconditional_and_non_word_values_remain_rejected(self):
+        raw = immediate_test()
+        for other in (immediate_test(condition=15), raw | (1 << 32),
+                      raw - (1 << 32)):
+            with self.subTest(other=other):
+                self.assertIsNone(mod.verified_alu_candidate(other))
+
+    def test_other_immediate_opcodes_gain_no_candidate_admission(self):
+        # Existing fast-path opcodes are classified separately by the frontend.
+        # This new candidate permission must not admit neighboring ALU forms.
+        for opcode in range(16):
+            if opcode == 8:
+                continue
+            for flags in (False, True):
+                with self.subTest(opcode=opcode, flags=flags):
+                    self.assertIsNone(mod.verified_alu_candidate(
+                        immediate_test(opcode=opcode, flags=flags)))
+
+    def test_register_tst_and_other_primary_classes_remain_unverified(self):
+        for primary in (0, 2, 3, 4, 5, 6, 7):
+            with self.subTest(primary=primary):
+                self.assertIsNone(mod.verified_alu_candidate(
+                    immediate_test(primary=primary)))
+        for shift in range(4):
+            raw = shifted(8, flags=True, rn=6, rd=0, shift=shift, amount=0)
+            for register_shift in (0, (7 << 8) | 0x10):
+                with self.subTest(shift=shift, register_shift=register_shift):
+                    self.assertIsNone(mod.verified_alu_candidate(raw | register_shift))
+
+
 class SupplementRenderTests(unittest.TestCase):
     def render_words(self, descriptions):
         base = mod.frontend.BASE
@@ -133,6 +202,37 @@ class SupplementRenderTests(unittest.TestCase):
             self.assertIn(f"0x{raw:08X}U", source)
             self.assertIn(f"a32::Opcode::CoreAlu, a32::Condition::{condition}, 0x00U", source)
 
+    def test_tst_immediate_retains_condition_rotation_and_raw_flag_bit(self):
+        descriptions = [
+            (immediate_test(condition=0), "tsteq", "r6, #83"),
+            (immediate_test(condition=1, rn=10, rotate=1, value=2),
+             "tstne", "r10, #2147483648"),
+            (immediate_test(condition=6, rn=14, rotate=4, value=0xF0),
+             "tstvs", "lr, #4026531840"),
+            (0xE12FFF1E, "bx", "lr"),
+        ]
+        source, receipt = self.render_words(descriptions)
+        records = receipt["blocks"][0]["instructions"]
+        for record, (raw, _, _), condition in zip(
+                records, descriptions, ("Eq", "Ne", "Vs")):
+            self.assertEqual(record["raw"], raw)
+            self.assertEqual(record["opcode"], "CoreAlu")
+            self.assertEqual(record["condition"], condition)
+            self.assertEqual(record["category"], "tst_immediate")
+            self.assertEqual(record["flags"], 0)
+            self.assertIn(f"0x{raw:08X}U", source)
+            self.assertIn(f"a32::Opcode::CoreAlu, a32::Condition::{condition}, 0x00U", source)
+
+    def test_unverified_tst_neighbors_cannot_use_an_allowed_mnemonic(self):
+        for raw in (immediate_test(flags=False), immediate_test(rd=9),
+                    immediate_test(rn=15), immediate_test(condition=15),
+                    immediate_test(opcode=9),
+                    shifted(8, flags=True, rn=6, rd=0)):
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
+                    self.render_words([(raw, "tst", "r6, #83"),
+                                       (0xE12FFF1E, "bx", "lr")])
+
     def test_existing_fast_path_and_terminal_are_unchanged(self):
         descriptions = [(0xE3A02005, "mov", "r2, #5"), (0xE12FFF1E, "bx", "lr")]
         source, receipt = self.render_words(descriptions)
@@ -150,9 +250,10 @@ class SupplementRenderTests(unittest.TestCase):
                                (0xE12FFF1E, "bx", "lr")])
 
     def test_unknown_llvm_instruction_cannot_be_rescued_by_admission(self):
-        raw = shifted(13, rn=0, flags=True)
-        with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
-            self.render_words([(raw, "<unknown>", ""), (0xE12FFF1E, "bx", "lr")])
+        for raw in (shifted(13, rn=0, flags=True), immediate_test()):
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
+                    self.render_words([(raw, "<unknown>", ""), (0xE12FFF1E, "bx", "lr")])
 
     def test_pc_and_register_shift_candidates_fail_before_emission(self):
         for raw in (shifted(13, rn=0, rd=15, flags=True),

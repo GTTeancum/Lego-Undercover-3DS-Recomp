@@ -55,6 +55,41 @@
       "entry": "0x0015368C",
       "end": "0x00153690",
       "evidence": "Fallthrough of the reviewed conditional loop. One original POP loads PC from the guest stack. Its target is not inferred from live LR; subsequent ordinary registry and execution-state validation remains strict. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x00150A54",
+      "end": "0x00150A68",
+      "evidence": "Observed thread 7 MissingBlock at startup round 21843 after the authenticated stack return, in both headless and desktop runs. Five instructions load the controlling guest-stack word, test a flag and conditionally branch to recorded 0x00150F08. The loaded word and branch outcome are unobserved; fallthrough is separately bounded. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x00150A68",
+      "end": "0x00150A74",
+      "evidence": "Static fallthrough of the preceding flag test. Three instructions use the immutable original relative-offset table and a computed-PC branch. The observed selector would choose already supplemented 0x00151B48 if this path is reached; actual execution is not claimed. Table data is excluded and normal registry validation remains strict. End is exclusive."
+    },
+    {
+      "entry": "0x00150A74",
+      "end": "0x00150A8C",
+      "evidence": "Statically established LR continuation at 0x00150A74. Six instructions include the second canonical immediate flag test and a conditional exit to recorded 0x00150F08. Future register and stack state, the return and branch outcome remain unobserved. Fallthrough dispatch is separately bounded. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x00150A8C",
+      "end": "0x00150A98",
+      "evidence": "Static fallthrough of the second flag test. Three instructions use the same immutable original relative-offset table and a computed-PC branch. Later selector values and the selected target are not predicted; ordinary registry and execution-state validation remains strict. End is exclusive; table data is excluded."
+    },
+    {
+      "entry": "0x00150A98",
+      "end": "0x00150AAC",
+      "evidence": "Statically established LR continuation at 0x00150A98. Five instructions include the third canonical immediate flag test and a conditional exit to recorded 0x00150F08. Future return and branch outcome remain unobserved. Fallthrough dispatch is separately bounded. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x00150AAC",
+      "end": "0x00150AB8",
+      "evidence": "Static fallthrough of the third flag test. Three instructions use the same immutable original relative-offset table and a computed-PC branch. Later selector values and the selected target are not predicted; ordinary registry and execution-state validation remains strict. End is exclusive; table data is excluded."
+    },
+    {
+      "entry": "0x00150AB8",
+      "end": "0x00150AC8",
+      "evidence": "Statically established LR continuation at 0x00150AB8. Four instructions end at an unconditional branch to the already recorded join at 0x00150C90. Execution of this future continuation is not claimed. End is exclusive; generate only from authenticated private code.bin."
     }
   ]
 }

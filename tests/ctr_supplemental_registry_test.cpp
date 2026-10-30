@@ -166,6 +166,140 @@ void ImmediateShiftSemantics(){
            a32::Condition::Al,true,14,14);
 }
 
+constexpr std::uint32_t TstImmediateWord(unsigned rn, unsigned rotate,
+                                         unsigned imm8,
+                                         a32::Condition condition=a32::Condition::Al){
+ return (static_cast<std::uint32_t>(condition)<<28U) | (1U<<25U) |
+        (8U<<21U) | (1U<<20U) | (rn<<16U) | (rotate<<8U) | imm8;
+}
+
+void TstImmediateCase(unsigned rotate, unsigned imm8, std::uint32_t left,
+                      std::uint32_t flags_before, std::uint32_t flags_after,
+                      a32::Condition condition=a32::Condition::Al,
+                      unsigned rn=6){
+ const a32::PackedOp op{TstImmediateWord(rn,rotate,imm8,condition),
+                      a32::EncodeMetadata(a32::Opcode::CoreAlu,condition)};
+ const a32::Block block{kShiftPc,&op,1,false};
+ lego::host::SupplementalRegistry merged(shift_base,std::span(&block,1));
+ GuestMemory memory;
+ a32::GuestState cpu{};
+ for(unsigned i=0;i<cpu.r.size();++i)cpu.r[i]=0x24681000U+i*0x01020304U;
+ cpu.r[rn]=left;cpu.r[15]=kShiftPc;cpu.cpsr=kOtherCpsr|flags_before;
+ cpu.fpscr=0x01234567U;cpu.vfp.fill(0xC35A2496U);
+ cpu.thread_pointer=0x08008000U;
+ cpu.exclusive_address=0x08009000U;cpu.exclusive_token=0x13579bdf2468ace0ULL;
+ cpu.exclusive_size=8;cpu.exclusive_valid=true;
+ auto expected=cpu;
+ expected.r[15]=kShiftPc+4U;expected.cpsr=kOtherCpsr|flags_after;
+ const auto result=StepRecordedA32(merged.registry(),cpu,memory);
+ CHECK(result.kind==a32::ExitKind::Fallthrough && result.pc==kShiftPc+4U);
+ CHECK(result.fallback==a32::FallbackReason::None && result.detail==0U);
+ // TST has no destination: this includes the encoded Rd=0 register and Rn.
+ CHECK(cpu.r==expected.r && cpu.cpsr==expected.cpsr);
+ CHECK(cpu.fpscr==expected.fpscr && cpu.vfp==expected.vfp);
+ CHECK(cpu.thread_pointer==expected.thread_pointer);
+ CHECK(cpu.exclusive_address==expected.exclusive_address &&
+       cpu.exclusive_token==expected.exclusive_token &&
+       cpu.exclusive_size==expected.exclusive_size &&
+       cpu.exclusive_valid==expected.exclusive_valid);
+ CHECK(a32::FindBlock(shift_base,kShiftPc)==nullptr);
+}
+
+void TstImmediateSemantics(){
+ // Independent fixed expectations from Arm DDI 0100I A4.1.117 and A5.1.3:
+ // https://documentation-service.arm.com/static/5f8dacc8f86e16515cdb865a
+ // No runtime expansion/shift helper computes these expected flag values.
+ // Each position is the one set bit of immediate byte 1 at that rotation.
+ struct Rotation {unsigned encoded;std::uint32_t position,carry;};
+ constexpr Rotation rotations[]{
+   {0,0x00000001U,C},{1,0x40000000U,0},{2,0x10000000U,0},{3,0x04000000U,0},
+   {4,0x01000000U,0},{5,0x00400000U,0},{6,0x00100000U,0},{7,0x00040000U,0},
+   {8,0x00010000U,0},{9,0x00004000U,0},{10,0x00001000U,0},{11,0x00000400U,0},
+   {12,0x00000100U,0},{13,0x00000040U,0},{14,0x00000010U,0},{15,0x00000004U,0}};
+ for(const auto& r:rotations){
+   TstImmediateCase(r.encoded,1,r.position,N|Z|C|V,r.carry|V);
+   TstImmediateCase(r.encoded,1,~r.position,N|Z|C|V,Z|r.carry|V);
+ }
+ // Rotation zero preserves either incoming carry; AND determines N/Z only.
+ TstImmediateCase(0,0x3c,0x2cU,N|Z|V,V);
+ TstImmediateCase(0,0x3c,0xc3U,N|V,Z|V);
+ TstImmediateCase(0,0,0xffffffffU,N|C|V,Z|C|V);
+ // A nonzero encoded rotation of zero clears C, even though both encodings
+ // below represent the same operand value as unrotated byte zero.
+ TstImmediateCase(1,0,0xffffffffU,N|C|V,Z|V);
+ TstImmediateCase(15,0,0xffffffffU,N|C,Z);
+ // Carry comes from the expanded operand, not the AND result. In particular
+ // zero AND 0x80000000 sets Z and C together, with N clear and V preserved.
+ TstImmediateCase(1,2,0xffffffffU,Z|V,N|C|V);
+ TstImmediateCase(1,2,0U,N|V,Z|C|V);
+ TstImmediateCase(4,0x80,0x80000000U,Z,N|C);
+ TstImmediateCase(1,0x80,0x20U,N|Z|C|V,V);
+ TstImmediateCase(15,0x81,0x204U,N|Z|C|V,V);
+ // Condition checks precede all flag effects; true and false cases use the
+ // same canonical TST encoding, with independently chosen prior flags.
+ TstImmediateCase(1,2,0xffffffffU,C|V,C|V,a32::Condition::Eq);
+ TstImmediateCase(1,2,0xffffffffU,Z|V,N|C|V,a32::Condition::Eq);
+ TstImmediateCase(1,0,0xffffffffU,N|Z|V,N|Z|V,a32::Condition::Ne);
+ TstImmediateCase(1,0,0xffffffffU,C,Z,a32::Condition::Ne);
+ TstImmediateCase(1,2,0U,N|Z|V,N|Z|V,a32::Condition::Cs);
+ TstImmediateCase(1,2,0U,C|V,Z|C|V,a32::Condition::Cs);
+ TstImmediateCase(1,2,0U,C|V,C|V,a32::Condition::Mi);
+ TstImmediateCase(1,2,0U,N|V,Z|C|V,a32::Condition::Mi);
+ TstImmediateCase(1,2,0U,N|C,N|C,a32::Condition::Vs);
+ TstImmediateCase(1,2,0U,V,Z|C|V,a32::Condition::Vs);
+ // Low registers, SP and LR are read without being written.
+ TstImmediateCase(12,1,0x301U,N|Z|C|V,V,a32::Condition::Al,0);
+ TstImmediateCase(1,1,0x40000000U,N|Z|C|V,V,a32::Condition::Al,13);
+ TstImmediateCase(1,2,0x80000000U,Z,N|C,a32::Condition::Al,14);
+}
+
+void TstConditionalDispatch(){
+ // An authored flag-test dispatch exercises the registry suffix at BNE,
+ // both condition outcomes and a strict missing-code stop at the join.
+ constexpr auto entry=kShiftPc+0x200U, nonzero=entry+0x40U, join=entry+0x80U;
+ const a32::PackedOp test_ops[]{
+   {TstImmediateWord(7,0,4),a32::EncodeMetadata(a32::Opcode::CoreAlu,a32::Condition::Al)},
+   // BNE from entry+4: PC+8 plus 13 words reaches entry+0x40.
+   {(1U<<28U)|(5U<<25U)|13U,a32::EncodeMetadata(a32::Opcode::Branch,a32::Condition::Ne)}};
+ const a32::PackedOp zero_ops[]{
+   {(14U<<28U)|(1U<<25U)|(13U<<21U)|(10U<<12U)|0x21U,
+    a32::EncodeMetadata(a32::Opcode::MovImm,a32::Condition::Al,a32::Immediate)},
+   {(14U<<28U)|(5U<<25U)|27U,a32::EncodeMetadata(a32::Opcode::Branch,a32::Condition::Al)}};
+ const a32::PackedOp nonzero_ops[]{
+   {(14U<<28U)|(1U<<25U)|(13U<<21U)|(10U<<12U)|0x42U,
+    a32::EncodeMetadata(a32::Opcode::MovImm,a32::Condition::Al,a32::Immediate)},
+   {(14U<<28U)|(5U<<25U)|13U,a32::EncodeMetadata(a32::Opcode::Branch,a32::Condition::Al)}};
+ const a32::Block additions[]{{entry,test_ops,2,false},{entry+8U,zero_ops,2,false},
+                             {nonzero,nonzero_ops,2,false}};
+ lego::host::SupplementalRegistry merged(shift_base,additions);
+ CHECK(a32::FindBlock(merged.registry(),entry+4U)==nullptr);
+ GuestMemory memory;
+ for(bool bit_set:{false,true}){
+   a32::GuestState cpu{};cpu.r[0]=0x76543210U;cpu.r[7]=bit_set?0x84U:2U;
+   cpu.r[10]=0xdeadbeefU;cpu.r[14]=0x00c0ffeeU;cpu.r[15]=entry;
+   cpu.cpsr=kOtherCpsr|N|C|V;
+   auto expected=cpu;expected.r[15]=entry+4U;
+   const auto flags=kOtherCpsr|C|V|(bit_set?0U:Z);expected.cpsr=flags;
+   const auto tested=StepRecordedA32(merged.registry(),cpu,memory);
+   CHECK(tested.kind==a32::ExitKind::Fallthrough && tested.pc==entry+4U);
+   CHECK(cpu.r==expected.r && cpu.cpsr==flags);
+   const auto arm=bit_set?nonzero:entry+8U;
+   const auto branch=StepRecordedA32(merged.registry(),cpu,memory);
+   CHECK(branch.kind==(bit_set?a32::ExitKind::Branch:a32::ExitKind::Fallthrough));
+   CHECK(branch.pc==arm && cpu.r[15]==arm && cpu.r[10]==0xdeadbeefU && cpu.cpsr==flags);
+   CHECK(StepRecordedA32(merged.registry(),cpu,memory).kind==a32::ExitKind::Fallthrough);
+   CHECK(cpu.r[10]==(bit_set?0x42U:0x21U) && cpu.r[15]==arm+4U);
+   const auto joined=StepRecordedA32(merged.registry(),cpu,memory);
+   CHECK(joined.kind==a32::ExitKind::Branch && joined.pc==join && cpu.r[15]==join);
+   CHECK(cpu.r[0]==0x76543210U && cpu.r[7]==(bit_set?0x84U:2U));
+   CHECK(cpu.r[14]==0x00c0ffeeU && cpu.cpsr==flags);
+   const auto stopped=cpu;
+   CHECK(StepRecordedA32(merged.registry(),cpu,memory).kind==a32::ExitKind::MissingBlock);
+   CHECK(cpu.r==stopped.r && cpu.cpsr==stopped.cpsr);
+ }
+ CHECK(a32::FindBlock(shift_base,entry)==nullptr && a32::FindBlock(shift_base,nonzero)==nullptr);
+}
+
 void ComputedPcDispatch(){
  // A separate, authored four-arm dispatch proves PC+8, data-table reads and
  // ordinary ADD/MOV PC exits. None of these addresses or values comes from a
@@ -306,4 +440,4 @@ void InteriorLoopAndStackReturn(){
  CHECK(a32::FindBlock(shift_base,entry)==nullptr && a32::FindBlock(shift_base,pop_pc)==nullptr);
 }
 }
-int main(){ValidAndExecution();Invalid();ImmediateShiftSemantics();ComputedPcDispatch();InteriorLoopAndStackReturn();if(failures)return EXIT_FAILURE;std::cout<<"PASS: immutable compile-time supplement, shifted MOV/ADD/ORR semantics, computed-PC dispatch, interior loop and memory-loaded return, data/code separation, holes/overlap/range/lifetime, suffix execution, allocation failure, unchanged base and strict missing-PC stop\n";}
+int main(){ValidAndExecution();Invalid();ImmediateShiftSemantics();TstImmediateSemantics();TstConditionalDispatch();ComputedPcDispatch();InteriorLoopAndStackReturn();if(failures)return EXIT_FAILURE;std::cout<<"PASS: immutable compile-time supplement, shifted MOV/ADD/ORR and immediate TST semantics, flag-driven and computed-PC dispatch, interior loop and memory-loaded return, data/code separation, holes/overlap/range/lifetime, suffix execution, allocation failure, unchanged base and strict missing-PC stop\n";}

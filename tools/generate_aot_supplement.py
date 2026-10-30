@@ -10,17 +10,21 @@ import argparse, hashlib, json, pathlib, struct, tempfile
 import generate_aot_pages_llvm as frontend
 
 def verified_alu_candidate(raw: int) -> str | None:
-    """Admit only reviewed register/immediate-shift MOV, ADD and ORR forms.
+    """Admit reviewed shifted MOV/ADD/ORR and canonical immediate TST forms.
 
     The LLVM frontend's generic CoreAlu category is deliberately broader than
-    this policy. These conditional A32 data-processing encodings use the
-    existing evaluator's immediate shifter (including RRX) and raw S bit.
-    Exclude PC reads/writes, exception returns, register-specified shifts and
-    the neighboring multiply/extra-load-store encoding space. MOV's unused
-    Rn field must be canonical zero. No guest address or mnemonic is a permit.
+    this policy. Immediate TST requires primary class 001, opcode 1000, S=1
+    and canonical unused Rd=0. Its full rotated-immediate field is retained;
+    the existing evaluator updates NZC and preserves V without writing a
+    destination. The shifted register forms use the existing immediate
+    shifter (including RRX) and raw S bit. Exclude PC reads/writes, exception
+    returns, register-specified shifts and neighboring encoding spaces.
+    MOV's unused Rn field must be zero. No address or mnemonic is a permit.
     """
     if not 0 <= raw <= 0xFFFFFFFF or raw >> 28 == 15:
         return None
+    if (raw & 0x0FF0F000) == 0x03100000 and ((raw >> 16) & 15) != 15:
+        return 'tst_immediate'
     if raw & 0x0E000010:  # bits 27..25=000 and bit 4=0: immediate register shift
         return None
     opcode = (raw >> 21) & 15

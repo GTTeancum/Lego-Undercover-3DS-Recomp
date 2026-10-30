@@ -102,10 +102,14 @@ restore.
   A future verified minimap crop can use that seam; no game-specific minimap
   crop or automatic screen/menu integration is enabled now.
 
-The original-game desktop run presents 524 frames and reaches the same next
-missing block, `0x00150A54`, as headless execution. Its first nonblack screenshot
-shows the lower-screen loading indicator in the inset. Menus and gameplay have
-not been reached. See [the current checkpoint](recovery/CURRENT-REBUILD.md) for
-the complete comparison, including the differing core-0 instruction counts.
+The current original-game desktop run presents 524 frames and reaches the same
+next missing block, `0x00150CE8`, as headless execution. Both modes advance 238
+core-0 instructions beyond their respective previous runs. The first nonblack
+screenshot still shows the lower-screen loading indicator in the inset and is
+byte-identical to the earlier capture. Menus and gameplay have not been reached.
+An initial cloud X11 socket setup failure happened before guest execution; its
+outputs remain separate from the completed run using the same tested binary.
+See [the current checkpoint](recovery/CURRENT-REBUILD.md) for the complete
+comparison, including the differing core-0 instruction counts.
 Game inputs, generated AOT, executables, saves, screenshots and audio remain
 private and are not published with the source repository.

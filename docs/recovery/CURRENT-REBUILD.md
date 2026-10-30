@@ -1,3 +1,144 @@
+# October 29, 2026 — TST dispatch advances startup to the next return continuation
+
+## Current result
+
+The unchanged original game now passes the **`0x00150A54`** gap. Seven
+authenticated build-time supplements cover `0x00150A54..0x00150AC8`, adding
+**29 instruction words / 116 bytes**. Both headless and SDL desktop advance
+**238 issued core-0 instructions** beyond their respective previous runs and
+stop at **MissingBlock `0x00150CE8`**, with PC and LR both at that address.
+The actual path through the dispatch region has not been captured instruction
+by instruction; reaching the new stop does not prove every added block ran.
+
+There are now **18 supplements**, with **111,061 registry blocks / 545,370
+verified instruction words**. All **599 original AOT pages / 603 files**, the
+previous **11 supplements / 230 instruction records**, and original game
+inputs remain unchanged. The generated additions contain 23 existing fast-path
+operations, three existing memory operations and three canonical immediate TST
+operations. Generated game words and C++ remain private.
+
+| Measurement | Headless | SDL desktop |
+| --- | ---: | ---: |
+| Terminal stop | MissingBlock `0x00150CE8` | MissingBlock `0x00150CE8` |
+| Thread / dispatch round | 7 / 21,843 | 7 / 21,843 |
+| Issued core-0 instructions | 61,370,559 | 61,366,676 |
+| Increase from previous run of the same mode | 238 | 238 |
+| Issued core-1 instructions | 99 | 99 |
+| Diagnostic CPU ticks | 2,345,552,506 | 2,345,552,506 |
+| Diagnostic guest time, ns | 8,748,410,239 | 8,748,410,239 |
+| Display periods | 523 | 523 |
+| SDL presentations | N/A | 524 |
+| Guest exit / wall timeout | 3 / no | 3 / no |
+| Wall duration, seconds | 183.873 | 206.866 |
+
+The finite runs retain the previous profile: **131,072 host events**,
+`--block-limit 100000000`, a **600-second wall bound**, and fresh owned SaveData
+and SharedExtData. The runner owns and bounds its complete process group.
+Diagnostic time is not hardware timing. Wall durations were measured after
+restoration into a fresh cloud environment; no performance comparison is made.
+
+The two completed runs have identical terminal registers/TLS, stop context,
+guest time, DSP results, complete audio bytes and current filesystem inventories.
+Desktop still issues **3,883 fewer core-0 instructions**. It enables guest-visible
+HID sampling; the cause of the instruction-count difference remains untraced.
+No instruction-for-instruction equivalence is claimed.
+
+Both full **4,571,648-byte / 285,726-record** audio files also match their prior
+same-mode files byte-for-byte, retaining SHA-256
+`83a7d04b449af60230fd50b5b116075738663f0244b466644a4d0acafa3eb444`.
+Restored prior SaveData bodies match current inventories. Prior SharedExtData
+`state/` directories were deliberately excluded from the saved archive; their
+comparison uses authenticated completion-receipt inventories and hashes only.
+Those old state bodies were not recreated or claimed to survive recovery.
+
+## Desktop and validation
+
+The SDL layout remains the whole lower screen in the bottom-right corner,
+with Tab enlargement, F11 fullscreen and mouse touch mapping. The actual game
+presents **524 frames** and captures a **1280×720** first-nonblack startup image.
+The BMP is byte-identical to the preceding desktop capture: the lower loading
+indicator appears in the inset while the main screen is black at that moment.
+A new lossless PNG export retains every pixel. This is startup evidence;
+usable menus, gameplay and speaker playback remain unproven. Linux is the tested
+host; Windows execution and its storage backend remain unfinished.
+
+The first desktop invocation failed during SDL initialization because the
+restricted cloud environment could not establish X11 display sockets. The
+recorded startup order places that failure before guest initialization and
+execution. Its completion, output, empty SaveData and audio header are retained
+in `game-desktop/`. A separate synthetic X11 smoke passed after the local socket
+restriction was resolved. One explicit corrected invocation, `game-desktop-v2/`,
+then completed with the **same executable, source, inputs and SDL settings**.
+No automatic game retry occurred. The failed initialization is excluded from
+the game-result comparison and preserved as separate evidence.
+
+The single fresh Release configure/build/full-test gate passes **84/84 suites**.
+The Python supplement-policy suite expands from 17 to **26 test methods**.
+Independent C++ fixtures cover **55 fixed TST vectors**, all immediate rotations,
+carry preservation and replacement, N/Z/V behavior, passing/failing conditions,
+SP/LR operands, unchanged registers and both outcomes of a TST-driven branch.
+The existing runtime evaluator is unchanged. Release checks remain enabled.
+The separate X11 software-renderer smoke uses colored synthetic panels.
+
+Only canonical A32 immediate TST gains admission: condition 0..14, primary
+class 001, opcode 1000, S=1, unused Rd=0 and non-PC Rn. The complete rotated
+immediate is retained. Existing shifted MOV/ADD/ORR admission is unchanged;
+other forms, malformed encodings, PC operands and unknown disassembly remain
+rejected. No address or mnemonic acts as an opcode permission.
+
+Generation verification binds the emitted records to authenticated code bytes,
+the exact compile entry, all original AOT files, preserved prior records and the
+tested executable. JUnit preserves all 84 results and the 26-method Python output.
+A later CTest inventory command reset its temporary `LastTest.log`; that short
+file is not used as the full test log. No test rerun was needed. A final
+**16-check local closure** verifies the preserved results and frozen candidate.
+Only the three status/documentation files change after the closure. Hosted CI
+must be read for the exact published commit; it is separate from these local runs.
+
+## Recovery and next task
+
+Workspace cleanup had removed the local checkout and temporary files. Recovery
+restored and verified all **9,527 payload bodies** in the saved `2fec57b`
+checkpoint, all **521 real Git source files**, the **606 original input snapshot
+entries**, and the exact preceding native executable. No older game runs were
+repeated and no replacement game input was requested.
+
+The newly tested executable was saved privately **before** game testing:
+
+- Archive: `LEGO-Chase-tst-dispatch-native-20261029.tgz`.
+- Executable SHA-256: `e7743a69587f0edc0caf09ba07966870ab7568cecd9d68f7049d81aac6f8589a`.
+- Current evidence: `evidence/tst-dispatch-20261029/`.
+- Test gate: `gate-v1/`; generation proof: `generated-verification.json`.
+- Actual completed runs: `game-headless/`, `game-desktop-v2/`.
+- Retained setup failure: `game-desktop/`; correction proof: `display-setup/`.
+- Result comparison: `game-results-verification.json`; closure: `local-closure.json`.
+- Static next-gap proof: `next-blocker-00150ce8.json` and `next-gap-00150ce8/`.
+
+**Next:** add the following three authenticated continuation blocks using the
+existing admission policy and evaluator. This is a static plan; these ranges
+have not been added or executed in the current milestone.
+
+| Entry | End exclusive | Instruction words |
+| --- | --- | ---: |
+| `0x00150CE8` | `0x00150D00` | 6 |
+| `0x00150D00` | `0x00150D0C` | 3 |
+| `0x00150D0C` | `0x00150D18` | 3 |
+
+The original LR assignment at `0x00150CD4` statically establishes continuation
+`0x00150CE8`, matching observed PC/LR. The exact incoming dynamic path remains
+untraced. A forthcoming load replaces r4 from **`[0x0E01FDAC]`**, whose value is
+absent from the terminal dump; the next bit-5 test outcome is unknown. If that
+test falls through with the observed selector 3, the existing immutable table
+selects already supplemented `0x00151B48`. The final POP loads its return target
+from the stack; that target is unknown and must pass normal registry validation.
+Literal table data begins at `0x00150D18` and is excluded from executable ranges.
+
+Public Git contains source and metadata. Original inputs, generated game code,
+executables, captures, audio and saves remain private. All preceding historical
+sections below remain byte-identical and are not relabeled as fresh evidence.
+
+---
+
 # October 29, 2026 — live desktop PiP and the next dispatch gap
 
 ## Current result
