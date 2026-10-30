@@ -38,9 +38,16 @@ def immediate_test(*, opcode=8, condition=14, flags=True, rn=6, rd=0,
             (rotate << 8) | value)
 
 
+def range_manifest(ranges):
+    return {"format": "lego_observed_aot_supplements_v1",
+            "blocks": [{"entry": hex(start), "end": hex(end)}
+                       for start, end in ranges]}
+
+
 class AluAdmissionTests(unittest.TestCase):
     def test_supported_forms_keep_all_conditions_s_bits_and_shift_encodings(self):
-        for opcode, name, rn in ((4, "add", 8), (12, "orr", 8), (13, "mov", 0)):
+        for opcode, name, rn in ((0, "and", 8), (2, "sub", 8), (4, "add", 8),
+                                 (12, "orr", 8), (13, "mov", 0)):
             for condition in range(15):
                 for flags in (False, True):
                     for shift in range(4):
@@ -53,7 +60,8 @@ class AluAdmissionTests(unittest.TestCase):
                                                  name + "_register_immediate_shift")
 
     def test_general_registers_including_sp_lr_are_not_game_specific(self):
-        for opcode, name in ((4, "add"), (12, "orr"), (13, "mov")):
+        for opcode, name in ((0, "and"), (2, "sub"), (4, "add"),
+                             (12, "orr"), (13, "mov")):
             for register in range(15):
                 with self.subTest(opcode=opcode, register=register):
                     raw = shifted(opcode, rn=0 if opcode == 13 else register,
@@ -62,14 +70,14 @@ class AluAdmissionTests(unittest.TestCase):
                                      name + "_register_immediate_shift")
 
     def test_every_other_data_processing_opcode_remains_unverified(self):
-        for opcode in (0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 14, 15):
+        for opcode in (1, 3, 5, 6, 7, 8, 9, 10, 11, 14, 15):
             for flags in (False, True):
                 with self.subTest(opcode=opcode, flags=flags):
                     self.assertIsNone(mod.verified_alu_candidate(
                         shifted(opcode, flags=flags)))
 
     def test_pc_inputs_and_destinations_are_not_admitted(self):
-        for opcode in (4, 12, 13):
+        for opcode in (0, 2, 4, 12, 13):
             rn = 0 if opcode == 13 else 1
             for flags in (False, True):
                 for kwargs in ({"rd": 15}, {"rm": 15}):
@@ -86,7 +94,7 @@ class AluAdmissionTests(unittest.TestCase):
                 self.assertIsNone(mod.verified_alu_candidate(shifted(13, rn=rn)))
 
     def test_register_specified_shifts_and_extra_encoding_space_rejected(self):
-        for opcode in (4, 12, 13):
+        for opcode in (0, 2, 4, 12, 13):
             raw = shifted(opcode, rn=0 if opcode == 13 else 1, amount=0)
             for rs in (0, 8, 14, 15):
                 for bit7 in (0, 0x80):
@@ -95,14 +103,14 @@ class AluAdmissionTests(unittest.TestCase):
                             raw | (rs << 8) | bit7 | 0x10))
 
     def test_immediate_operand_and_other_primary_classes_rejected(self):
-        for opcode in (4, 12, 13):
+        for opcode in (0, 2, 4, 12, 13):
             raw = shifted(opcode, rn=0 if opcode == 13 else 1)
             for primary in range(1, 8):
                 with self.subTest(opcode=opcode, primary=primary):
                     self.assertIsNone(mod.verified_alu_candidate(raw | (primary << 25)))
 
     def test_unconditional_and_non_word_values_rejected(self):
-        for opcode in (4, 12, 13):
+        for opcode in (0, 2, 4, 12, 13):
             raw = shifted(opcode, rn=0 if opcode == 13 else 1)
             for other in (raw | 0xF0000000, raw | (1 << 32), raw - (1 << 32)):
                 with self.subTest(opcode=opcode, other=other):
@@ -175,7 +183,8 @@ class SupplementRenderTests(unittest.TestCase):
         base = mod.frontend.BASE
         code = b"".join(struct.pack("<I", raw) for raw, _, _ in descriptions)
         inst = {base + i * 4: item for i, item in enumerate(descriptions)}
-        return mod.render(code, inst, [(base, base + len(code))])
+        ranges = mod.checked_ranges(range_manifest([(base, base + len(code))]))
+        return mod.render(code, inst, ranges)
 
     def test_new_classes_retain_raw_s_and_condition_metadata(self):
         descriptions = [
@@ -185,14 +194,19 @@ class SupplementRenderTests(unittest.TestCase):
              "addsne", "r2, r1, r3, lsr #5"),
             (shifted(12, condition=14, shift=3, amount=0),
              "orr", "r2, r1, r3, rrx"),
+            (shifted(0, condition=2, flags=True, rn=5, rd=6, rm=7,
+                     shift=2, amount=31), "andscs", "r6, r5, r7, asr #31"),
+            (shifted(2, condition=12, flags=True, rn=8, rd=9, rm=10,
+                     shift=3, amount=0), "subsgt", "r9, r8, r10, rrx"),
             (0xE12FFF1E, "bx", "lr"),
         ]
         source, receipt = self.render_words(descriptions)
         records = receipt["blocks"][0]["instructions"]
         for record, (raw, _, _), condition, category in zip(
-                records, descriptions, ("Eq", "Ne", "Al"),
+                records, descriptions, ("Eq", "Ne", "Al", "Cs", "Gt"),
                 ("mov_register_immediate_shift", "add_register_immediate_shift",
-                 "orr_register_immediate_shift")):
+                 "orr_register_immediate_shift", "and_register_immediate_shift",
+                 "sub_register_immediate_shift")):
             self.assertEqual(record["raw"], raw)
             self.assertEqual(record["opcode"], "CoreAlu")
             self.assertEqual(record["condition"], condition)
@@ -243,6 +257,23 @@ class SupplementRenderTests(unittest.TestCase):
         self.assertEqual(records[1]["opcode"], "BranchReg")
         self.assertIn("a32::Opcode::MovImm, a32::Condition::Al, 0x02U", source)
 
+    def test_simple_sub_forms_keep_existing_fast_path_metadata(self):
+        descriptions = [
+            (shifted(2, condition=1, flags=True, rn=5, rd=6, rm=7, amount=0),
+             "subsne", "r6, r5, r7"),
+            (immediate_test(opcode=2, flags=False, rn=5, rd=6, value=0x2D),
+             "sub", "r6, r5, #45"),
+            (0xE12FFF1E, "bx", "lr"),
+        ]
+        _, receipt = self.render_words(descriptions)
+        records = receipt["blocks"][0]["instructions"]
+        self.assertEqual([(row["opcode"], row["condition"], row["flags"], row["category"])
+                          for row in records[:2]],
+                         [("Sub", "Ne", 1, "fast_path"),
+                          ("Sub", "Al", 2, "fast_path")])
+        self.assertEqual([row["raw"] for row in records],
+                         [raw for raw, _, _ in descriptions])
+
     def test_other_candidate_is_rejected_even_with_allowed_mnemonic(self):
         raw = shifted(1, flags=True)  # Authored EOR encoding, deliberately misleading mnemonic.
         with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
@@ -250,7 +281,8 @@ class SupplementRenderTests(unittest.TestCase):
                                (0xE12FFF1E, "bx", "lr")])
 
     def test_unknown_llvm_instruction_cannot_be_rescued_by_admission(self):
-        for raw in (shifted(13, rn=0, flags=True), immediate_test()):
+        for raw in (shifted(0, flags=True), shifted(2, flags=True),
+                    shifted(13, rn=0, flags=True), immediate_test()):
             with self.subTest(raw=raw):
                 with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
                     self.render_words([(raw, "<unknown>", ""), (0xE12FFF1E, "bx", "lr")])
@@ -258,7 +290,10 @@ class SupplementRenderTests(unittest.TestCase):
     def test_pc_and_register_shift_candidates_fail_before_emission(self):
         for raw in (shifted(13, rn=0, rd=15, flags=True),
                     shifted(4, rn=15), shifted(12, rm=15),
-                    shifted(13, rn=0, amount=0) | (4 << 8) | 0x10):
+                    shifted(13, rn=0, amount=0) | (4 << 8) | 0x10,
+                    shifted(0, rd=15, flags=True), shifted(2, rn=15),
+                    shifted(0, amount=0) | (6 << 8) | 0x10,
+                    shifted(2, amount=0) | (6 << 8) | 0x10):
             with self.subTest(raw=raw):
                 with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
                     self.render_words([(raw, "mov", "r2, r3, lsl #11"),
@@ -279,23 +314,56 @@ class SupplementRenderTests(unittest.TestCase):
             self.render_words([(0xEA000000, "b", "0x00100008"),
                                (0xE12FFF1E, "bx", "lr")])
 
-    def test_manifest_interval_bounds_unchanged(self):
+    def test_full_512_byte_block_retains_every_word_and_terminal(self):
+        forms = [
+            (shifted(0, rn=11, rd=5, rm=9, shift=2, amount=11),
+             "and", "r5, r11, r9, asr #11"),
+            (shifted(2, rn=6, rd=10, rm=3, flags=True, shift=1, amount=9),
+             "subs", "r10, r6, r3, lsr #9"),
+        ]
+        descriptions = [forms[i % 2] for i in range(127)]
+        descriptions.append((0x1A000000, "bne", "#0"))
+        _, receipt = self.render_words(descriptions)
+        block = receipt["blocks"][0]
+        self.assertEqual(block["end"] - block["entry"], 512)
+        self.assertEqual(len(block["instructions"]), 128)
+        self.assertEqual([row["raw"] for row in block["instructions"]],
+                         [raw for raw, _, _ in descriptions])
+        self.assertEqual((block["instructions"][-1]["opcode"],
+                          block["instructions"][-1]["condition"]), ("Branch", "Ne"))
+
+    def test_larger_blocks_still_require_the_first_control_exit_at_the_end(self):
+        body = (shifted(0, rn=11, rd=5, rm=9, shift=2, amount=11),
+                "and", "r5, r11, r9, asr #11")
+        with self.assertRaisesRegex(ValueError, "must end at a decoded branch/return"):
+            self.render_words([body] * 128)
+        # A conditional branch remains a control exit even when it might fall through.
+        descriptions = [body] * 128
+        descriptions[96] = (0x1A000000, "bne", "#0")
+        descriptions[-1] = (0xE12FFF1E, "bx", "lr")
+        with self.assertRaisesRegex(ValueError, "internal control-flow exit"):
+            self.render_words(descriptions)
+
+    def test_manifest_size_page_text_overlap_and_count_bounds(self):
         base = mod.frontend.BASE
-
-        def manifest(ranges):
-            return {"format": "lego_observed_aot_supplements_v1",
-                    "blocks": [{"entry": hex(start), "end": hex(end)}
-                               for start, end in ranges]}
-
-        self.assertEqual(mod.checked_ranges(manifest([(base, base + 256)])),
-                         [(base, base + 256)])
-        for ranges in ([], [(base, base + 260)], [(base + 0xFFC, base + 0x1004)],
+        for size in (4, 256, 260, 508, 512):
+            with self.subTest(size=size):
+                ranges = [(base, base + size)]
+                self.assertEqual(mod.checked_ranges(range_manifest(ranges)), ranges)
+        for ranges in ([(base + 0xE00, base + 0x1000)],
+                       [(base + 512, base + 1024), (base, base + 512)],
+                       [(base + i * 4, base + (i + 1) * 4) for i in range(128)]):
+            with self.subTest(ranges=ranges):
+                self.assertEqual(mod.checked_ranges(range_manifest(ranges)), sorted(ranges))
+        for ranges in ([], [(base, base + 516)], [(base + 0xFFC, base + 0x1004)],
                        [(base, base + 8), (base + 4, base + 12)],
-                       [(base + 1, base + 4)], [(base, base)],
+                       [(base + 1, base + 4)], [(base, base + 6)], [(base, base)],
+                       [(base + 4, base)], [(base - 4, base)],
+                       [(base + mod.frontend.TEXT_BYTES, base + mod.frontend.TEXT_BYTES + 4)],
                        [(base + i * 4, base + (i + 1) * 4) for i in range(129)]):
             with self.subTest(ranges=ranges):
                 with self.assertRaises(ValueError):
-                    mod.checked_ranges(manifest(ranges))
+                    mod.checked_ranges(range_manifest(ranges))
 
     def test_main_rejects_unauthenticated_input_before_llvm_or_output(self):
         with tempfile.TemporaryDirectory(prefix="lego-synthetic-supplement-test-") as tmp:

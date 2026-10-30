@@ -155,6 +155,16 @@
       "entry": "0x00152898",
       "end": "0x001528A0",
       "evidence": "Observed headless MissingBlock at 0x00152898. Two authenticated original instructions save r10 and LR on the stack and call recorded 0x0015117C. Existing memory and branch support handles the forms. End is exclusive; preserve guarded writes and writeback ordering, and do not include the unobserved return 0x001528A0."
+    },
+    {
+      "entry": "0x001528A0",
+      "end": "0x001529B8",
+      "evidence": "Observed headless and desktop MissingBlock at 0x001528A0. Seventy authenticated original instructions end at the first conditional branch. Reviewed register AND and shifted SUB admission uses the existing arithmetic evaluator, and the interval fits the bounded 512-byte same-page limit. Existing recorded-suffix execution covers the interior loop entry 0x0015292C. Preserve ordinary memory, flag and target validation; do not add the unobserved fallthrough 0x001529B8."
+    },
+    {
+      "entry": "0x001529B8",
+      "end": "0x001529C4",
+      "evidence": "Observed headless MissingBlock at 0x001529B8. Three authenticated original instructions discard temporary stack space, adjust the working pointer and restore registers plus PC from the stack. Existing fast and memory support handles the forms. End is exclusive at recorded 0x001529C4; preserve partial-load and writeback behavior and normal target validation. Do not infer the return from live LR or add an unobserved destination."
     }
   ]
 }

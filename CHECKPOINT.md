@@ -1,32 +1,32 @@
 # Latest LEGO Undercover 3DS checkpoint
 
-Updated October 30, 2026. **Read this file first.** Resume from current `main`; consult only the first recovery section for detail.
+Updated October 30, 2026. **Read this first.** Resume from `main`; details are in the latest recovery section.
 
 ## Plain-English status
 
-This update fills **5 missing pieces of startup code**. The game gets farther through startup in both the windowed and background checks. Menus and gameplay remain unverified.
+The rebuild now accepts the required arithmetic and larger code sections. It adds **2 missing sections of startup code**. The game gets farther through startup in both the windowed and background checks. Menus and gameplay remain unverified.
 
 ## Verified developer state
 
-Added **5 blocks / 16 words** since 26/364. Totals: **31 supplements / 380 words**; **111,074 runtime blocks / 545,491 verified words**. All **599 original pages / 603 files** and prior supplements remain unchanged.
+Added **2 blocks / 73 words** since 31/380. Totals: **33 supplements / 453 words**; **111,076 runtime blocks / 545,564 verified words**. All **599 original pages / 603 files** and prior supplements remain unchanged.
 
-Both final modes stop at **MissingBlock `0x001528A0`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
+Both final modes stop at **MissingBlock `0x00150EC0`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
 
-From same-mode `9d3806e`: headless **+94 instructions / +350 ns**; desktop **+94 instructions / +350 ns**.
+From same-mode `7cf0d2a`: headless **+178 instructions / +664 ns**; desktop **+178 instructions / +664 ns**.
 
-Each new native passed **84/84 suites**, once; actual JUnits have **0 failures/errors/skips**. No permission correction or retry.
+Each native passed **84/84 suites once**, with **0 failures/errors/skips** and no retries or permission corrections.
 
 Final registers/time and complete audio/state/save contents agree across modes. Desktop still executes **3,883 fewer instructions**; cause untraced.
 
-Whole touchscreen bottom-right: **Tab** enlarges it, **F11** toggles fullscreen; mouse maps to touch. Startup-image comparison is in the latest recovery section; audible sound and Windows remain unverified.
+Whole touchscreen bottom-right: **Tab** enlarges it, **F11** toggles fullscreen; mouse maps to touch. See recovery for startup-image comparisons; audible sound and Windows remain unverified.
 
 ## Next exact task
 
-Resolve admission for **`[0x001528A0, 0x001529B8)` — 1 candidate block / 70 words / 280 bytes**. The actual stop leads into a 70-instruction section ending at its first conditional branch. Existing execution support covers its arithmetic, but nine AND or shifted SUB instructions are outside supplement admission, and the section exceeds the 256-byte size limit. Resolve both limits before adding it.
+Append only **`[0x00150EC0, 0x00150ED0)` — 1 block / 4 words / 16 bytes**. Four original instructions advance a working pointer, restore two stack values, adjust an argument, and call an already recorded routine. Existing fast and memory handlers cover the section; its later return remains unobserved.
 
-Reviewed continuations: conditional taken branch to an interior loop entry `0x0015292C` is unrecorded; conditional fallthrough `0x001529B8` is unrecorded. Keep unobserved successor bodies outside this change.
+Reviewed continuations: direct call after successful stack reads `0x00150DDC` is recorded original; assigned LR; eventual return remains conditional `0x00150ED0` is unrecorded. Keep unobserved successor bodies outside this change.
 
-Preserve all 31 supplements. Resolve admission first; then authenticate, generate, verify, build/test, preserve the exact native and use a finite fresh run. No runtime decoder, fabricated GPU completion, replay or automatic retry.
+Preserve all 33 supplements. Authenticate, generate, verify, build/test, preserve the exact native, then use a finite fresh run. No runtime decoder, fabricated GPU completion, replay or automatic retry.
 
 ## Continuation rules
 

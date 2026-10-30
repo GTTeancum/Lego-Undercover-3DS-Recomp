@@ -8,15 +8,15 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 **What works:** The program opens a desktop window and draws its startup image. The initial picture matches the saved loading-screen image.
 
-**What changed:** This update fills **5 missing pieces of startup code**. The game gets farther through startup in both the windowed and background checks.
+**What changed:** The rebuild now accepts the required arithmetic and larger code sections. It adds **2 missing sections of startup code**. The game gets farther through startup in both the windowed and background checks.
 
-**What still blocks play:** The background check still stops when it reaches missing game code. The tool that adds missing code cannot accept the next section yet. Usable menus, gameplay, audible sound and Windows execution remain unverified.
+**What still blocks play:** The background check still stops when it reaches missing game code. Usable menus, gameplay, audible sound and Windows execution remain unverified.
 
-**Checks:** All **5 new builds** passed **84/84 automated native tests**. The final build was also checked with the desktop window open. These checks confirm the recorded startup behavior.
+**Checks:** All **2 new builds** passed **84/84 automated native tests**. The final build was also checked with the desktop window open. These checks confirm the recorded startup behavior.
 
 The whole touchscreen stays in the bottom-right corner. **Tab** enlarges it, **F11** toggles fullscreen, and mouse clicks act as touch input. See [desktop build and controls](docs/DESKTOP.md).
 
-**Next:** Fix the checks that reject the next piece of startup code before adding it. The exact developer handoff is in [CHECKPOINT.md](CHECKPOINT.md); detailed measurements are in [the latest recovery section](docs/recovery/CURRENT-REBUILD.md).
+**Next:** Add the next reviewed piece of missing startup code, then check where the game stops next. The exact developer handoff is in [CHECKPOINT.md](CHECKPOINT.md); detailed measurements are in [the latest recovery section](docs/recovery/CURRENT-REBUILD.md).
 
 Public Git contains source and metadata. The tested builds and recovery evidence are preserved privately.
 

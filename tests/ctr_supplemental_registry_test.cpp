@@ -1,6 +1,7 @@
 #include "host/supplemental_registry.h"
 #include "runtime/ctr_recorded_step.h"
 #include "runtime/ctr_memory.h"
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <new>
@@ -164,6 +165,85 @@ void ImmediateShiftSemantics(){
            a32::Condition::Al,true,14,13,14);
  ShiftCase(13,3,1,true,0U,3U,V,0x80000001U,N|C|V,
            a32::Condition::Al,true,14,14);
+}
+
+void AndAndSubtractShiftSemantics(){
+ // Fixed examples exercise ordinary AND/SUB through the merged registry.
+ // The expected results do not call the runtime shifter or flag helpers.
+ // S=0 preserves all CPSR bits while selecting bytes or shifting operands.
+ ShiftCase(0,0,0,false,0xffU,0x1234U,N|Z|C|V,0x34U,N|Z|C|V);
+ ShiftCase(0,0,2,false,0xffU,0x63U,N|Z|C|V,0x8cU,N|Z|C|V);
+ ShiftCase(0,1,8,false,0xffU,0x89abcdefU,N|Z|C|V,0xcdU,N|Z|C|V);
+ ShiftCase(0,1,16,false,0xffU,0x89abcdefU,N|Z|C|V,0xabU,N|Z|C|V);
+ ShiftCase(0,1,24,false,0xffU,0x89abcdefU,N|Z|C|V,0x89U,N|Z|C|V);
+ ShiftCase(2,0,2,false,0x90U,0x23U,N|Z|C|V,4U,N|Z|C|V);
+ ShiftCase(2,1,0,false,7U,0x80000001U,N|Z|C|V,7U,N|Z|C|V);
+ ShiftCase(2,2,0,false,0U,0x80000001U,N|Z|C|V,1U,N|Z|C|V);
+ ShiftCase(2,3,0,false,0x80000000U,2U,N|Z|C|V,0xffffffffU,N|Z|C|V);
+
+ // ANDS takes carry from the operand shift and preserves V, including when
+ // a zero result differs from the shifted operand's sign or outgoing carry.
+ ShiftCase(0,0,0,true,0x80000000U,0x80000001U,Z|C|V,0x80000000U,N|C|V);
+ ShiftCase(0,0,0,true,0xffU,0xffffff00U,N|V,0U,Z|V);
+ ShiftCase(0,0,1,true,1U,0x80000001U,N|V,0U,Z|C|V);
+ ShiftCase(0,0,31,true,0x80000000U,3U,0,0x80000000U,N|C);
+ ShiftCase(0,0,31,true,0xffffffffU,2U,0,0U,Z|C);
+ ShiftCase(0,1,0,true,0xffffffffU,0x80000001U,N|V,0U,Z|C|V);
+ ShiftCase(0,1,1,true,0xc0000000U,0x80000001U,N,0x40000000U,C);
+ ShiftCase(0,1,31,true,1U,0x80000000U,C|V,1U,V);
+ ShiftCase(0,2,0,true,0x80000000U,0x80000000U,Z|V,0x80000000U,N|C|V);
+ ShiftCase(0,2,0,true,0xffffffffU,0x7fffffffU,N|C|V,0U,Z|V);
+ ShiftCase(0,2,1,true,0x80000000U,0x80000001U,V,0x80000000U,N|C|V);
+ ShiftCase(0,3,1,true,0x80000000U,3U,V,0x80000000U,N|C|V);
+ ShiftCase(0,3,31,true,3U,0x80000003U,C|V,3U,V);
+ ShiftCase(0,3,0,true,1U,3U,V,1U,C|V);
+ ShiftCase(0,3,0,true,0x80000000U,2U,C|V,0x80000000U,N|V);
+
+ // SUBS derives C (no borrow) and V from subtraction, not shifter carry.
+ // These include positive/negative overflow, equality and unsigned borrow.
+ ShiftCase(2,0,2,true,8U,1U,N|Z|V,4U,C);
+ ShiftCase(2,0,2,true,4U,1U,N|V,0U,Z|C);
+ ShiftCase(2,0,2,true,3U,1U,Z|C|V,0xffffffffU,N);
+ ShiftCase(2,0,1,true,0U,0x80000002U,C|V,0xfffffffcU,N);
+ ShiftCase(2,0,1,true,10U,2U,N|V,6U,C);
+ ShiftCase(2,0,0,true,0x7fffffffU,0xffffffffU,C,0x80000000U,N|V);
+ ShiftCase(2,0,0,true,0x80000000U,1U,N,0x7fffffffU,C|V);
+ ShiftCase(2,0,0,true,0U,0x80000000U,C,0x80000000U,N|V);
+ ShiftCase(2,0,31,true,0x80000000U,1U,N|V,0U,Z|C);
+ ShiftCase(2,1,0,true,0U,0x80000001U,N|V,0U,Z|C);
+ ShiftCase(2,1,1,true,0U,3U,C|V,0xffffffffU,N);
+ ShiftCase(2,2,0,true,0U,0x80000001U,C|V,1U,0);
+ ShiftCase(2,2,0,true,0U,0x7fffffffU,N|V,0U,Z|C);
+ ShiftCase(2,2,31,true,0x7fffffffU,0x80000000U,C,0x80000000U,N|V);
+ ShiftCase(2,3,1,true,0x80000000U,3U,C|V,0xffffffffU,N);
+ ShiftCase(2,3,31,true,10U,0x80000003U,V,3U,C);
+ ShiftCase(2,3,0,true,0x80000000U,2U,C|V,0xffffffffU,N);
+ ShiftCase(2,3,0,true,0U,3U,V,0xffffffffU,N);
+
+ // False conditions suppress both destination and flags; true conditions
+ // use the prior flags even when the operation replaces those same flags.
+ for(unsigned opcode:{0U,2U}){
+   ShiftCase(opcode,3,0,true,0U,3U,N|C|V,0U,N|C|V,
+             a32::Condition::Eq,false);
+   ShiftCase(opcode,0,2,true,9U,2U,Z|C|V,0U,Z|C|V,
+             a32::Condition::Ne,false);
+ }
+ ShiftCase(0,0,1,true,2U,1U,Z|C|V,2U,V,a32::Condition::Eq);
+ ShiftCase(2,0,2,true,9U,2U,Z|V,1U,C,a32::Condition::Eq);
+ ShiftCase(0,0,1,true,2U,1U,N|V,2U,V,a32::Condition::Mi);
+ ShiftCase(2,0,2,true,0U,1U,C|V,0xfffffffcU,N,a32::Condition::Cs);
+ ShiftCase(2,0,2,true,9U,2U,V,0U,V,a32::Condition::Vc,false);
+
+ // SP/LR and overlapping operands use their incoming values before writing
+ // the destination. None of these synthetic encodings reads or writes PC.
+ ShiftCase(0,0,0,false,0xffU,0x2aU,Z|C|V,0x2aU,Z|C|V,
+           a32::Condition::Al,true,14,13,14);
+ ShiftCase(2,0,2,true,0x100U,0x10U,N|V,0xc0U,C,
+           a32::Condition::Al,true,13,13,14);
+ ShiftCase(0,1,1,true,0x33U,0x33U,V,0x11U,C|V,
+           a32::Condition::Al,true,4,4,4);
+ ShiftCase(2,0,1,true,0x21U,0x21U,C|V,0xffffffdfU,N,
+           a32::Condition::Al,true,4,4,4);
 }
 
 constexpr std::uint32_t TstImmediateWord(unsigned rn, unsigned rotate,
@@ -439,5 +519,121 @@ void InteriorLoopAndStackReturn(){
  CHECK(cpu.r==unsupported.r && cpu.cpsr==unsupported.cpsr);
  CHECK(a32::FindBlock(shift_base,entry)==nullptr && a32::FindBlock(shift_base,pop_pc)==nullptr);
 }
+
+void LongBlockAndInteriorSuffix(){
+ // Authored 96-word block: the first control exit is its final BNE, and its
+ // loop starts beyond word 64. Prefix counters expose any truncation or
+ // accidental prefix replay when either dispatcher resolves the loop suffix.
+ constexpr unsigned word_count=96U, loop_index=90U;
+ constexpr auto entry=kShiftPc+0xa00U, loop=entry+loop_index*4U;
+ constexpr auto branch_pc=entry+(word_count-1U)*4U, end=entry+word_count*4U;
+ static_assert(word_count*4U>256U && word_count*4U<=512U);
+ static_assert((entry>>12U)==((end-1U)>>12U));
+ std::array<a32::PackedOp,word_count> ops{};
+ for(auto& op:ops){
+   // ADD r10, r10, #1; the 86 middle prefix words have no control effects.
+   op={(14U<<28U)|(1U<<25U)|(4U<<21U)|(10U<<16U)|(10U<<12U)|1U,
+       a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al,a32::Immediate)};
+ }
+ for(unsigned rd=0;rd<3U;++rd){
+   ops[rd]={(14U<<28U)|(1U<<25U)|(13U<<21U)|(rd<<12U)|(rd==1U?3U:0U),
+            a32::EncodeMetadata(a32::Opcode::MovImm,a32::Condition::Al,a32::Immediate)};
+ }
+ ops[3]={(14U<<28U)|(1U<<25U)|(4U<<21U)|(12U<<16U)|(12U<<12U)|1U,
+         a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al,a32::Immediate)};
+ // Extract byte 0x34, subtract 3*4 and accumulate 40 on each loop visit.
+ ops[90]={ShiftWord(0,false,1,8,6,5,4),
+          a32::EncodeMetadata(a32::Opcode::CoreAlu,a32::Condition::Al)};
+ ops[91]={ShiftWord(2,false,0,2,6,7,6),
+          a32::EncodeMetadata(a32::Opcode::CoreAlu,a32::Condition::Al)};
+ ops[92]={ShiftWord(4,false,0,0,0,6,0),
+          a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al)};
+ ops[93]={(14U<<28U)|(1U<<25U)|(4U<<21U)|(2U<<16U)|(2U<<12U)|1U,
+          a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al,a32::Immediate)};
+ ops[94]={(14U<<28U)|(1U<<25U)|(2U<<21U)|(1U<<20U)|(1U<<16U)|(1U<<12U)|1U,
+          a32::EncodeMetadata(a32::Opcode::Sub,a32::Condition::Al,a32::Immediate|a32::SetFlags)};
+ // Architectural PC is word 97; a displacement of -7 words reaches word 90.
+ ops[95]={(1U<<28U)|(5U<<25U)|0x00fffff9U,
+          a32::EncodeMetadata(a32::Opcode::Branch,a32::Condition::Ne)};
+ const a32::Block addition{entry,ops.data(),word_count,false};
+ lego::host::SupplementalRegistry merged(shift_base,std::span(&addition,1));
+ const auto* recorded=a32::FindBlock(merged.registry(),entry);
+ CHECK(recorded && recorded->op_count==word_count);
+ CHECK(a32::FindBlock(merged.registry(),loop)==nullptr);
+ CHECK(a32::FindBlock(merged.registry(),end)==nullptr);
+ GuestMemory memory;
+ a32::GuestState initial{};
+ for(unsigned i=0;i<initial.r.size();++i)initial.r[i]=0xa0b0c000U+i;
+ initial.r[4]=0xffU;initial.r[5]=0x00123400U;initial.r[7]=3U;
+ initial.r[10]=9U;initial.r[12]=0x30U;initial.r[15]=entry;
+ initial.cpsr=kOtherCpsr|N|V;
+ initial.fpscr=0x13579bdfU;initial.vfp.fill(0x5a5a5a5aU);
+ initial.thread_pointer=0x0800e000U;
+ initial.exclusive_address=0x0800f000U;initial.exclusive_token=0x02468ace13579bdfULL;
+ initial.exclusive_size=4;initial.exclusive_valid=true;
+
+ auto first_pass=initial;
+ const auto first=a32::ExecuteBlock(addition,first_pass,memory);
+ CHECK(first.kind==a32::ExitKind::Branch && first.pc==loop);
+ CHECK(first_pass.r[0]==40U && first_pass.r[1]==2U && first_pass.r[2]==1U);
+ CHECK(first_pass.r[10]==95U && first_pass.r[12]==0x31U);
+ CHECK(first_pass.cpsr==(kOtherCpsr|C));
+
+ auto expected=initial;
+ expected.r[0]=120U;expected.r[1]=0U;expected.r[2]=3U;expected.r[6]=40U;
+ expected.r[10]=95U;expected.r[12]=0x31U;expected.r[15]=end;
+ expected.cpsr=kOtherCpsr|Z|C;
+ auto stepped=initial;
+ unsigned steps=0, loop_visits=0, taken=0;
+ while(stepped.r[15]!=end && steps<128U){
+   const auto pc=stepped.r[15];
+   if(pc==loop)++loop_visits;
+   const auto result=StepRecordedA32(merged.registry(),stepped,memory);++steps;
+   if(pc==branch_pc && result.kind==a32::ExitKind::Branch){
+     ++taken;CHECK(result.pc==loop && stepped.r[15]==loop);
+   }else CHECK(result.kind==a32::ExitKind::Fallthrough && result.pc==pc+4U);
+   CHECK(result.fallback==a32::FallbackReason::None && result.detail==0U);
+ }
+ CHECK(steps==108U && loop_visits==3U && taken==2U);
+ CHECK(stepped.r==expected.r && stepped.cpsr==expected.cpsr);
+ CHECK(stepped.fpscr==expected.fpscr && stepped.vfp==expected.vfp);
+ CHECK(stepped.thread_pointer==expected.thread_pointer);
+ CHECK(stepped.exclusive_address==expected.exclusive_address &&
+       stepped.exclusive_token==expected.exclusive_token &&
+       stepped.exclusive_size==expected.exclusive_size &&
+       stepped.exclusive_valid==expected.exclusive_valid);
+ const auto stopped=stepped;
+ const auto missing=StepRecordedA32(merged.registry(),stepped,memory);
+ CHECK(missing.kind==a32::ExitKind::MissingBlock && missing.pc==end);
+ CHECK(stepped.r==stopped.r && stepped.cpsr==stopped.cpsr);
+
+ // Full-block dispatch must execute the same two interior suffixes as the
+ // single-operation path, then stop exactly beyond the recorded interval.
+ auto dispatched=initial;
+ const auto completed=a32::Dispatch(merged.registry(),entry,dispatched,memory,nullptr,nullptr,8U);
+ CHECK(completed.kind==a32::ExitKind::MissingBlock && completed.pc==end);
+ CHECK(completed.fallback==a32::FallbackReason::None && completed.detail==0U);
+ CHECK(dispatched.r==expected.r && dispatched.cpsr==expected.cpsr);
+ CHECK(dispatched.fpscr==expected.fpscr && dispatched.vfp==expected.vfp);
+ CHECK(dispatched.thread_pointer==expected.thread_pointer);
+ CHECK(dispatched.exclusive_address==expected.exclusive_address &&
+       dispatched.exclusive_token==expected.exclusive_token &&
+       dispatched.exclusive_size==expected.exclusive_size &&
+       dispatched.exclusive_valid==expected.exclusive_valid);
+
+ // An independently entered interior suffix must never run the prefix's
+ // initializers or counters, even when it loops within the large block.
+ auto interior=initial;
+ interior.r[0]=7U;interior.r[1]=2U;interior.r[2]=5U;
+ interior.r[10]=0x111U;interior.r[12]=0x222U;interior.r[15]=loop;
+ auto interior_expected=interior;
+ interior_expected.r[0]=87U;interior_expected.r[1]=0U;interior_expected.r[2]=7U;
+ interior_expected.r[6]=40U;interior_expected.r[15]=end;
+ interior_expected.cpsr=kOtherCpsr|Z|C;
+ const auto suffix=a32::Dispatch(merged.registry(),loop,interior,memory,nullptr,nullptr,8U);
+ CHECK(suffix.kind==a32::ExitKind::MissingBlock && suffix.pc==end);
+ CHECK(interior.r==interior_expected.r && interior.cpsr==interior_expected.cpsr);
+ CHECK(shift_base.shards[0].blocks==nullptr && shift_base.shards[0].block_count==0U);
 }
-int main(){ValidAndExecution();Invalid();ImmediateShiftSemantics();TstImmediateSemantics();TstConditionalDispatch();ComputedPcDispatch();InteriorLoopAndStackReturn();if(failures)return EXIT_FAILURE;std::cout<<"PASS: immutable compile-time supplement, shifted MOV/ADD/ORR and immediate TST semantics, flag-driven and computed-PC dispatch, interior loop and memory-loaded return, data/code separation, holes/overlap/range/lifetime, suffix execution, allocation failure, unchanged base and strict missing-PC stop\n";}
+}
+int main(){ValidAndExecution();Invalid();ImmediateShiftSemantics();AndAndSubtractShiftSemantics();TstImmediateSemantics();TstConditionalDispatch();ComputedPcDispatch();InteriorLoopAndStackReturn();LongBlockAndInteriorSuffix();if(failures)return EXIT_FAILURE;std::cout<<"PASS: immutable compile-time supplement, shifted MOV/ADD/ORR/AND/SUB and immediate TST semantics, flag-driven and computed-PC dispatch, large-block and interior-loop suffix execution, memory-loaded return, data/code separation, holes/overlap/range/lifetime, allocation failure, unchanged base and strict missing-PC stop\n";}

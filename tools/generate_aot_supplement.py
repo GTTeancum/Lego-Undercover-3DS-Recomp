@@ -9,16 +9,20 @@ from __future__ import annotations
 import argparse, hashlib, json, pathlib, struct, tempfile
 import generate_aot_pages_llvm as frontend
 
+MAX_SUPPLEMENT_BYTES = 512  # At most 128 A32 words, still within one 4 KiB page.
+
 def verified_alu_candidate(raw: int) -> str | None:
-    """Admit reviewed shifted MOV/ADD/ORR and canonical immediate TST forms.
+    """Admit canonical shifted AND/SUB/ADD/ORR/MOV and immediate TST forms.
 
     The LLVM frontend's generic CoreAlu category is deliberately broader than
     this policy. Immediate TST requires primary class 001, opcode 1000, S=1
     and canonical unused Rd=0. Its full rotated-immediate field is retained;
     the existing evaluator updates NZC and preserves V without writing a
     destination. The shifted register forms use the existing immediate
-    shifter (including RRX) and raw S bit. Exclude PC reads/writes, exception
-    returns, register-specified shifts and neighboring encoding spaces.
+    shifter (including RRX), condition and raw S bit. Logical operations use
+    shifter carry while SUB uses arithmetic carry/overflow when S is set.
+    Exclude PC reads/writes, exception returns, register-specified shifts
+    and neighboring encoding spaces.
     MOV's unused Rn field must be zero. No address or mnemonic is a permit.
     """
     if not 0 <= raw <= 0xFFFFFFFF or raw >> 28 == 15:
@@ -28,7 +32,9 @@ def verified_alu_candidate(raw: int) -> str | None:
     if raw & 0x0E000010:  # bits 27..25=000 and bit 4=0: immediate register shift
         return None
     opcode = (raw >> 21) & 15
-    names = {4: 'add_register_immediate_shift',
+    names = {0: 'and_register_immediate_shift',
+             2: 'sub_register_immediate_shift',
+             4: 'add_register_immediate_shift',
              12: 'orr_register_immediate_shift',
              13: 'mov_register_immediate_shift'}
     if opcode not in names:
@@ -51,7 +57,7 @@ def checked_ranges(document: dict) -> list[tuple[int, int]]:
     for start, end in ranges:
         if start & 3 or end & 3 or not frontend.BASE <= start < end <= frontend.BASE + frontend.TEXT_BYTES:
             raise ValueError('invalid aligned text interval')
-        if start < prev or (start // 4096) != ((end - 1) // 4096) or end - start > 256:
+        if start < prev or (start // 4096) != ((end - 1) // 4096) or end - start > MAX_SUPPLEMENT_BYTES:
             raise ValueError('overlapping, cross-page or oversized supplement')
         prev = end
     return ranges

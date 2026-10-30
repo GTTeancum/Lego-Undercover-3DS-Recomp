@@ -105,22 +105,20 @@ The current original-game desktop evidence comes from the final frozen native.
 
 **What works:** The program opens a desktop window and draws its startup image. The initial picture matches the saved loading-screen image.
 
-**What changed:** This update fills **5 missing pieces of startup code**. The game gets farther through startup in both the windowed and background checks.
+**What changed:** The rebuild now accepts the required arithmetic and larger code sections. It adds **2 missing sections of startup code**. The game gets farther through startup in both the windowed and background checks.
 
-**What still blocks play:** The background check still stops when it reaches missing game code. The tool that adds missing code cannot accept the next section yet. Usable menus, gameplay, audible sound and Windows execution remain unverified.
+**What still blocks play:** The background check still stops when it reaches missing game code. Usable menus, gameplay, audible sound and Windows execution remain unverified.
 
-Both final modes stop at **MissingBlock `0x001528A0`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
+Both final modes stop at **MissingBlock `0x00150EC0`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
 
-Cumulative change from the preserved same-mode `9d3806e` baseline: headless **+94 core-0 instructions / +350 diagnostic ns**; desktop **+94 core-0 instructions / +350 diagnostic ns**.
+Cumulative change from the preserved same-mode `7cf0d2a` baseline: headless **+178 core-0 instructions / +664 diagnostic ns**; desktop **+178 core-0 instructions / +664 diagnostic ns**.
 
 The desktop records **524 presentations**. The actual **1280×720 first-nonblack startup capture** has identical decoded RGBA pixels to the original baseline; complete BMP bytes are identical. This records the initial startup image. Usable menus, gameplay, speaker playback and Windows execution remain unverified.
 
 Cross-mode comparison matches final registers, diagnostic time, complete audio, state contents and save contents. The phase-2 comparison still records **3,883 fewer desktop core-0 instructions** than headless; the difference remains untraced.
 
-Resolve admission for **`[0x001528A0, 0x001529B8)` — 1 candidate block / 70 words / 280 bytes**. The actual stop leads into a 70-instruction section ending at its first conditional branch. Existing execution support covers its arithmetic, but nine AND or shifted SUB instructions are outside supplement admission, and the section exceeds the 256-byte size limit. Resolve both limits before adding it.
+The next bounded task is **`[0x00150EC0, 0x00150ED0)` — 1 block / 4 words / 16 bytes**. Four original instructions advance a working pointer, restore two stack values, adjust an argument, and call an already recorded routine. Existing fast and memory handlers cover the section; its later return remains unobserved.
 
-Admission blockers: Supplement admission rejects four register AND forms and five shifted SUB forms that the existing evaluator already supports. The reviewed first-exit span is 280 bytes, exceeding the current 256-byte admission limit by 24 bytes.
-
-Reviewed continuations: conditional taken branch to an interior loop entry `0x0015292C` is unrecorded; conditional fallthrough `0x001529B8` is unrecorded. Keep unobserved successor bodies outside this change.
+Reviewed continuations: direct call after successful stack reads `0x00150DDC` is recorded original; assigned LR; eventual return remains conditional `0x00150ED0` is unrecorded. Keep unobserved successor bodies outside this change.
 
 See [the short checkpoint](../CHECKPOINT.md) for the current continuation and [the recovery record](recovery/CURRENT-REBUILD.md) for the complete round comparisons. Original inputs, generated AOT, executables, saves, screenshots and audio remain private.
