@@ -4,21 +4,19 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-**Resume from [CHECKPOINT.md](CHECKPOINT.md).** It contains the latest state and next task.
+Resume from [CHECKPOINT.md](CHECKPOINT.md).
 
-**What works:** The program opens a desktop window and draws its startup image. The initial picture matches the saved loading-screen image.
+**What improved:** Three more missing startup sections are included, and the rebuild tool now handles the arithmetic form needed by a larger helper. Fresh background runs get past the old stopping point.
 
-**What changed:** The rebuild now accepts the required arithmetic and larger code sections. It adds **2 missing sections of startup code**. The game gets farther through startup in both the windowed and background checks.
+**What still blocks play:** Execution still reaches missing game code. Menus, gameplay, speaker playback and a working Windows release remain unverified.
 
-**What still blocks play:** The background check still stops when it reaches missing game code. Usable menus, gameplay, audible sound and Windows execution remain unverified.
+**Visual status:** No new windowed game run or screenshot was taken for this checkpoint. The last verified desktop result remains the loading image; this update does not establish a visible change.
 
-**Checks:** All **2 new builds** passed **84/84 automated native tests**. The final build was also checked with the desktop window open. These checks confirm the recorded startup behavior.
+**Checks:** The three builds passed all enabled tests: 83, 83 and 84 respectively. The final build adds a dedicated arithmetic test. These were headless builds; the optional desktop smoke test was not enabled locally. Each exact tested native was preserved before its fresh game run.
 
-The whole touchscreen stays in the bottom-right corner. **Tab** enlarges it, **F11** toggles fullscreen, and mouse clicks act as touch input. See [desktop build and controls](docs/DESKTOP.md).
+The existing desktop layout keeps the whole touchscreen at bottom right. Tab enlarges it, F11 toggles fullscreen, and mouse clicks map to touch. See [desktop build and controls](docs/DESKTOP.md).
 
-**Next:** Add the next reviewed piece of missing startup code, then check where the game stops next. The exact developer handoff is in [CHECKPOINT.md](CHECKPOINT.md); detailed measurements are in [the latest recovery section](docs/recovery/CURRENT-REBUILD.md).
-
-Public Git contains source and metadata. The tested builds and recovery evidence are preserved privately.
+**Next:** Add the reviewed return section and check the next actual stop. Public Git contains source and metadata; builds, original inputs and complete run evidence are preserved privately.
 
 ## Historical recovery records
 

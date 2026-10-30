@@ -12,7 +12,7 @@ import generate_aot_pages_llvm as frontend
 MAX_SUPPLEMENT_BYTES = 512  # At most 128 A32 words, still within one 4 KiB page.
 
 def verified_alu_candidate(raw: int) -> str | None:
-    """Admit canonical shifted AND/SUB/ADD/ORR/MOV and immediate TST forms.
+    """Admit canonical shifted AND/SUB/ADD/ORR/MOV and immediate AND/TST forms.
 
     The LLVM frontend's generic CoreAlu category is deliberately broader than
     this policy. Immediate TST requires primary class 001, opcode 1000, S=1
@@ -27,6 +27,12 @@ def verified_alu_candidate(raw: int) -> str | None:
     """
     if not 0 <= raw <= 0xFFFFFFFF or raw >> 28 == 15:
         return None
+    # A32 AND immediate: class 001, opcode 0000, either S bit. The full
+    # rotated immediate stays in raw; CoreAlu derives NZC only when S=1.
+    # Reject PC source/destination, including exception-return variants.
+    if (raw & 0x0FE00000) == 0x02000000:
+        rn, rd = (raw >> 16) & 15, (raw >> 12) & 15
+        return 'and_immediate' if rn != 15 and rd != 15 else None
     if (raw & 0x0FF0F000) == 0x03100000 and ((raw >> 16) & 15) != 15:
         return 'tst_immediate'
     if raw & 0x0E000010:  # bits 27..25=000 and bit 4=0: immediate register shift

@@ -107,7 +107,11 @@ class AluAdmissionTests(unittest.TestCase):
             raw = shifted(opcode, rn=0 if opcode == 13 else 1)
             for primary in range(1, 8):
                 with self.subTest(opcode=opcode, primary=primary):
-                    self.assertIsNone(mod.verified_alu_candidate(raw | (primary << 25)))
+                    actual = mod.verified_alu_candidate(raw | (primary << 25))
+                    if opcode == 0 and primary == 1:
+                        self.assertEqual(actual, "and_immediate")
+                    else:
+                        self.assertIsNone(actual)
 
     def test_unconditional_and_non_word_values_rejected(self):
         for opcode in (0, 2, 4, 12, 13):
@@ -159,7 +163,7 @@ class TstImmediateAdmissionTests(unittest.TestCase):
         # Existing fast-path opcodes are classified separately by the frontend.
         # This new candidate permission must not admit neighboring ALU forms.
         for opcode in range(16):
-            if opcode == 8:
+            if opcode in (0, 8):  # Independently admitted AND and canonical TST.
                 continue
             for flags in (False, True):
                 with self.subTest(opcode=opcode, flags=flags):
@@ -177,6 +181,72 @@ class TstImmediateAdmissionTests(unittest.TestCase):
                 with self.subTest(shift=shift, register_shift=register_shift):
                     self.assertIsNone(mod.verified_alu_candidate(raw | register_shift))
 
+
+
+class AndImmediateAdmissionTests(unittest.TestCase):
+    def test_all_conditions_registers_flags_and_rotations(self):
+        for condition in range(15):
+            for register in range(15):
+                for flags in (False, True):
+                    for rotate in range(16):
+                        raw = immediate_test(opcode=0, condition=condition, flags=flags,
+                                             rn=register, rd=14-register,
+                                             rotate=rotate, value=0xA5)
+                        self.assertEqual(mod.verified_alu_candidate(raw), "and_immediate")
+
+    def test_all_immediate_bytes_and_rotations(self):
+        for value in range(256):
+            for rotate in range(16):
+                for flags in (False, True):
+                    raw = immediate_test(opcode=0, flags=flags, rd=7,
+                                         rotate=rotate, value=value)
+                    self.assertEqual(mod.verified_alu_candidate(raw), "and_immediate")
+
+    def test_pc_and_reserved_condition_are_rejected(self):
+        for flags in (False, True):
+            for fields in ({"rn": 15}, {"rd": 15}, {"condition": 15}):
+                self.assertIsNone(mod.verified_alu_candidate(
+                    immediate_test(opcode=0, flags=flags, **fields)))
+        raw = immediate_test(opcode=0)
+        self.assertIsNone(mod.verified_alu_candidate(raw | (1 << 32)))
+        self.assertIsNone(mod.verified_alu_candidate(raw - (1 << 32)))
+
+    def test_other_primary_classes_gain_no_immediate_admission(self):
+        for primary in (0, 2, 3, 4, 5, 6, 7):
+            self.assertNotEqual(mod.verified_alu_candidate(
+                immediate_test(opcode=0, primary=primary)), "and_immediate")
+
+    def test_neighboring_immediate_opcodes_remain_rejected(self):
+        for opcode in range(1, 16):
+            if opcode == 8:
+                continue
+            for flags in (False, True):
+                self.assertIsNone(mod.verified_alu_candidate(
+                    immediate_test(opcode=opcode, flags=flags)))
+
+    def test_render_preserves_raw_condition_and_flag_behavior(self):
+        base = mod.frontend.BASE
+        raw = immediate_test(opcode=0, condition=1, flags=True,
+                             rn=5, rd=7, rotate=1, value=0x80)
+        end = 0xE12FFF1E
+        code = struct.pack("<II", raw, end)
+        instructions = {base: (raw, "andsne", "r7, r5, #32"),
+                        base+4: (end, "bx", "lr")}
+        source, receipt = mod.render(code, instructions, [(base, base+8)])
+        row = receipt["blocks"][0]["instructions"][0]
+        self.assertEqual((row["raw"], row["opcode"], row["condition"],
+                          row["flags"], row["category"]),
+                         (raw, "CoreAlu", "Ne", 0, "and_immediate"))
+        self.assertIn(f"0x{raw:08X}U", source)
+        for bad in (immediate_test(opcode=1), immediate_test(opcode=0, rd=15),
+                    immediate_test(opcode=0, rn=15), immediate_test(opcode=0, condition=15)):
+            with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
+                mod.render(struct.pack("<II", bad, end),
+                           {base: (bad, "and", "r7, r5, #32"), base+4: (end, "bx", "lr")},
+                           [(base, base+8)])
+        with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
+            mod.render(code, {base: (raw, "<unknown>", ""), base+4: (end, "bx", "lr")},
+                       [(base, base+8)])
 
 class SupplementRenderTests(unittest.TestCase):
     def render_words(self, descriptions):

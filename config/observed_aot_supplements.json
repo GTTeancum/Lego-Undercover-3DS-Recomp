@@ -165,6 +165,21 @@
       "entry": "0x001529B8",
       "end": "0x001529C4",
       "evidence": "Observed headless MissingBlock at 0x001529B8. Three authenticated original instructions discard temporary stack space, adjust the working pointer and restore registers plus PC from the stack. Existing fast and memory support handles the forms. End is exclusive at recorded 0x001529C4; preserve partial-load and writeback behavior and normal target validation. Do not infer the return from live LR or add an unobserved destination."
+    },
+    {
+      "entry": "0x00150EC0",
+      "end": "0x00150ED0",
+      "evidence": "Observed headless and desktop MissingBlock at 0x00150EC0. Four authenticated original instructions advance the working pointer, restore two stack words, increment an argument and call recorded 0x00150DDC. Existing fast and memory support handles the forms. End is exclusive; preserve guarded reads and writeback ordering, and do not include the unobserved return 0x00150ED0."
+    },
+    {
+      "entry": "0x00150ED0",
+      "end": "0x00150EDC",
+      "evidence": "Observed headless MissingBlock at 0x00150ED0 after the authenticated preceding stack restore and call. Three original instructions perform a canonical immediate flag test, establish LR 0x00150EE8, and conditionally branch to recorded 0x00151028. Existing immediate TST and fast support handles the forms. End is exclusive; preserve normal condition and target validation, and do not include the unobserved fallthrough 0x00150EDC or eventual return 0x00150EE8."
+    },
+    {
+      "entry": "0x00152BC0",
+      "end": "0x00152CC4",
+      "evidence": "Observed headless MissingBlock at 0x00152BC0 after the flag-driven dispatch. Sixty-five authenticated original instructions form one bounded helper ending at its first stack-loaded return. Canonical immediate AND admission uses the existing arithmetic evaluator; shifted arithmetic, memory and fast forms retain their existing handlers. The 260-byte interval fits the same-page 512-byte limit. Preserve ordinary memory faults, partial effects and return-target validation. End is exclusive; do not infer the return from live LR or include the unobserved successor body."
     }
   ]
 }

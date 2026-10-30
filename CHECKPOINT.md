@@ -1,35 +1,29 @@
 # Latest LEGO Undercover 3DS checkpoint
 
-Updated October 30, 2026. **Read this first.** Resume from `main`; details are in the latest recovery section.
+Updated October 30, 2026. Read this first and resume from `main`.
 
 ## Plain-English status
 
-The rebuild now accepts the required arithmetic and larger code sections. It adds **2 missing sections of startup code**. The game gets farther through startup in both the windowed and background checks. Menus and gameplay remain unverified.
+Three more startup gaps are cleared. The rebuild tool now accepts a required kind of arithmetic instruction, allowing the larger helper to run. Fresh background runs get past the old stop. Menus and gameplay remain unverified.
+
+This checkpoint was tested without a desktop window. There is no new screenshot or visual-progress claim; the last verified windowed result remains the loading image.
 
 ## Verified developer state
 
-Added **2 blocks / 73 words** since 31/380. Totals: **33 supplements / 453 words**; **111,076 runtime blocks / 545,564 verified words**. All **599 original pages / 603 files** and prior supplements remain unchanged.
+Base: `b9353b7`. Added 3 supplemental blocks / 72 words. Totals: **36 supplements / 525 words**, **111,079 runtime blocks / 545,636 verified words**. All 599 original pages / 603 files and all 33 preceding supplemental records are preserved.
 
-Both final modes stop at **MissingBlock `0x00150EC0`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
+Final headless stop: **MissingBlock `0x00150EE8`**. Relative to the saved same-mode baseline: **+487 executed core-0 instructions / +1,817 diagnostic ns**. All three fresh runs ended normally at missing code with native exit 3, no timeout and empty stderr. Complete captured audio, state and save contents match the baseline.
 
-From same-mode `7cf0d2a`: headless **+178 instructions / +664 ns**; desktop **+178 instructions / +664 ns**.
-
-Each native passed **84/84 suites once**, with **0 failures/errors/skips** and no retries or permission corrections.
-
-Final registers/time and complete audio/state/save contents agree across modes. Desktop still executes **3,883 fewer instructions**; cause untraced.
-
-Whole touchscreen bottom-right: **Tab** enlarges it, **F11** toggles fullscreen; mouse maps to touch. See recovery for startup-image comparisons; audible sound and Windows remain unverified.
+Enabled tests passed once per build: **83/83, 83/83, 84/84**, with zero failures/errors/skips. The final count includes the new immediate-AND suite and excludes the optional desktop smoke test. A passing diagnostic gate is not a successful game boot.
 
 ## Next exact task
 
-Append only **`[0x00150EC0, 0x00150ED0)` — 1 block / 4 words / 16 bytes**. Four original instructions advance a working pointer, restore two stack values, adjust an argument, and call an already recorded routine. Existing fast and memory handlers cover the section; its later return remains unobserved.
+Append only **`[0x00150EE8, 0x00150EF4)`**, one block / three words. Two pointer adjustments are followed by a stack-loaded PC return. Existing fast and memory handlers cover this range. The future stack value and return target are unobserved; do not infer them from live LR or add a successor body.
 
-Reviewed continuations: direct call after successful stack reads `0x00150DDC` is recorded original; assigned LR; eventual return remains conditional `0x00150ED0` is unrecorded. Keep unobserved successor bodies outside this change.
-
-Preserve all 33 supplements. Authenticate, generate, verify, build/test, preserve the exact native, then use a finite fresh run. No runtime decoder, fabricated GPU completion, replay or automatic retry.
+Authenticate the original inputs, preserve all 36 supplements, generate and verify exact words, build/test, preserve the exact native, and make one finite fresh run. No runtime decoding, forced returns, fabricated GPU completion or automatic retries.
 
 ## Continuation rules
 
-Work in standard chat and the cloud; do not use Codex services, Dot or the user’s computer. Ordinary source/metadata publication to `main` is authorized; do not force-push. Keep original inputs, generated code, executables, captures, audio, saves and private recovery identifiers out of public Git. Keep user updates short and in plain English: what improved, whether the game gets farther, and what still blocks play.
+Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Publish source and metadata to `main` without force-pushing. Keep game inputs, generated game code, executables, captures, audio, saves and private recovery identifiers out of public Git. Keep user summaries short and plain.
 
-Details: [latest recovery section](docs/recovery/CURRENT-REBUILD.md).
+Details: [current recovery record](docs/recovery/CURRENT-REBUILD.md).
