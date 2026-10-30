@@ -5,6 +5,7 @@ on:
     paths:
       - "src/**"
       - "tests/ctr_*"
+      - "tests/desktop_*"
       - "cmake/**"
       - "CMakeLists.txt"
       - "vendor/triaevum-a9b4477/recomp/**"
@@ -25,3 +26,34 @@ jobs:
         run: cmake --build build --parallel 2
       - name: Test
         run: ctest --test-dir build --output-on-failure
+  desktop-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install X11 build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev xvfb xauth
+      - name: Configure the ROM-free desktop test
+        run: cmake -S . -B build-desktop -DCMAKE_BUILD_TYPE=Release -DLEGO_BUILD_DESKTOP=ON -DSDL_WAYLAND=OFF
+      - name: Build desktop frontend
+        run: cmake --build build-desktop --target desktop_frontend_smoke_test --parallel 2
+      - name: Exercise SDL presentation and input under X11
+        env:
+          SDL_VIDEO_DRIVER: x11
+          SDL_RENDER_DRIVER: software
+        run: |
+          set -euo pipefail
+          mkdir desktop-evidence
+          git rev-parse HEAD > desktop-evidence/source-commit.txt
+          xvfb-run -a ./build-desktop/desktop_frontend_smoke_test --screenshot desktop-evidence/synthetic-pip.bmp 2>&1 | tee desktop-evidence/smoke.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-smoke-evidence
+          path: desktop-evidence/
+          if-no-files-found: error
+          retention-days: 30

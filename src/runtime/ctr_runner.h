@@ -6,6 +6,7 @@
 #include "recomp/a32_runtime.h"
 #include "runtime/ctr_ipc.h"
 #include "runtime/ctr_display_clock.h"
+#include "runtime/ctr_host_frontend.h"
 #include "runtime/ctr_kernel.h"
 #include "runtime/ctr_memory.h"
 #include "runtime/ctr_svc_bridge.h"
@@ -19,6 +20,7 @@
 namespace lego::ctr {
 class GspGpuService;
 class DspDiscoveryService;
+class HidUserService;
 namespace a32 = oot3d::recomp::a32;
 
 enum class RunnerStopReason : std::uint8_t {
@@ -36,6 +38,8 @@ enum class RunnerStopReason : std::uint8_t {
     UnsupportedDisplayEvent,
     UnsupportedCpuExecution,
     UnsupportedDspEvent,
+    HostQuit,
+    HostFrontendError,
 };
 
 struct RunnerResult {
@@ -79,6 +83,11 @@ public:
     [[nodiscard]] std::uint64_t quota_transitions() const noexcept{return quota_transitions_;}
     [[nodiscard]] const GspGpuService& gpu_diagnostics() const noexcept{return *gsp_;}
     [[nodiscard]] const DspDiscoveryService& dsp_diagnostics() const noexcept {return *dsp_;}
+    [[nodiscard]] const HidUserService& hid_diagnostics() const noexcept { return *hid_; }
+    // The first desktop slice uses diagnostic-dual's instruction boundaries and
+    // the explicit display clock. Select once before Run; null keeps headless.
+    bool SetHostFrontend(HostFrontend* frontend) noexcept;
+    [[nodiscard]] const char* frontend_error() const noexcept { return frontend_error_; }
     [[nodiscard]] const char* dsp_error() const noexcept{return dsp_error_;}
     [[nodiscard]] const char* cpu_error() const noexcept{return cpu_error_;}
     [[nodiscard]] std::uint64_t display_periods() const noexcept { return display_clock_.periods_delivered(); }
@@ -97,6 +106,11 @@ private:
     bool AllThreadsDead() const noexcept;
     bool PumpIdleEvents() noexcept;
     RunnerStopReason IdleStopReason() const noexcept;
+    bool PumpHostFrontend(bool frame_ready, bool sample_input) noexcept;
+    [[nodiscard]] RunnerStopReason FrontendStopReason() const noexcept {
+        return frontend_result_==HostFrontendResult::Quit ? RunnerStopReason::HostQuit
+                                                        : RunnerStopReason::HostFrontendError;
+    }
 
     const a32::Registry& registry_;
     GuestMemory& memory_;
@@ -107,6 +121,13 @@ private:
     a32::GuestState live_state_{};
     std::shared_ptr<GspGpuService> gsp_;
     std::shared_ptr<DspDiscoveryService> dsp_;
+    std::shared_ptr<HidUserService> hid_;
+    HostFrontend* frontend_{};
+    HostInputState host_input_{};
+    HostFrontendResult frontend_result_{HostFrontendResult::Continue};
+    const char* frontend_error_{};
+    std::uint32_t frontend_poll_instructions_{};
+    bool run_started_{}, frontend_started_{};
     DisplayClockMode display_mode_;
     DisplayClock display_clock_;
     std::uint32_t idle_events_{},idle_limit_{};

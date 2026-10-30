@@ -4,19 +4,17 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-**The next five missing A32 blocks are translated, and the original game passes the dispatch at `0x00151B48`.** Its actual path executes all **30 instructions** through the selected leaf and returns normally. Startup advances another **96 core-0 instructions**, reaching a new **MissingBlock at `0x001535E0`**. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md) for current evidence and the next two mapped blocks.
+**The native SDL3 window now shows the whole second screen in the bottom-right corner.** Tab enlarges it, F11 toggles fullscreen, and mouse clicks map to the original touchscreen coordinates. The main screen keeps its proportions. See [desktop build, controls and current limits](docs/DESKTOP.md).
 
-The October 29 continuation adds a narrow build-time admission rule for existing **MOV, ADD and ORR register operations with immediate shifts**, plus **five authenticated supplements / 167 instruction words**. The literal jump table remains data. The original **599 AOT pages**, original four supplement instruction records, runtime semantics and game inputs are unchanged; there are now **nine supplements**.
+The actual original-game desktop run presents **524 frames** and saves a real 1280×720 startup image, with the lower-screen loading indicator visible in the inset. This establishes live host-window presentation. Usable menus, gameplay, speaker playback and a working Windows release remain unproven.
 
-All **80 local test suites pass**, including a new Python policy suite with **17 cases** and expanded independent C++ shift/flag/dispatch fixtures. One ordinary game run and one read-only capture pass **21 strict comparison checks**, including complete audio and filesystem state. A separate verifier checks every first-visit PC/result transition and serialized CPU-state boundary, the actual table selection and return, and all three observed newly admitted operations against independent arithmetic expectations. The other three dispatch arms have static and synthetic-test coverage; their execution is not claimed.
+The next two A32 blocks are also translated: **44 instruction words / 176 bytes**, using the existing admission policy. The headless game advances **282 core-0 instructions** through the loop and stack return to a new **MissingBlock at `0x00150A54`**. The original **599 AOT pages**, original nine supplement records and game inputs are unchanged; there are now **11 supplements**.
 
-The bounded runs use **131,072 host events**, **`--block-limit 100000000`** and a **600-second wall timeout**, with fresh owned SaveData and SharedExtData. The current stop is guest time **8.748408299 seconds**, thread **7**, round **21,843**. These are diagnostic scheduling measurements, not hardware timing. The last `fs:RomFS` request is historical.
+All **84 local test suites pass**, and a separate real X11/software-renderer smoke passes. Headless and desktop reach the same stop, final registers, diagnostic guest time, complete audio bytes and filesystem state. Desktop enables real HID sampling and reports **3,883 fewer core-0 instructions**; the cause has not been traced, and instruction-for-instruction equivalence is not claimed.
 
-Actual startup logos and copyright text were rendered earlier. At this stop, both active headless framebuffers remain black after the logos cleared, with LCD force-black disabled. Host-window presentation, usable menus, audible playback and playable gameplay remain unproven.
+**Next:** review the narrow TST-immediate admission needed at `0x00150A54`, add independent policy/semantic tests, then translate its bounded dispatch region. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md) for evidence and remaining work.
 
-**Next: translate the two mapped blocks at `0x001535E0..0x00153690`.** They fit the current opcode policy and contain a bounded loop followed by POP-to-PC. The loaded return address remains unknown; no forced return or substitution from live LR is justified. This is a static follow-up plan, not an executed translation.
-
-This continuation used the intact checkpoint at `5b4933e`; both new executables were saved privately before their game runs. The earlier priority milestone's lost original evidence remains a historical limitation, recorded in the handoff. Public Git contains source and metadata only; game-derived code, executables, captures and audio remain private.
+This continuation uses the intact `8fd18d4` checkpoint. The exact tested executable was saved privately before both game runs. Public Git contains source and metadata; game inputs, generated game code, executable bodies, captures and audio remain private.
 
 ## Historical recovery records
 

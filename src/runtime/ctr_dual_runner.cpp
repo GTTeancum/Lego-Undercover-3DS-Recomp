@@ -51,6 +51,11 @@ bool NativeRunner::AdvanceDiagnosticTime(std::uint64_t target,std::uint32_t limi
             if(!gsp_->CommitDisplayPeriod(kernel_,plan)||!display_clock_.Consume(event_ns)) {
                 cpu_error_="diagnostic display commit invariant";return false;
             }
+            // Host presentation observes the latched frame. Host input becomes
+            // visible at this existing deadline only, then signals the two real
+            // pad/touch events before guest execution resumes. No host wall time
+            // enters the deterministic guest clock.
+            if(!PumpHostFrontend(true,true))return false;
         }
     }
     kernel_.AdvanceTime(target-kernel_.now_ns());
@@ -71,7 +76,8 @@ RunnerResult NativeRunner::RunDiagnosticDual(std::uint32_t instruction_limit,
         return stop(reason,{a32::ExitKind::Wait,live_state_.r[15],a32::FallbackReason::None,0});
     };
     const auto timing_stop=[&](){
-        return stop_here(dsp_error_?RunnerStopReason::UnsupportedDspEvent:
+        return stop_here(frontend_result_!=HostFrontendResult::Continue?FrontendStopReason():
+                         dsp_error_?RunnerStopReason::UnsupportedDspEvent:
                          display_error_?RunnerStopReason::UnsupportedDisplayEvent:
                          idle_events_>=event_limit?RunnerStopReason::HostEventLimit:
                          RunnerStopReason::UnsupportedCpuExecution);
@@ -79,6 +85,8 @@ RunnerResult NativeRunner::RunDiagnosticDual(std::uint32_t instruction_limit,
     if(!instruction_limit)return stop_here(RunnerStopReason::BlockLimit);
     if(!event_limit)return stop_here(RunnerStopReason::HostEventLimit);
     if(!memory_.EnsureTlsMappings(kernel_))return stop_here(RunnerStopReason::MemoryFault);
+    if(frontend_ && (!frontend_started_ || frontend_result_!=HostFrontendResult::Continue) &&
+       !PumpHostFrontend(true,false))return stop_here(FrontendStopReason());
     for(;;) {
         if(AllThreadsDead())return stop_here(RunnerStopReason::ProcessExited);
         if(!kernel_.AppCpuExecutionSupported())return stop_here(RunnerStopReason::UnsupportedCpuExecution);
@@ -144,6 +152,13 @@ RunnerResult NativeRunner::RunDiagnosticDual(std::uint32_t instruction_limit,
         }
         kernel_.SetCurrentGuestState(live_state_);
         ++issued_[core];diagnostic_tick_work_=true;++diagnostic_slot_;
+        // Responsive window events even while the guest has not reached its
+        // next display deadline. These polls never publish HID samples or alter
+        // guest time. The null hook has no additional guest-visible behavior.
+        if(frontend_ && ++frontend_poll_instructions_>=4096) {
+            frontend_poll_instructions_=0;
+            if(!PumpHostFrontend(false,false))return stop_here(FrontendStopReason());
+        }
     }
 }
 } // namespace lego::ctr

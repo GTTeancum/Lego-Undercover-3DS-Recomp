@@ -45,6 +45,16 @@
       "entry": "0x00151B48",
       "end": "0x00151B6C",
       "evidence": "Observed thread 7 MissingBlock at startup round 21843. Nine-instruction entry of a reviewed four-way dispatch; the literal table at 0x00151B38..0x00151B48 is data and excluded. All four bounded targets are recorded separately. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x001535E0",
+      "end": "0x0015368C",
+      "evidence": "Observed thread 7 MissingBlock at startup round 21843 after the reviewed four-way dispatch. The 43-instruction block ends at a conditional branch to its aligned recorded suffix at 0x00153604. Conditional fallthrough is the separately bounded POP block. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x0015368C",
+      "end": "0x00153690",
+      "evidence": "Fallthrough of the reviewed conditional loop. One original POP loads PC from the guest stack. Its target is not inferred from live LR; subsequent ordinary registry and execution-state validation remains strict. End is exclusive; generate only from authenticated private code.bin."
     }
   ]
 }

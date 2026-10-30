@@ -3,6 +3,9 @@
 #include "host/launch_header.h"
 #include "host/dsp_special_input.h"
 #include "host/dsp_audio_file.h"
+#ifdef LEGO_HAVE_DESKTOP
+#include "frontend/desktop_window.h"
+#endif
 #include "services/dsp_discovery_service.h"
 #include "lego_aot_generated.h"
 #ifdef LEGO_HAVE_AOT_SUPPLEMENT
@@ -40,6 +43,8 @@ const char* StopName(ctr::RunnerStopReason reason) {
     case R::UnsupportedDisplayEvent: return "UnsupportedDisplayEvent";
     case R::UnsupportedCpuExecution: return "UnsupportedCpuExecution";
     case R::UnsupportedDspEvent: return "UnsupportedDspEvent";
+    case R::HostQuit: return "HostQuit";
+    case R::HostFrontendError: return "HostFrontendError";
     }
     return "Unknown";
 }
@@ -89,7 +94,8 @@ int main(int argc,char** argv) {
     try {
         if (argc<2 || std::string_view(argv[1])=="--help") {
             std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--save-data-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cfg-sound-mode mono|stereo|surround] [--cfg-language ja|en|fr|de|it|es|zh-cn|ko|nl|pt|ru|zh-tw] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-audio-file NEW_FILE] [--dsp-transmit-profile reference-stereo] [--dsp-boot-mode reference-slice]\n"
-                       "Headless reconstruction diagnostic; not a playable release.\n";
+                       "Optional desktop: --frontend sdl|headless [--desktop-screenshot NEW_BMP]\n"
+                       "Reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
         std::filesystem::path shared_extdata_root, save_data_root, romfs_path, exheader_path;
@@ -98,6 +104,8 @@ int main(int argc,char** argv) {
         bool dsp_executor_selected=false,dsp_reset_selected=false,dsp_steps_selected=false,dsp_audio_selected=false;
         std::filesystem::path dsp_special_path, dsp_audio_path;
         bool dsp_audio_file_selected=false;
+        bool desktop_selected=false,frontend_selected=false;
+        std::filesystem::path desktop_screenshot;
         bool dsp_special_selected=false;
         auto vram_mode=ctr::GpuVramMode::Unconfigured;
         auto display_mode=ctr::DisplayClockMode::Disabled;
@@ -113,7 +121,19 @@ int main(int argc,char** argv) {
         for (int i=2; i<argc; i+=2) {
             if (i+1==argc) throw std::runtime_error("missing option value");
             const std::string_view option(argv[i]);
-            if(option=="--cpu-mode") {
+            if(option=="--frontend") {
+                const std::string_view name(argv[i+1]);
+                if(frontend_selected || (name!="sdl" && name!="headless"))
+                    throw std::runtime_error("select frontend sdl or headless once, or omit it");
+                frontend_selected=true;
+                desktop_selected=name=="sdl";
+            }
+            else if(option=="--desktop-screenshot") {
+                if(!desktop_screenshot.empty() || !argv[i+1][0])
+                    throw std::runtime_error("select one new desktop screenshot BMP path");
+                desktop_screenshot=argv[i+1];
+            }
+            else if(option=="--cpu-mode") {
                 if(std::string_view(argv[i+1])!="diagnostic-dual")
                     throw std::runtime_error("CPU mode must be diagnostic-dual (or omit the option)");
                 cpu_mode=ctr::CpuExecutionMode::DiagnosticDual;
@@ -238,6 +258,16 @@ int main(int argc,char** argv) {
             }
             else throw std::runtime_error("unknown option");
         }
+        if(!desktop_screenshot.empty() && !desktop_selected)
+            throw std::runtime_error("desktop screenshot requires --frontend sdl");
+        if(desktop_selected && (cpu_mode!=ctr::CpuExecutionMode::DiagnosticDual ||
+           display_mode!=ctr::DisplayClockMode::ReferenceIdle ||
+           vram_mode!=ctr::GpuVramMode::ReferenceZero))
+            throw std::runtime_error("SDL frontend requires diagnostic-dual CPU, reference-idle display clock and reference-zero VRAM");
+#ifndef LEGO_HAVE_DESKTOP
+        if(desktop_selected)
+            throw std::runtime_error("desktop support was not built; configure with -DLEGO_BUILD_DESKTOP=ON");
+#endif
         if(dsp_audio_file_selected && (!dsp_audio_selected || !dsp_probe.live ||
            !dsp_probe.reference_transmit || cpu_mode!=ctr::CpuExecutionMode::DiagnosticDual))
             throw std::runtime_error("DSP audio file requires explicit live capture, reference transmitter and diagnostic-dual CPU");
@@ -302,7 +332,20 @@ int main(int argc,char** argv) {
             audio_file=lego::host::DspAudioFile::Open(dsp_audio_path);
             dsp_probe.audio_sink=audio_file;
         }
+#ifdef LEGO_HAVE_DESKTOP
+        std::unique_ptr<lego::frontend::DesktopWindow> desktop;
+#endif
         ctr::NativeRunner runner(registry,memory,kernel,rtc_epoch_ms,shared_extdata_root,ptm_step_mode,romfs,vram_mode,display_mode,cfg_profile,cpu_mode,dsp_config,dsp_probe,cfg_sound_mode,cfg_language,save_data_root);
+#ifdef LEGO_HAVE_DESKTOP
+        if(desktop_selected) {
+            lego::frontend::DesktopOptions options;
+            options.screenshot_path=desktop_screenshot;
+            desktop=std::make_unique<lego::frontend::DesktopWindow>(options);
+            if(!runner.SetHostFrontend(desktop.get()))
+                throw std::runtime_error("cannot attach desktop frontend to this runner configuration");
+            std::cout<<"frontend=sdl layout=bottom-right-pip touch=mouse keyboard=enabled audio_playback=none\n";
+        }
+#endif
         if (!shared_extdata_root.empty())
             std::cout << "shared_extdata_root=" << shared_extdata_root.generic_string() << '\n';
         if (!save_data_root.empty())
@@ -332,7 +375,8 @@ int main(int argc,char** argv) {
         if (display_mode==ctr::DisplayClockMode::ReferenceIdle)
             std::cout<<"display_clock="<<(cpu_mode==ctr::CpuExecutionMode::DiagnosticDual?"diagnostic_cpu_periodic":"reference_idle")
                      <<" frame_ticks="<<ctr::kDisplayPeriodTicks
-                     <<" clock_hz="<<ctr::kArm11TicksPerSecond<<" presentation=none\n";
+                     <<" clock_hz="<<ctr::kArm11TicksPerSecond<<" presentation="
+                     <<(desktop_selected?"sdl-pip":"none")<<'\n';
         if(cpu_mode==ctr::CpuExecutionMode::DiagnosticDual)
             std::cout<<"cpu_model=diagnostic_dual issue=one_recorded_A32_per_core_per_tick order=core0_then_core1 hardware_cycles=false\n";
         if(dsp_probe.enabled)
@@ -340,6 +384,14 @@ int main(int argc,char** argv) {
                      <<(dsp_probe.reset==ctr::DspProbeReset::ReferenceZeroData?"explicit_reference_zero":"known_image_only")
                      <<" program_gaps=unknown step_limit="<<dsp_probe.steps<<'\n';
         const auto result=runner.Run(block_limit,event_limit);
+#ifdef LEGO_HAVE_DESKTOP
+        if(desktop) {
+            std::cout<<"desktop_presentations="<<desktop->present_count()
+                     <<" screenshot="<<desktop->screenshot_saved_path().generic_string()<<'\n';
+            if(result.reason==ctr::RunnerStopReason::HostFrontendError)
+                std::cout<<"frontend_error="<<(runner.frontend_error()?runner.frontend_error():"unknown host frontend error")<<'\n';
+        }
+#endif
         if(audio_file) {
             const bool closed=audio_file->Close();
             std::cout<<"dsp_audio_file="<<dsp_audio_path.generic_string()<<" records="<<audio_file->frames()
@@ -427,6 +479,8 @@ int main(int argc,char** argv) {
         }
         std::cout<<'\n';
         if (result.reason==ctr::RunnerStopReason::ProcessExited) return 0;
+        if (result.reason==ctr::RunnerStopReason::HostQuit) return 0;
+        if (result.reason==ctr::RunnerStopReason::HostFrontendError) return 2;
         if (result.reason==ctr::RunnerStopReason::BlockLimit ||
             result.reason==ctr::RunnerStopReason::HostEventLimit) return 4;
         return 3; // Explicit diagnostic stop, never a claimed successful boot.

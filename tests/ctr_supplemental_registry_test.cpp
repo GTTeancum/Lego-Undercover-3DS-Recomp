@@ -218,5 +218,92 @@ void ComputedPcDispatch(){
    CHECK(data.r==before.r && data.cpsr==before.cpsr);
  }
 }
+
+void InteriorLoopAndStackReturn(){
+ // Independently authored memory-summing function. Its loop target is inside
+ // one supplemental block, and POP obtains its return address from memory
+ // after the function deliberately changes live LR. No game bytes are used.
+ constexpr auto entry=kShiftPc+0x800U, loop=entry+16U, pop_pc=entry+32U;
+ constexpr auto return_pc=kShiftPc+0xc00U, changed_lr=kShiftPc+0xd00U;
+ constexpr auto data=0x0800a000U, stack_page=0x0800c000U, stack_top=stack_page+0x800U;
+ constexpr auto saved_r5=0x13579bdfU, saved_r7=0x2468ace0U;
+ const a32::PackedOp loop_ops[]{
+   // STMDB sp!, {r5,r7,lr}
+   {(14U<<28U)|(4U<<25U)|(1U<<24U)|(1U<<21U)|(13U<<16U)|
+      (1U<<5U)|(1U<<7U)|(1U<<14U),
+    a32::EncodeMetadata(a32::Opcode::CoreMemory,a32::Condition::Al)},
+   {ShiftWord(13,false,0,0,14,6),
+    a32::EncodeMetadata(a32::Opcode::MovReg,a32::Condition::Al)},
+   {(14U<<28U)|(1U<<25U)|(13U<<21U)|(5U<<12U)|3U,
+    a32::EncodeMetadata(a32::Opcode::MovImm,a32::Condition::Al,a32::Immediate)},
+   {(14U<<28U)|(1U<<25U)|(13U<<21U)|(7U<<12U),
+    a32::EncodeMetadata(a32::Opcode::MovImm,a32::Condition::Al,a32::Immediate)},
+   // LDR r2, [r0], #4
+   {(14U<<28U)|(1U<<26U)|(1U<<23U)|(1U<<20U)|(2U<<12U)|4U,
+    a32::EncodeMetadata(a32::Opcode::CoreMemory,a32::Condition::Al)},
+   {ShiftWord(4,false,0,0,7,2,7),
+    a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al)},
+   {(14U<<28U)|(1U<<25U)|(2U<<21U)|(1U<<20U)|(5U<<16U)|(5U<<12U)|1U,
+    a32::EncodeMetadata(a32::Opcode::Sub,a32::Condition::Al,a32::Immediate|a32::SetFlags)},
+   // BNE: PC+8 at entry+36, minus five words reaches entry+16.
+   {(1U<<28U)|(5U<<25U)|0x00fffffbU,
+    a32::EncodeMetadata(a32::Opcode::Branch,a32::Condition::Ne)}};
+ const a32::PackedOp pop_op{
+   (14U<<28U)|(4U<<25U)|(1U<<23U)|(1U<<21U)|(1U<<20U)|(13U<<16U)|
+      (1U<<5U)|(1U<<7U)|(1U<<15U),
+   a32::EncodeMetadata(a32::Opcode::CoreMemory,a32::Condition::Al)};
+ const a32::Block additions[]{{entry,loop_ops,8,false},{pop_pc,&pop_op,1,false}};
+ lego::host::SupplementalRegistry merged(shift_base,additions);
+ CHECK(a32::FindBlock(merged.registry(),loop)==nullptr); // Must resolve a suffix.
+ GuestMemory memory;
+ CHECK(memory.Map(data,0x1000,MemoryPermission::Read|MemoryPermission::Write));
+ CHECK(memory.Map(stack_page,0x1000,MemoryPermission::Read|MemoryPermission::Write));
+ CHECK(memory.Write32(data,2U) && memory.Write32(data+4U,7U) && memory.Write32(data+8U,11U));
+ a32::GuestState cpu{};cpu.cpsr=kOtherCpsr|V;cpu.r[0]=data;
+ cpu.r[5]=saved_r5;cpu.r[6]=changed_lr;cpu.r[7]=saved_r7;
+ cpu.r[13]=stack_top;cpu.r[14]=return_pc;cpu.r[15]=entry;
+ unsigned steps=0, loop_visits=0, taken=0;
+ while(cpu.r[15]!=pop_pc && steps<32U){
+   const auto pc=cpu.r[15];
+   if(pc==loop)++loop_visits;
+   const auto result=StepRecordedA32(merged.registry(),cpu,memory);++steps;
+   if(pc==entry+28U && result.kind==a32::ExitKind::Branch){
+     ++taken;CHECK(result.pc==loop && cpu.r[15]==loop);
+   }else CHECK(result.kind==a32::ExitKind::Fallthrough && result.pc==pc+4U);
+ }
+ CHECK(steps==16U && loop_visits==3U && taken==2U && cpu.r[15]==pop_pc);
+ CHECK(cpu.r[0]==data+12U && cpu.r[2]==11U && cpu.r[5]==0U && cpu.r[7]==20U);
+ CHECK(cpu.r[13]==stack_top-12U && cpu.r[14]==changed_lr);
+ std::uint32_t saved_word{};
+ CHECK(memory.Read32(stack_top-12U,&saved_word) && saved_word==saved_r5);
+ CHECK(memory.Read32(stack_top-8U,&saved_word) && saved_word==saved_r7);
+ CHECK(memory.Read32(stack_top-4U,&saved_word) && saved_word==return_pc);
+ const auto returned=StepRecordedA32(merged.registry(),cpu,memory);++steps;
+ CHECK(steps==17U && returned.kind==a32::ExitKind::Branch && returned.pc==return_pc);
+ CHECK(cpu.r[13]==stack_top && cpu.r[14]==changed_lr && cpu.r[15]==return_pc);
+ CHECK(cpu.r[5]==saved_r5 && cpu.r[7]==saved_r7 && cpu.cpsr==(kOtherCpsr|Z|C));
+ const auto after_return=cpu;
+ CHECK(StepRecordedA32(merged.registry(),cpu,memory).kind==a32::ExitKind::MissingBlock);
+ CHECK(cpu.r==after_return.r && cpu.cpsr==after_return.cpsr);
+
+ // An unreadable stack is a memory fault, never an implicit return through LR.
+ cpu.r[15]=pop_pc;cpu.r[13]=stack_page+0x2000U;
+ const auto bad_stack=cpu;
+ const auto fault=StepRecordedA32(merged.registry(),cpu,memory);
+ CHECK(fault.kind==a32::ExitKind::MemoryFault && fault.pc==pop_pc && fault.detail==bad_stack.r[13]);
+ CHECK(cpu.r==bad_stack.r && cpu.cpsr==bad_stack.cpsr);
+
+ // Preserve an unsupported loaded target for the next strict execution check;
+ // this asserts no Thumb/interworking support and does not align a bad return.
+ cpu.r[13]=stack_top-12U;cpu.r[15]=pop_pc;
+ CHECK(memory.Write32(stack_top-4U,return_pc|1U));
+ const auto odd_return=StepRecordedA32(merged.registry(),cpu,memory);
+ CHECK(odd_return.kind==a32::ExitKind::Branch && odd_return.pc==(return_pc|1U));
+ CHECK(cpu.r[13]==stack_top && cpu.r[14]==changed_lr && cpu.r[15]==(return_pc|1U));
+ const auto unsupported=cpu;
+ CHECK(StepRecordedA32(merged.registry(),cpu,memory).kind==a32::ExitKind::Unsupported);
+ CHECK(cpu.r==unsupported.r && cpu.cpsr==unsupported.cpsr);
+ CHECK(a32::FindBlock(shift_base,entry)==nullptr && a32::FindBlock(shift_base,pop_pc)==nullptr);
 }
-int main(){ValidAndExecution();Invalid();ImmediateShiftSemantics();ComputedPcDispatch();if(failures)return EXIT_FAILURE;std::cout<<"PASS: immutable compile-time supplement, shifted MOV/ADD/ORR semantics, computed-PC dispatch, data/code separation, holes/overlap/range/lifetime, suffix execution, allocation failure, unchanged base and strict missing-PC stop\n";}
+}
+int main(){ValidAndExecution();Invalid();ImmediateShiftSemantics();ComputedPcDispatch();InteriorLoopAndStackReturn();if(failures)return EXIT_FAILURE;std::cout<<"PASS: immutable compile-time supplement, shifted MOV/ADD/ORR semantics, computed-PC dispatch, interior loop and memory-loaded return, data/code separation, holes/overlap/range/lifetime, suffix execution, allocation failure, unchanged base and strict missing-PC stop\n";}

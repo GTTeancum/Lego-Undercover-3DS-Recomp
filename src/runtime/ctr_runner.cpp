@@ -59,7 +59,8 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
         throw std::invalid_argument("invalid GPU VRAM mode");
     gsp_=gsp;
     ipc_.RegisterService("gsp::Gpu",std::move(gsp));
-    ipc_.RegisterService("hid:USER",std::make_shared<HidUserService>());
+    hid_=std::make_shared<HidUserService>();
+    ipc_.RegisterService("hid:USER",hid_);
     dsp_=std::make_shared<DspDiscoveryService>(dsp_config,dsp_probe);
     ipc_.RegisterService("dsp::DSP",dsp_);
     ipc_.RegisterService("y2r:u", std::make_shared<Y2rUserService>());
@@ -72,6 +73,36 @@ NativeRunner::NativeRunner(const a32::Registry& registry,
         throw std::invalid_argument("save-data root must be a supported existing directory");
     if (romfs) fs->ConfigureRomfs(std::move(romfs));
     ipc_.RegisterService("fs:USER", std::move(fs));
+}
+
+bool NativeRunner::SetHostFrontend(HostFrontend* frontend) noexcept {
+    if (run_started_ || frontend_ ||
+        (frontend && (cpu_mode_!=CpuExecutionMode::DiagnosticDual ||
+                      display_mode_!=DisplayClockMode::ReferenceIdle))) return false;
+    frontend_=frontend;
+    return true;
+}
+
+bool NativeRunner::PumpHostFrontend(bool frame_ready, bool sample_input) noexcept {
+    if (!frontend_) return true;
+    if (frontend_result_!=HostFrontendResult::Continue) return false;
+    frontend_started_=true;
+    frontend_result_=frontend_->Pump(*gsp_,frame_ready,host_input_);
+    if (frontend_result_==HostFrontendResult::Quit) return false;
+    if (frontend_result_!=HostFrontendResult::Continue) {
+        frontend_result_=HostFrontendResult::Error;
+        frontend_error_=frontend_->error();
+        if (!frontend_error_) frontend_error_="host frontend failed";
+        return false;
+    }
+    if (sample_input && !hid_->PublishHostInput(kernel_,host_input_,
+                                               SystemTicksFromNanoseconds(kernel_.now_ns()))) {
+        frontend_result_=HostFrontendResult::Error;
+        frontend_error_="host input publication failed (controls, timestamp or event notification)";
+        return false;
+    }
+    if (sample_input) frontend_->InputSampled();
+    return true;
 }
 
 bool NativeRunner::InitializeMainThread(std::uint32_t entry_point,
@@ -168,6 +199,7 @@ RunnerResult NativeRunner::Stop(RunnerStopReason reason,
 
 RunnerResult NativeRunner::Run(std::uint32_t block_limit_per_dispatch,
                                std::uint32_t host_event_limit) noexcept {
+    run_started_=true;
     if(cpu_mode_==CpuExecutionMode::DiagnosticDual)
         return RunDiagnosticDual(block_limit_per_dispatch,host_event_limit);
     idle_events_=0; idle_limit_=host_event_limit; display_error_=nullptr;

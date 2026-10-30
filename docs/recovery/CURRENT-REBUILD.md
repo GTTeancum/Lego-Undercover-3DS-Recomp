@@ -1,3 +1,144 @@
+# October 29, 2026 — live desktop PiP and the next dispatch gap
+
+## Current result
+
+The optional SDL3 frontend now presents both live LCD images in one resizable
+window: the main image retains its aspect ratio, and the whole lower screen sits
+in the bottom-right corner. Tab enlarges or restores the lower panel, F11 toggles
+fullscreen, and mouse input maps to the original 320×240 touch coordinates.
+The source crop and destination rectangle are separate so a later verified
+minimap crop can replace the full lower-screen source. No game-specific crop is
+active. See [desktop build, launch flags and controls](../DESKTOP.md).
+
+The original-game X11 run presents **524 frames**. Its actual SDL renderer
+readback produces a **1280×720** first-nonblack screenshot showing the lower-screen
+loading indicator in the inset, with the main screen black at that early moment.
+This is actual host-window output, distinct from the independently authored
+colored-panel smoke fixture. It does not establish usable menus or gameplay.
+The screenshot is preserved privately as BMP and a pixel-identical PNG export.
+
+The two previously mapped blocks at `0x001535E0..0x0015368C` and
+`0x0015368C..0x00153690` are now authenticated build-time supplements. They add
+**44 words / 176 bytes**, bringing the supplement count from nine to **11**.
+The original **599 AOT pages / 603 files**, earlier nine supplement records and
+original game inputs are unchanged. No opcode admission policy expands in this
+milestone. The registry now has **111,054 blocks / 545,341 instruction words**.
+
+The headless run advances **282 issued core-0 instructions** beyond the prior
+`0x001535E0` stop. Its terminal PC is the real stack-loaded return target
+**`0x00150A54`**, with SP **`0x0E01FDAC`** and live LR **`0x144F7F00`**.
+No LR substitution or forced return is used. The terminal result and instruction
+count agree with the reviewed eight-iteration loop and POP path; no private
+per-instruction observational capture was added for this milestone.
+
+| Measurement | Headless | SDL desktop |
+| --- | ---: | ---: |
+| Terminal stop | MissingBlock `0x00150A54` | MissingBlock `0x00150A54` |
+| Thread / dispatch round | 7 / 21,843 | 7 / 21,843 |
+| Issued core-0 instructions | 61,370,321 | 61,366,438 |
+| Issued core-1 instructions | 99 | 99 |
+| Diagnostic CPU ticks | 2,345,552,268 | 2,345,552,268 |
+| Diagnostic guest time, ns | 8,748,409,351 | 8,748,409,351 |
+| Display periods | 523 | 523 |
+| SDL presentations | N/A | 524 |
+| Guest exit / wall timeout | 3 / no | 3 / no |
+| Wall duration, seconds | 125.068 | 123.676 |
+
+Both fresh runs use **131,072 host events**, `--block-limit 100000000`, a
+**600-second wall bound** and fresh owned SaveData/SharedExtData. The private
+runner owns a separate process group and terminates that entire group on a wall
+timeout. No automatic retry occurred. Diagnostic time is not hardware timing.
+The last `fs:RomFS` request is historical, not the current blocker.
+
+The terminal stop, all printed CPU/TLS registers, guest time, DSP measurements,
+complete recursive filesystem inventories and complete **4,571,648-byte /
+285,726-record** audio streams match between the two runs. Audio and filesystem
+state also match the preceding checkpoint. Audio SHA-256 remains
+`83a7d04b449af60230fd50b5b116075738663f0244b466644a4d0acafa3eb444`.
+
+**The runs are not instruction-for-instruction equivalent:** desktop issues
+**3,883 fewer core-0 instructions**. It enables guest-visible HID samples and
+signals, while headless preserves the previous unsampled behavior. Read-only
+inspection finds no direct change to the issued-instruction counter, but the
+cause of this execution difference has not been traced. Preserve the difference
+as an observation; do not infer a hardware-equivalence or causal proof.
+
+## Implementation and validation
+
+Desktop support is opt-in (`LEGO_BUILD_DESKTOP=ON`, `--frontend sdl`). Headless
+remains the default and requires no SDL dependency. CMake accepts an installed
+SDL3 >= 3.2 or fetches the hash-pinned official SDL 3.4.18 release. The local
+validated build uses SDL 3.4.18 and the X11 software renderer.
+
+Scanout decodes the verified rotated RGB8 buffers in device VRAM, using live
+GSP-selected addresses, stride and format, plus explicit LCD force-black.
+Unsupported formats, fills, geometry or addresses fail explicitly. Keyboard and
+touch records publish at existing diagnostic display deadlines, with guest
+system-tick timestamps and the real HID events. Host event polling does not
+advance guest time. Short presses remain pending until successful HID publication;
+focus loss releases input. Minimize/restore handling is implemented, but Xvfb
+without a window manager could not exercise that branch in the X11 smoke.
+
+The successful local gate passes **84/84 suites**: 83 default suites plus the
+optional SDL smoke. New independent fixtures cover scanout/orientation, screen
+layout and inverse touch mapping, HID records/events, runner callbacks, short
+input latching, synthetic SDL rendering/readback and the bounded loop/stack-return
+behavior. The existing Python admission suite still has **17 cases**. A separate
+actual X11 smoke also passes. The first build attempt failed on two missing
+fault-pointer arguments in a new test; the corrected second gate passes. Both
+attempts and their distinct source snapshots are retained.
+
+The code and original inputs remain unchanged through both game runs. A final
+**20-check local closure** verifies the test result, source/input identities,
+selected executable, actual run receipts, matching terminal state/audio/storage,
+and lossless image conversion. Documentation alone changes after that closure.
+Hosted CI adds an independent ROM-free X11 smoke job; full default CI jobs
+exercise 83 suites. Hosted results must be read for this exact published commit.
+
+Linux is the validated host. Windows/macOS builds and execution are untested;
+Windows SaveData/SharedExtData support is not implemented. Audio remains a DSP
+record capture; this frontend does not play it through speakers. Menus, gameplay,
+real-time performance and hardware-speed input cadence remain unproven.
+
+## Private checkpoint and next task
+
+The intact `8fd18d4` checkpoint was used. The exact tested executable was saved
+privately **before** either game run:
+
+- Executable SHA-256: `a1001c1f477cdc5a455320d98240374bb99e90d357508a778efa77ee16b0a255`.
+- Archive: `LEGO-Chase-desktop-pip-native-20261029.tgz`.
+- Current evidence: `evidence/desktop-pip-20261029/` under the recovery root.
+- Build attempts: `gate-v1/`, `gate-v2/`; dependency provenance: `dependency/`.
+- Actual runs: `game-headless/`, `game-desktop/`; separate fixture: `smoke-x11/`.
+- Result comparison: `game-results-verification.json`; closure: `local-closure.json`.
+- Actual image and lossless provenance: `screens/`; AOT verification: `aot/`.
+- Static follow-up map: `next-gap/`. This map is analysis, not executed continuation.
+
+**Next:** verify the narrow TST-immediate admission required at the observed
+`0x00150A54` gap, add independent policy and flag-semantic tests, and admit only
+the bounded reviewed dispatch intervals. The existing evaluator supports the
+operation, but the supplement generator deliberately rejects it under its current
+narrow policy. The controlling stack word is absent from the terminal register
+dump, so the next conditional path is unknown. Keep all registry/memory checks
+and let the next finite run establish the actual path. No opcode guard should be
+removed wholesale to make progress.
+
+The mapped follow-up is `0x00150A54..0x00150AC8`, **seven nonoverlapping blocks /
+29 words**, containing three TST-immediate instructions. The other four blocks
+already pass static rendering under the current policy. Direct conditional exits
+reach recorded `0x00150F08`; the final join is recorded `0x00150C90`. If the first
+conditional falls through with the observed selector, its immutable-table
+selection reaches already supplemented `0x00151B48`. This is a conditional static
+deduction, not an observed branch. The private `next-gap/candidate-ranges.json`
+and `next-gap/bounded-next-gap.json` preserve exact boundaries and proof.
+
+Public Git contains source and metadata. Original game inputs, generated game
+words/C++, executable bodies, captures, audio and saves remain private. The
+previous checkpoint and older recovery records below remain byte-identical
+historical sections; their claims are not relabeled as fresh evidence.
+
+---
+
 # October 29, 2026 — authenticated AOT dispatch and the next two-block gap
 
 ## Current result
