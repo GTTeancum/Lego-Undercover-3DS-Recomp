@@ -220,6 +220,31 @@
       "entry": "0x00151098",
       "end": "0x001510B0",
       "evidence": "Observed headless MissingBlock at 0x00151098 after the preceding table dispatch and helper return completed. Six authenticated original instructions adjust the working pointer, reload a guest-stack word, test a second flag, establish a return address and conditionally branch to recorded 0x00151028. Existing fast, memory and immediate-TST handlers cover this bounded range. Preserve memory faults, flags and target validation. End is exclusive; no unobserved fallthrough or eventual return body is included."
+    },
+    {
+      "entry": "0x001510BC",
+      "end": "0x001510D0",
+      "evidence": "Observed headless MissingBlock at 0x001510BC. Five authenticated original instructions advance a working pointer, restore one stack word with writeback, test a flag, establish a return address and conditionally branch to recorded 0x00151028. Existing fast, immediate TST and memory handlers cover the range. Preserve ordinary memory faults, flags and target validation. End is exclusive; do not add the unobserved fallthrough or return continuation."
+    },
+    {
+      "entry": "0x001510DC",
+      "end": "0x001510E8",
+      "evidence": "Observed headless MissingBlock at 0x001510DC after the preceding flag-dependent helper completed. Three authenticated original instructions restore a working pointer and return by loading r12 and PC from the guest stack. Existing fast arithmetic and memory handlers cover the section. End is exclusive at recorded 0x001510E8. Preserve ordinary memory faults, partial load effects and return-target validation; do not infer the return from live LR or add an unobserved successor."
+    },
+    {
+      "entry": "0x001510B0",
+      "end": "0x001510BC",
+      "evidence": "Observed headless MissingBlock at 0x001510B0 after the restored stack return allowed further startup execution. Three authenticated original instructions locate the immutable relative-offset table, load a selected offset and perform a computed-PC dispatch. Existing fast and memory handlers cover the range. Keep the table as data and preserve ordinary memory and target validation. End is exclusive at the supplemented 0x001510BC; do not add unobserved target bodies."
+    },
+    {
+      "entry": "0x00153768",
+      "end": "0x001537D0",
+      "evidence": "Observed headless MissingBlock at 0x00153768 after the restored table dispatcher. Twenty-six authenticated original instructions load an adjustment and lookup base, process rows of guest bytes, and end at the first conditional loop branch. Existing arithmetic, immediate-shift MOV and memory handlers cover all forms. The aligned loop target 0x00153788 is inside this recorded section and uses existing suffix execution. Preserve ordinary memory faults, partial writes and flags. End is exclusive; do not include unobserved fallthrough 0x001537D0."
+    },
+    {
+      "entry": "0x001537D0",
+      "end": "0x001537D4",
+      "evidence": "Observed headless MissingBlock at 0x001537D0 after the restored byte-processing loop completed. One authenticated original instruction restores r10, r11, r12 and PC from the guest stack. Existing memory support covers the form. Preserve ordinary memory faults, partial-load effects, stack writeback and subsequent target validation. End is exclusive; do not infer the actual return from live LR or include an unobserved successor body."
     }
   ]
 }

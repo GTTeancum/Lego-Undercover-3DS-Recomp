@@ -4,19 +4,19 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-**Resume from [CHECKPOINT.md](CHECKPOINT.md).** It contains the latest state and next task.
+**Resume from [CHECKPOINT.md](CHECKPOINT.md).**
 
-**What works:** The last verified desktop build opens a window and draws the loading image. The whole touchscreen sits in the bottom-right corner; Tab enlarges it and F11 toggles fullscreen.
+**What improved:** Five more startup gaps are filled, including the byte-processing loop and its return. Startup now runs through that routine and reaches a larger unfinished helper.
 
-**What changed:** 5 more missing startup sections are filled. Each fresh game run passed its previous stopping point. Startup now reaches another unfinished section. Menus and gameplay remain unverified.
+**What was checked:** All 5 builds passed 84/84 enabled tests. A fresh headless run of each exact saved executable passed the preceding startup stop. Complete captured audio, state and saves match the prior checkpoint.
 
-**Checks:** All 5 builds passed **84/84 enabled tests once each**, with zero failures, errors or skips. Each exact tested executable was saved privately before its fresh game run. Save contents and captured audio remain unchanged from the previous checkpoint. These were headless runs, so there is no new screenshot or visual-progress claim.
+**What still blocks play:** The latest run stops at another missing section of original game code. Menus, gameplay, speaker playback and Windows execution remain unverified. No new game-window run or screenshot was taken; the earlier loading image remains the last verified visible result.
 
-**What still blocks play:** Startup still reaches missing game code. Usable menus, gameplay, audible playback and Windows execution remain unverified. This is not yet a ready-to-play release.
+The whole touchscreen stays in the bottom-right corner. **Tab** enlarges it, **F11** toggles fullscreen, and mouse clicks act as touch input. See [desktop build and controls](docs/DESKTOP.md).
 
-**Next:** Fill the next reviewed startup section and test the next actual stop. See [the checkpoint](CHECKPOINT.md), [desktop controls](docs/DESKTOP.md) and [the recovery record](docs/recovery/CURRENT-REBUILD.md).
+**Next:** The next helper combines guest byte values into row words and returns through the stack. It requires a tested increase to the size limit before the rebuild tool can include it. The precise developer handoff is in [CHECKPOINT.md](CHECKPOINT.md).
 
-Public Git contains source and metadata. Tested builds and original-game evidence are preserved privately.
+Public Git contains source and metadata. Tested executables, generated game code and run evidence are preserved privately.
 
 ## Historical recovery records
 

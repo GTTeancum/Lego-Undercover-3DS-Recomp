@@ -4,15 +4,13 @@ The SDL3 frontend displays both original LCD images in one resizable window. The
 
 ## Current verification scope
 
-5 more missing startup sections are filled. Each fresh game run passed its previous stopping point. Startup now reaches another unfinished section. Menus and gameplay remain unverified.
+Five more startup gaps are filled, including the byte-processing loop and its return. Startup now runs through that routine and reaches a larger unfinished helper. All 5 fresh game runs passed their preceding stopping points. Each build passed **84/84 enabled headless tests once**, without failures, errors or skips. Its exact tested executable was saved privately before the run.
 
-All 5 builds passed **84/84 enabled tests once each**, with zero failures, errors or skips. Each exact tested executable was saved privately before its fresh game run.
+There is no fresh original-game desktop run or screenshot for this checkpoint. The earlier loading image is still the last verified visible result. Controls and layout are unchanged; menus, gameplay, speaker playback and Windows execution remain unverified.
 
-The latest runs were headless. There is no fresh original-game desktop run or screenshot for this checkpoint; the prior loading image remains the last verified visible result. Controls and layout have not changed. Menus, gameplay, speaker playback and Windows execution remain unverified.
+Final headless stop: **MissingBlock `0x00151D10`**. The batch adds 5 sections / 38 words, with +4,443 executed instructions compared with the saved same-mode checkpoint. Complete audio, state and save contents match that baseline. This does not establish a visual change or playability.
 
-Current headless stop: **MissingBlock `0x001510BC`**. The batch adds 5 sections / 112 instruction words, with +817 executed instructions compared with the previous same-mode checkpoint. Complete captured audio and all state/save contents match that baseline. This does not establish a visual change or playability.
-
-Add only **`[0x001510BC, 0x001510D0)`**, one block / 5 words / 20 bytes. Five original instructions advance the working pointer, load and pop a guest-stack word, test its flag, establish LR `0x001510DC`, and conditionally branch to recorded `0x00151028`. Existing fast, memory and immediate-TST handlers cover the range. The future stack value and branch outcome remain unobserved. Preserve memory faults, stack writeback, flags and target validation; do not include the unobserved fallthrough `0x001510D0` or eventual return body.
+Next reviewed interval: **`[0x00151D10, 0x00151F68)`**, 150 words. The next helper combines guest byte values into row words and returns through the stack. It requires a tested increase to the size limit before the rebuild tool can include it. All instruction forms are individually supported, but the complete interval exceeds the current 512-byte generation limit. Add a tested size-policy extension first; do not bypass its bounds or fabricate a branch to split the routine. Future successor execution is unobserved; do not fabricate target values or add unobserved bodies.
 
 See [CHECKPOINT.md](../CHECKPOINT.md) and [the current recovery record](recovery/CURRENT-REBUILD.md). Tested executables, generated game code and runtime evidence remain private.
 
