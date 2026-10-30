@@ -29,9 +29,12 @@ newer. Otherwise, `LEGO_FETCH_SDL3=ON` downloads the SHA-256-pinned official SDL
 `-DSDL3_DIR=/path/to/lib/cmake/SDL3 -DLEGO_FETCH_SDL3=OFF`. SDL's Linux window
 backend also needs the appropriate system development libraries.
 
-The local Linux build uses SDL 3.4.18. All 84 enabled suites pass, including the
-ROM-free desktop smoke test. A separate X11/software-renderer smoke also passes;
-its colored panels are synthetic test fixtures, not game screenshots.
+The current Linux build uses SDL 3.4.18. All 84 enabled suites have passing
+results, including the ROM-free desktop smoke. The first run passed 82 suites;
+two filesystem tests that temporarily drop their child's user identity required
+the approved cloud execution context. Only those two unchanged tests were
+rechecked. The original failed run and both real JUnits remain preserved.
+The desktop smoke uses synthetic test panels; actual game evidence is below.
 
 ## Run the current diagnostic profile
 
@@ -103,16 +106,23 @@ restore.
   crop or automatic screen/menu integration is enabled now.
 
 The current original-game desktop run presents 524 frames and reaches the same
-next missing block, `0x00150CE8`, as headless execution. Both modes advance 238
-core-0 instructions beyond their respective previous runs. The first nonblack
-screenshot still shows the lower-screen loading indicator in the inset and is
-byte-identical to the earlier capture. Menus and gameplay have not been reached.
-The current evidence comes from fresh runs of the exact saved executable after
-a temporary-workspace loss. The desktop wrapper reports exit 5 because its
-temporary-directory cleanup failed after the complete guest diagnostics and
-closed audio output; the guest child exit was not independently recorded. Its
-remaining owned display process was closed separately, without another game run.
-See [the current checkpoint](recovery/CURRENT-REBUILD.md) for the full provenance,
-lost earlier raw evidence, and differing core-0 instruction counts.
+next missing block, `0x00151604`, as headless execution. Both modes advance 457
+core-0 instructions / 1,704 diagnostic ns beyond their respective prior runs.
+The native child's exit is now recorded independently of the display wrapper:
+both child and outer launcher exited 3 in each mode, with no timeout or stderr.
+No cleanup signals were required and no live owned process remains.
+
+The first-nonblack screenshot still shows the lower-screen loading indicator in
+the bottom-right inset. Its decoded 1280×720 RGBA pixels match the prior capture;
+raw BMP bytes differ because the fresh image is 24-bit and the prior image was
+32-bit. The lossless exported PNG is identical. This capture is an initial
+startup frame, not a terminal-frame or gameplay observation.
+
+Current terminal registers, diagnostic time, complete audio and actual
+state/save inventories agree across modes. Desktop retains the unexplained
+3,883-instruction core-0 difference. The next bounded task is one 50-word block
+at `0x00151604..0x001516CC`, covered by existing instruction support.
+See [the current checkpoint](recovery/CURRENT-REBUILD.md) for exact provenance,
+the test-context correction and historical evidence limitations.
 Game inputs, generated AOT, executables, saves, screenshots and audio remain
 private and are not published with the source repository.

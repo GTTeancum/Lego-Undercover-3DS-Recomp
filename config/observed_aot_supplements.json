@@ -90,6 +90,21 @@
       "entry": "0x00150AB8",
       "end": "0x00150AC8",
       "evidence": "Statically established LR continuation at 0x00150AB8. Four instructions end at an unconditional branch to the already recorded join at 0x00150C90. Execution of this future continuation is not claimed. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x00150CE8",
+      "end": "0x00150D00",
+      "evidence": "Statically established return continuation at 0x00150CE8. Six original instructions adjust the working pointers, load the controlling guest-stack word and conditionally exit to recorded 0x00150F08. The loaded word and branch outcome remain unobserved in the static proof. Fallthrough and the later return are separately bounded. End is exclusive; generate only from authenticated private code.bin."
+    },
+    {
+      "entry": "0x00150D00",
+      "end": "0x00150D0C",
+      "evidence": "Static fallthrough of the preceding flag test. Three original instructions use the immutable relative-offset table and computed-PC dispatch. Selector 3 would choose already supplemented 0x00151B48 if this path is reached; the next actual dispatch is not predicted. Table data is excluded and ordinary registry checks remain strict. End is exclusive."
+    },
+    {
+      "entry": "0x00150D0C",
+      "end": "0x00150D18",
+      "evidence": "Statically established LR continuation at 0x00150D0C. Three original instructions finish the offset calculation and restore the return from the guest stack. Future stack contents and the actual return target remain unobserved in the static proof; normal memory, execution-state and registry checks remain strict. End is exclusive; table data beginning at 0x00150D18 is excluded."
     }
   ]
 }

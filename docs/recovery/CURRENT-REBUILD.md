@@ -1,3 +1,145 @@
+# October 30, 2026 — startup stack-return continuations
+
+## Current continuation
+
+Three metadata-only supplements now cover `0x00150CE8..0x00150D18`:
+**12 instruction words / 48 bytes**, split at `0x00150D00` and `0x00150D0C`.
+They use the existing fast, memory, TST-immediate and shifted-MOV support.
+Runtime evaluators, generator policy and the prior 18 manifest records are
+unchanged. The tested candidate was based on **`fe376d0`** with only its manifest
+modified; these three status documents were updated after both game runs.
+The final source-to-native binding checks all 518 non-documentation files.
+
+Both fresh runs now stop at **MissingBlock `0x00151604`**, each advancing
+**457 core-0 instructions / 1,704 diagnostic ns** from its preserved same-mode
+post-reset baseline. The source contains **21 supplements / 271 words**;
+the native verifies **111,064 blocks / 545,382 instruction words** across the
+unchanged **599 original pages / 603 AOT files**.
+
+| Actual fresh measurement | Headless | SDL desktop |
+| --- | ---: | ---: |
+| Diagnostic stop | MissingBlock `0x00151604` | MissingBlock `0x00151604` |
+| Core-0 instructions | 61,371,016 | 61,367,133 |
+| Core-1 instructions | 99 | 99 |
+| Diagnostic CPU ticks | 2,345,552,963 | 2,345,552,963 |
+| Diagnostic guest time, ns | 8,748,411,943 | 8,748,411,943 |
+| Thread / dispatch round | 7 / 21,843 | 7 / 21,843 |
+| Display periods / presentations | 523 / N/A | 523 / 524 |
+| Independently recorded native-child exit | 3 | 3 |
+| Outer launcher exit | 3 | 3 |
+| Wall timeout | No | No |
+| Host duration, seconds | 127.449 | 136.562 |
+
+Exit 3 is the reported diagnostic MissingBlock stop, not a successful boot.
+Both modes have empty stderr, and both owned process groups have no live
+processes left. No cleanup signal was needed. The desktop's residual Xvfb entry
+was a non-live zombie. The current child-status recorder removes the earlier
+wrapper/child ambiguity; it does not retroactively establish the prior desktop
+child's exit.
+
+## What was tested
+
+A fresh Release build used GCC/G++ 13.3.0, Clang/LLVM 18.1.3, CMake 3.28.3,
+Ninja 1.11.1 and the pinned SDL 3.4.18 source, with X11 explicitly enabled.
+Configure took 15.48 seconds and the build 92.98 seconds. The first full CTest
+execution ran 84 suites: **82 passed; two failed** in their isolated
+permission-test children. An owned diagnostic reproduced `setgid(65534)`
+failing with `EINVAL` in the default sandbox, while the approved cloud context
+allowed both the group and user changes.
+
+Only `ctr_fs_savedata_test` and `ctr_fs_open_test` were rerun in that approved
+context. Both passed in 0.114 seconds with unchanged binaries, source and all
+606 original inputs. The aggregate therefore records **82 original passes +
+2 explicitly corrected passes**. It retains the original exit 8, failed-gate
+receipt and both actual JUnits. It does not claim a first-pass 84-suite success,
+a rebuild or a repeated full suite. Use the approved cloud context for the next
+full native gate so these permission tests can execute their intended paths.
+
+A separate private verifier checks all 271 supplemental CPP/JSON records against
+the authentic game words, the 18 preserved manifest records and the original
+AOT identities. The intermediate 18-supplement raw bodies lost in the earlier
+reset remain absent; their surviving receipt is distinguished from current
+actual generated bodies. Current verified supplemental CPP/JSON copies are now
+preserved with the new build evidence.
+
+The exact tested native is **15,672,920 bytes**, mode 0755, SHA-256
+`75bc8ce7adced4805cec7f0c7904418acedcb9cb5f61d94111d3c3bfd163602e`.
+Its full **403,064-byte** build/test receipt, frozen manifest bytes, actual raw
+gate logs, JUnits and generated supplemental proofs were saved with the
+executable before either game run. Each game run independently checked the
+frozen 521-source-file candidate and 606 original inputs before and after,
+used fresh owned storage, and had a 600-second bound. Neither timed out.
+No additional game rerun was used.
+
+## Comparison and display limits
+
+The two current modes agree on stop context, final registers/TLS, diagnostic
+guest time, DSP counters, all **285,726 audio records**, and actual state/save
+inventories. Complete audio files match both preserved same-mode baselines.
+The desktop-minus-headless **3,883-instruction** difference remains unexplained;
+this is not an instruction-for-instruction or hardware-equivalence claim.
+
+The actual first-nonblack desktop image is **1280×720** and shows the startup
+loading indicator in the lower-screen inset. Its decoded RGBA pixels exactly
+match the preceding capture. The BMP container changed from **32 bits /
+3,686,538 bytes** to **24 bits / 2,764,854 bytes**, so raw BMP equality is not
+claimed. The lossless PNG remains SHA-256
+`d7328d0788266b04023979e5ef8a914fda86afe9ecf315c5268531667786a9a7`.
+It is an initial startup capture, not proof of the terminal visual state,
+usable menus, gameplay, speaker playback or a working Windows release.
+
+The whole lower screen remains bottom-right. Tab enlarges it, F11 toggles
+fullscreen, and the mouse maps to touchscreen coordinates. The future
+minimap-only and case-by-case integrations remain separate work.
+
+## Next bounded task
+
+The newly observed gap is one minimal block,
+**`0x00151604..0x001516CC` — 50 words / 200 bytes**, ending at its first control
+exit before the next existing original block. The checked forms use
+**18 fast instructions, 16 CoreMemory instructions and 16 already-admitted
+shifted ORRs**. No new opcode policy or evaluator is identified as necessary.
+
+This helper loads eight unknown bytes, replicates each into two words and
+stores them at the checked stride. Normal memory checks remain strict; a
+multiword store can partially complete before a later fault. If all accesses
+succeed and the final return executes from the captured state, unchanged LR
+selects the already supplied `0x00150CE8`. No loaded value, completed helper,
+exact incoming dispatch site or future successful return is claimed.
+
+Append only this reviewed range in the next implementation, preserving all
+21 current entries and all original AOT files. The conditional next totals
+would be 22 supplements / 321 words and 111,065 blocks / 545,432 words.
+
+## Current recovery records
+
+Fresh evidence is under `evidence/stack-return-20261030/`: the frozen static
+change, initial and corrected gate, actual generated proof, durable native
+receipt, saved-native selection, two closed runs, full comparison, screenshot
+provenance, and actual-observation-bound next-gap proof. Both closed-run archives
+include their real state and save bodies. The combined checkpoint retains
+current evidence and prior payloads; original inputs and the native are
+separately referenced private assets.
+
+The preceding complete `fe376d0` archive has **9,883 payloads**. Its four leading
+metadata files are preserved under
+`recovery-records/prior-checkpoint-fe376d0/`; the final packager/verification
+must retain every previous payload identity. No current workspace loss occurred
+during this batch. The older losses and their unavailable raw bodies remain
+explicitly documented below and are not relabeled as recovered.
+
+Publication and automatic hosted-check results are bound to the final commit
+in the private continuation receipt. This manifest-plus-documentation change
+selects the ROM-free checkpoint and source-recovery workflows; it does not
+select the hosted CTR/SDL workflow. Keep that scope separate from the actual
+local desktop execution above.
+
+---
+
+Previous checkpoints follow verbatim.
+
+---
+
 # October 30, 2026 — preserved build and fresh evidence after another workspace loss
 
 ## Current continuation
