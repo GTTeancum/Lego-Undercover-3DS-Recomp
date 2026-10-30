@@ -30,11 +30,11 @@ newer. Otherwise, `LEGO_FETCH_SDL3=ON` downloads the SHA-256-pinned official SDL
 backend also needs the appropriate system development libraries.
 
 The current Linux build uses SDL 3.4.18. All 84 enabled suites have passing
-results, including the ROM-free desktop smoke. The first run passed 82 suites;
-two filesystem tests that temporarily drop their child's user identity required
-the approved cloud execution context. Only those two unchanged tests were
-rechecked. The original failed run and both real JUnits remain preserved.
-The desktop smoke uses synthetic test panels; actual game evidence is below.
+results, including the ROM-free desktop smoke. The initial full run passed 83;
+one test was not launched because its executable lacked execute permission.
+Only that file's mode was corrected, with identical bytes, and only that test
+was then run. The original failed run and both real JUnits are preserved.
+The desktop smoke uses synthetic panels; actual game evidence is below.
 
 ## Run the current diagnostic profile
 
@@ -105,24 +105,23 @@ restore.
   A future verified minimap crop can use that seam; no game-specific minimap
   crop or automatic screen/menu integration is enabled now.
 
-The current original-game desktop run presents 524 frames and reaches the same
-next missing block, `0x00151604`, as headless execution. Both modes advance 457
-core-0 instructions / 1,704 diagnostic ns beyond their respective prior runs.
-The native child's exit is now recorded independently of the display wrapper:
-both child and outer launcher exited 3 in each mode, with no timeout or stderr.
-No cleanup signals were required and no live owned process remains.
+The current original-game desktop run presents 524 frames and reaches
+**MissingBlock `0x00152AFC`**, as does the fresh headless run. Both modes advance
+902 core-0 instructions / 3,364 diagnostic ns beyond their respective
+`db19fee` captures. Native children and outer launchers each exited 3, with no
+timeout, stderr, cleanup signals, or remaining live owned process.
 
-The first-nonblack screenshot still shows the lower-screen loading indicator in
-the bottom-right inset. Its decoded 1280×720 RGBA pixels match the prior capture;
-raw BMP bytes differ because the fresh image is 24-bit and the prior image was
-32-bit. The lossless exported PNG is identical. This capture is an initial
-startup frame, not a terminal-frame or gameplay observation.
+The first-nonblack screenshot shows the lower-screen loading indicator in the
+bottom-right inset. Its raw BMP and decoded 1280×720 RGBA pixels match the prior
+capture. This is an initial startup image, not a terminal-frame or gameplay
+observation. Current final registers, diagnostic time, complete audio, and
+actual state/save contents agree across modes. Desktop retains the unexplained
+3,883-instruction core-0 difference.
 
-Current terminal registers, diagnostic time, complete audio and actual
-state/save inventories agree across modes. Desktop retains the unexplained
-3,883-instruction core-0 difference. The next bounded task is one 50-word block
-at `0x00151604..0x001516CC`, covered by existing instruction support.
-See [the current checkpoint](recovery/CURRENT-REBUILD.md) for exact provenance,
-the test-context correction and historical evidence limitations.
-Game inputs, generated AOT, executables, saves, screenshots and audio remain
-private and are not published with the source repository.
+The next bounded task is the nine-word dispatcher at
+`0x00152AFC..0x00152B20`, using existing instruction support. Its conditional
+target `0x001529C4` and captured return `0x00150E6C` are still unrecorded.
+See [the short checkpoint](../CHECKPOINT.md) for the current continuation and
+[the recovery record](recovery/CURRENT-REBUILD.md) for detailed evidence.
+Original inputs, generated AOT, executables, saves, screenshots, and audio
+remain private and are not published with the source repository.

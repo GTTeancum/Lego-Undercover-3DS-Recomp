@@ -1,3 +1,109 @@
+# October 30, 2026 — observed byte-replication helper
+
+## Current continuation
+
+For the compact resume entry point, read [CHECKPOINT.md](../../CHECKPOINT.md).
+The verified candidate starts from `db19fee` and adds only the metadata interval
+**`0x00151604..0x001516CC` — 50 words / 200 bytes**. Existing fast, memory and
+shifted-ORR support handles all forms. No evaluator or generator-policy change
+was needed. All 21 previous records and their generated instructions remain
+identical, as do all 599 original AOT pages / 603 input files.
+
+The fresh native verifies **22 supplements / 321 words**, **111,065 blocks /
+545,432 instruction words**. Both fresh runs pass the old `0x00151604` stop and
+reach **MissingBlock `0x00152AFC`**, each advancing **902 core-0 instructions /
+3,364 diagnostic ns** relative to its preserved `db19fee` same-mode capture.
+
+| Actual fresh measurement | Headless | SDL desktop |
+| --- | ---: | ---: |
+| Diagnostic stop | MissingBlock `0x00152AFC` | MissingBlock `0x00152AFC` |
+| Core-0 instructions | 61,371,918 | 61,368,035 |
+| Core-1 instructions | 99 | 99 |
+| Diagnostic CPU ticks | 2,345,553,865 | 2,345,553,865 |
+| Diagnostic guest time, ns | 8,748,415,307 | 8,748,415,307 |
+| Thread / dispatch round | 7 / 21,843 | 7 / 21,843 |
+| Display periods / presentations | 523 / N/A | 523 / 524 |
+| Independently recorded native-child exit | 3 | 3 |
+| Outer launcher exit | 3 | 3 |
+| Wall timeout | No | No |
+| Host duration, seconds | 130.145 | 136.534 |
+
+Exit 3 denotes the diagnostic missing-block stop, not a successful boot. Both
+stderr files are empty, no cleanup signal was needed, and neither owned process
+group retains a live process. The desktop retains only a non-live Xvfb zombie.
+
+## Validation and provenance
+
+A fresh Release build used the existing GCC/LLVM toolchain and pinned SDL
+3.4.18 with X11. The initial full CTest run passed **83 of 84** suites. The
+remaining `ctr_pica_vertex_fetch_test` was not launched: its executable had
+mode 0644. Its metadata change predates CTest; the cause is not established.
+The binary is byte-identical to the previously passing executable. Restoring
+only mode 0755 allowed exactly that test to pass. Thus all **84 unique suites
+have passing results**, with no rebuild, byte change, full-suite rerun, or
+automatic retry. The initial exit 8, failed JUnit, correction receipt and actual
+one-test JUnit are retained.
+
+Generated CPP/JSON were checked against all 321 original instruction words;
+the prior 21 block records remain identical. Independent bounded LLVM review
+also verified the new 50 words, boundary, existing admission and strict memory
+semantics. All 521 candidate source files and 606 original inputs were checked
+before and after the build and each game run. Status documents, including the
+new short checkpoint, were updated only after the two frozen runs closed.
+
+The exact native is **15,672,968 bytes**, mode 0755, SHA-256
+`c8a95e4823484cb07086bdcdba3bfa41e2257da6fef3816309c54873d793929d`.
+The executable, original failed/passing evidence, and generated records were
+preserved before either finite fresh game run. Both runs used fresh owned
+state/save directories and a 600-second limit, with native-child and outer
+wrapper exits recorded separately. Neither timed out or required a retry.
+
+## Display and comparison limits
+
+The two modes agree on final registers/TLS, diagnostic guest time, full audio,
+and actual state/save bodies. All **285,726 complete audio records** match both
+same-mode baselines. The desktop still reports **3,883 fewer core-0 instructions**;
+the cause remains untraced.
+
+Both the raw BMP and decoded 1280×720 RGBA pixels match the previous desktop
+first-nonblack capture. The whole lower screen remains bottom-right, with its
+loading indicator visible. This is initial startup imagery; usable menus,
+gameplay, speaker playback and Windows execution remain unverified. Tab,
+F11 and mouse-touch integration are unchanged.
+
+## Next bounded task
+
+The observed gap is one **9-word / 36-byte** table dispatcher,
+**`0x00152AFC..0x00152B20`**. Existing support accepts 7 fast operations,
+1 memory operation and 1 shifted MOV. Its first and only control exit is the
+computed branch at `0x00152B1C`; preceding table words remain data.
+
+If the authenticated table read succeeds with the captured registers, it
+selects **unrecorded `0x001529C4`**. Captured LR **`0x00150E6C` is also
+unrecorded**. Neither target is included in the proposed range. Preserve all
+22 existing entries; conditional next totals are **23 supplements / 330 words**
+and **111,066 blocks / 545,441 instruction words**. No new opcode admission or
+evaluator is currently identified as necessary for the dispatcher itself.
+
+## Preservation and publication
+
+The private continuation binds publication to the frozen native, raw gate,
+two closed runs with actual state/save bodies, independent comparisons and
+next-gap proof. The preceding complete private `db19fee` checkpoint is retained
+byte-for-byte with the new evidence, so all inherited payloads remain available.
+Original game input bodies remain separately preserved. No earlier unavailable
+raw evidence is reconstructed or relabeled as original.
+
+Only source and metadata are published. Final-commit hosted checks are recorded
+separately in the private publication receipt; the ROM-free/source workflows
+have a different scope from the private original-game desktop run above.
+
+---
+
+Previous checkpoints follow verbatim.
+
+---
+
 # October 30, 2026 — startup stack-return continuations
 
 ## Current continuation

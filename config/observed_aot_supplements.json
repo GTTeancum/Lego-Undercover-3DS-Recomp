@@ -105,6 +105,11 @@
       "entry": "0x00150D0C",
       "end": "0x00150D18",
       "evidence": "Statically established LR continuation at 0x00150D0C. Three original instructions finish the offset calculation and restore the return from the guest stack. Future stack contents and the actual return target remain unobserved in the static proof; normal memory, execution-state and registry checks remain strict. End is exclusive; table data beginning at 0x00150D18 is excluded."
+    },
+    {
+      "entry": "0x00151604",
+      "end": "0x001516CC",
+      "evidence": "Observed headless and desktop MissingBlock at 0x00151604. Fifty authenticated original instructions form one bounded byte-replication helper ending in an LR return to the already recorded continuation, conditional on successful memory accesses. Guest byte values remain unobserved; normal memory and return-target checks stay strict. End is exclusive; do not include the earlier unobserved prefix."
     }
   ]
 }

@@ -4,19 +4,21 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-**The native SDL3 window shows the whole second screen in the bottom-right corner.** Tab enlarges it, F11 toggles fullscreen, and mouse clicks map to the original touchscreen coordinates. The main screen keeps its proportions. See [desktop build, controls and current limits](docs/DESKTOP.md).
+**Resume from [CHECKPOINT.md](CHECKPOINT.md).** It contains only the latest state and next task; the longer recovery document preserves older evidence.
 
-Startup now passes the `0x00150CE8` continuation gap. Three authenticated metadata blocks add **12 instruction words / 48 bytes**, using existing instruction support. Both headless and desktop advance **457 core-0 instructions / 1,704 diagnostic ns** beyond their respective previous runs and stop at **MissingBlock `0x00151604`**. All **599 original AOT pages / 603 files** and the previous 18 supplements remain unchanged; there are now **21 supplements / 271 words**.
+The native SDL3 window shows the whole second screen in the bottom-right corner. Tab enlarges it, F11 toggles fullscreen, and mouse clicks map to the original touchscreen coordinates. See [desktop build and controls](docs/DESKTOP.md).
 
-The fresh Release build has passing results for all **84 test suites**: 82 passed initially, while two filesystem permission tests passed after an explicit cloud execution-context correction. No source change, rebuild or full-suite rerun was needed. The original failures and both real JUnit reports are preserved. Private generated CPP/JSON records were also checked against the original instructions.
+Startup now passes the `0x00151604` gap. One authenticated metadata block adds **50 instruction words / 200 bytes**, using existing instruction support. Fresh headless and desktop runs each advance **902 core-0 instructions / 3,364 diagnostic ns** beyond their respective `db19fee` runs and stop at **MissingBlock `0x00152AFC`**. All **599 original AOT pages / 603 files** and the previous 21 supplements remain unchanged. Current totals are **22 supplements / 321 words** and **111,065 blocks / 545,432 verified instruction words**.
 
-Both fresh native children and their outer launchers report **exit 3**, with no timeout, stderr or live processes left behind. Final registers, diagnostic guest time, complete audio and actual filesystem inventories match across modes. Desktop still reports **3,883 fewer core-0 instructions**; the cause remains untraced.
+All **84 enabled test suites have passing results**: 83 passed in the initial full run; one test could not launch because its executable lacked execute permission. Restoring that file's mode without changing its bytes allowed exactly that test to pass. The original failed result and both actual JUnits are preserved. No rebuild or full-suite rerun was used. Private generated CPP/JSON words were checked against the original input, and all previous supplemental records remain identical.
 
-The desktop presents **524 frames**. Its actual 1280×720 first-nonblack startup image has the same decoded pixels as before, including the lower-screen loading indicator in the inset. The BMP encoding changed from 32 to 24 bits; the exported PNG is identical. Usable menus, gameplay, speaker playback and a working Windows release remain unverified.
+Both native children and outer launchers exited **3** at the diagnostic missing block, with no timeout or stderr. Final registers, diagnostic time, complete audio, and state/save contents agree across modes. The existing **3,883-instruction** desktop/headless difference remains untraced.
 
-**Next:** add one reviewed block at `0x00151604..0x001516CC` (**50 words**), using existing memory, shifted-ORR and fast instruction support. Its loaded bytes are unknown, and its return to the supplied continuation remains conditional on successful memory accesses. See [the canonical continuation handoff](docs/recovery/CURRENT-REBUILD.md).
+The desktop presents **524 frames**. The actual 1280×720 first-nonblack startup capture and its decoded pixels match the preceding capture, including the lower-screen loading indicator. Usable menus, gameplay, speaker playback, and Windows execution remain unverified.
 
-The exact new executable and raw build evidence were saved before the fresh game runs. Each closed capture, including its real state and save bodies, is saved separately. Earlier workspace-loss limitations remain recorded in the historical handoff. Public Git contains source and metadata; game inputs, generated game code, executable bodies, captures and audio stay private.
+**Next:** add the reviewed nine-instruction dispatcher at `0x00152AFC..0x00152B20`. Existing fast, memory and shifted-MOV support suffices. Its conditional selected target and the captured return are still unrecorded; the next checkpoint gives the exact scope.
+
+Public Git contains source and metadata. Original inputs, generated game code, executables, captures, saves and audio stay private. The exact tested native was preserved before both finite fresh runs.
 
 ## Historical recovery records
 
