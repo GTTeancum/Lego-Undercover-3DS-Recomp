@@ -1,3 +1,119 @@
+# October 30, 2026 — preserved build and fresh evidence after another workspace loss
+
+## Current continuation
+
+The TST implementation is published in **`f37e172`**, with sole parent
+**`2fec57b`**. Its seven new blocks / 29 words remain unchanged. The exact saved
+native executable has now reproduced **MissingBlock `0x00150CE8`** in fresh
+headless and desktop runs after a second temporary-workspace loss. Both advance
+**238 core-0 instructions / 888 diagnostic ns** from their preserved `2fec57b`
+same-mode baselines. This follow-up changes status documentation only.
+
+| Fresh measurement | Headless | SDL desktop |
+| --- | ---: | ---: |
+| Guest-reported stop | MissingBlock `0x00150CE8` | MissingBlock `0x00150CE8` |
+| Issued core-0 instructions | 61,370,559 | 61,366,676 |
+| Issued core-1 instructions | 99 | 99 |
+| Diagnostic CPU ticks | 2,345,552,506 | 2,345,552,506 |
+| Diagnostic guest time, ns | 8,748,410,239 | 8,748,410,239 |
+| Thread / dispatch round | 7 / 21,843 | 7 / 21,843 |
+| Display periods / SDL presentations | 523 / N/A | 523 / 524 |
+| Observed process exit | 3 | 5, wrapper cleanup failure |
+| Wall timeout | No | No |
+| Wall duration, seconds | 151.019 | 142.722 |
+
+Desktop writes its complete terminal diagnostics, **285,726 audio records** with
+`close_ok=1`, and the expected screenshot. Its `xvfb-run` wrapper subsequently
+reports a temporary-directory cleanup error and returns **5**. Inspection of the
+installed wrapper confirms that its EXIT trap replaces the saved child status
+with 5 on this cleanup failure. The guest child exit was not independently
+recorded and is not relabeled as 3. The remaining Xvfb process in that run's
+recorded process group was closed separately; no live process remains in the
+group. The cleanup failure's underlying filesystem cause is untraced. The game
+was not rerun to obtain a cleaner wrapper status.
+
+The two fresh modes agree on stop context, terminal registers/TLS, guest time,
+complete audio bytes and current filesystem inventories. The **3,883-instruction**
+desktop/headless difference remains untraced. Audio matches the preserved prior
+files byte-for-byte. The **1280×720** first-nonblack desktop BMP also matches the
+prior `2fec57b` capture byte-for-byte; its lossless PNG preserves every pixel.
+It shows the lower-screen loading indicator in the bottom-right inset. Menus,
+gameplay, speaker playback and a working Windows release remain unproven.
+
+## What survived and what was lost
+
+During publication, the temporary source checkout, inputs, build tree and current
+raw evidence disappeared. The cause of this second loss was not established.
+The published source, separately saved native archive and preceding complete
+checkpoint survived. Recovery authenticated **all 9,527 prior payload bodies**,
+the prior manifest, **521 prior Git source blobs**, **606 original input entries**
+and the exact current executable. The older `2fec57b` game runs were not repeated.
+
+The saved executable archive contains an authentic **285,392-byte build-test
+receipt** with the original successful **84-suite** gate result, its source/input
+snapshots, generated-supplement verification, **26 Python test-method** count and
+**55 fixed TST-vector** count. Its SHA-256 is
+`cae2997a319bd6740da42d291361fb41e9f6030df08ecc4e4632163ba52043af`.
+The executable remains SHA-256
+`e7743a69587f0edc0caf09ba07966870ab7568cecd9d68f7049d81aac6f8589a`.
+All **518 non-documentation source files** match that saved tested snapshot.
+
+The pre-reset current raw build/CTest/JUnit logs, game captures, setup-failure
+outputs, local-closure body and detailed next-gap proofs were **not recovered**.
+Their historical descriptions below record observations made before the loss;
+they are not proof that those bodies now exist. The durable build receipt retains
+the build/test and generation summaries with their recorded identities. The
+pre-reset current game results and later validation steps survive only as
+conversation observations, not as recovered raw evidence.
+The new runs, comparisons, closure and static next-gap map are explicitly marked
+as fresh post-reset evidence. The separately restored `2fec57b` historical
+checkpoint is intact.
+
+Each fresh run authenticates the saved native, all 606 original inputs and its
+clean **521-file** `f37e172` checkout before execution, then preserves before/after
+proofs. Both use the same finite profile, fresh owned storage and 600-second
+process-group bound. The executable is reused directly. The original local test
+gate was not repeated. Complete fresh captures, including current state bodies,
+were saved separately as soon as each closed.
+
+Prior `2fec57b` SharedExtData state bodies remain absent because that archive
+deliberately excluded `state/`; old-state comparisons use authenticated receipt
+inventories and hashes. Prior audio and SaveData comparisons use restored actual
+files. Current fresh storage comparisons use actual files. These scopes remain
+distinct in the result verifier.
+
+The exact implementation commit passes **3 automatic workflows / 8 first-attempt
+jobs**, including **five complete 83-suite inventories (415 passes)**, sanitizer
+checks, the X11 PiP smoke, source snapshot and ROM-free package. Complete hosted
+logs and API receipts are preserved. Documentation-only follow-ups have different
+workflow path filters, so their own automatic checks are recorded separately.
+A new **16-check local closure** passes, explicitly preserving the desktop wrapper
+error and the raw-evidence limitations above.
+
+## Resume from the fresh checkpoint
+
+Current evidence is under `evidence/tst-dispatch-postreset-20261029/`:
+
+- `durable-native-build-test-receipt.json` and `native-input-restoration.json`.
+- `prior-checkpoint-restoration.json` and `workspace-loss.json`.
+- `game-headless/`, `game-desktop/`, `game-results-verification.json`.
+- `desktop-wrapper-cleanup.json`, `local-closure.json`, and `screens/`.
+- `next-gap/static-next-gap-00150ce8.json` and `next-gap/fresh-observation-binding.json`.
+- Separate capture-save receipts and the full combined checkpoint's continuation receipt.
+
+**Next:** add only the three reviewed blocks at `0x00150CE8..0x00150D00`,
+`0x00150D00..0x00150D0C` and `0x00150D0C..0x00150D18`, **12 words** in total.
+Fresh static review of authenticated inputs confirms that existing admissions and
+evaluators cover them. The stack-controlled test outcome and final POP target
+remain unknown; literal table data beginning at `0x00150D18` stays excluded.
+The fresh terminal observation binds this plan's entry without claiming an
+observed instruction-by-instruction path or future branch outcome.
+
+Public Git remains source and metadata only. The following historical sections
+are retained byte-for-byte, with their evidence scope qualified above.
+
+---
+
 # October 29, 2026 — TST dispatch advances startup to the next return continuation
 
 ## Current result

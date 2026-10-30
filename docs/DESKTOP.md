@@ -107,9 +107,12 @@ next missing block, `0x00150CE8`, as headless execution. Both modes advance 238
 core-0 instructions beyond their respective previous runs. The first nonblack
 screenshot still shows the lower-screen loading indicator in the inset and is
 byte-identical to the earlier capture. Menus and gameplay have not been reached.
-An initial cloud X11 socket setup failure happened before guest execution; its
-outputs remain separate from the completed run using the same tested binary.
-See [the current checkpoint](recovery/CURRENT-REBUILD.md) for the complete
-comparison, including the differing core-0 instruction counts.
+The current evidence comes from fresh runs of the exact saved executable after
+a temporary-workspace loss. The desktop wrapper reports exit 5 because its
+temporary-directory cleanup failed after the complete guest diagnostics and
+closed audio output; the guest child exit was not independently recorded. Its
+remaining owned display process was closed separately, without another game run.
+See [the current checkpoint](recovery/CURRENT-REBUILD.md) for the full provenance,
+lost earlier raw evidence, and differing core-0 instruction counts.
 Game inputs, generated AOT, executables, saves, screenshots and audio remain
 private and are not published with the source repository.
