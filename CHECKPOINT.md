@@ -1,27 +1,33 @@
 # Latest LEGO Undercover 3DS checkpoint
 
-Updated October 30, 2026. **Read this file first; do not load the full historical recovery log to resume.** Use the current `main` commit containing this file.
+Updated October 30, 2026. **Read this file first.** Resume from current `main`; consult only the first recovery section when more detail is needed.
 
 ## Completed
 
-- Added only `[0x00151604, 0x001516CC)`: **one block / 50 words / 200 bytes**. Existing instruction support handles it; no evaluator or admission changes.
-- Preserved all 21 prior supplements and all 599 original AOT pages / 603 files. Totals: **22 supplements / 321 words**; runtime verifies **111,065 blocks / 545,432 words**.
-- Fresh headless and desktop runs each advance **902 instructions / 3,364 diagnostic ns** from their same-mode `db19fee` baseline.
-- Both stop at **MissingBlock `0x00152AFC`**, thread 7, dispatch round 21,843. Native and wrapper exits are 3; neither timed out or wrote stderr.
-- **84 suites have passing results:** 83 initially; one non-launching test passed after execute permission was restored with unchanged bytes. Initial failure and both actual JUnits are retained; no full-suite rerun or rebuild.
+Added **4 blocks / 43 words** since 22/321. Totals: **26 supplements / 364 words**; **111,069 runtime blocks / 545,475 verified words**. All **599 original pages / 603 files** and prior supplements remain unchanged.
 
-The whole second screen remains bottom-right: **Tab** enlarges it, **F11** toggles fullscreen, and mouse input maps to the touchscreen. The 524-presentation desktop run has the same first-nonblack startup pixels. Menus, gameplay, speaker playback, and Windows execution remain unverified. Cross-mode final registers/time/audio/save contents agree; the existing 3,883-instruction difference remains unexplained.
+Both final modes stop at **MissingBlock `0x00150E88`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
+
+From the same-mode `c1c85af` baseline: headless **+65 instructions / +243 ns**; desktop **+65 instructions / +243 ns**.
+
+Final native: **84/84 enabled suites**, one full CTest invocation; actual JUnit **0 failures/errors/skips**. No permission correction or retry.
+
+Final registers/time and complete audio/state/save contents agree across modes. Phase-2 still has **3,883 fewer desktop instructions**; untraced.
+
+Desktop: **524 presentations**; actual **1280×720** first-nonblack startup pixels match the baseline. Menus, gameplay, speaker playback and Windows remain unverified.
+
+Whole touchscreen bottom-right: **Tab** enlarges it, **F11** toggles fullscreen; mouse maps to touch.
 
 ## Next exact task
 
-Append only **`[0x00152AFC, 0x00152B20)` — one block / 9 words / 36 bytes**, preserving the 22 entries in `config/observed_aot_supplements.json`. The reviewed forms are 7 fast, 1 memory, and 1 already-admitted shifted MOV. Keep the preceding table words as data.
+Append only **`[0x00150E88, 0x00150E94)` — 1 block / 3 words / 12 bytes**. Three original instructions form one bounded table dispatcher using existing fast and memory evaluators. Keep its table words as data and preserve ordinary memory and target validation.
 
-If its authenticated table read succeeds with the captured registers, the computed exit selects **still-unrecorded `0x001529C4`**. Captured LR **`0x00150E6C` is also unrecorded**. Do not include unobserved target helpers or assume that return is covered. Conditional next totals: **23 supplements / 330 words**, **111,066 blocks / 545,441 words**.
+Reviewed continuations: computed target if authenticated table read succeeds `0x00152AFC` is recorded supplement; captured unchanged LR; eventual return remains conditional `0x00150E94` is unrecorded. Keep unobserved successor bodies outside this change.
 
-Generate only from the authenticated private original input, verify the new range and preserved records, build/test in the approved cloud context, preserve the tested native, and use finite fresh runs to establish the next actual stop. No runtime decoder, fabricated GPU completion, replay, or automatic retry.
+Preserve all 26 supplements. Authenticate, generate, verify, build/test, preserve the exact native, then use a finite fresh run. No runtime decoder, fabricated GPU completion, replay or automatic retry.
 
 ## Continuation rules
 
-Work in standard chat and the cloud; do not use Codex services, Dot, or the user's computer. Ordinary source/metadata publication to `main` is authorized; do not force-push. Keep original inputs, generated game code, executable bodies, captures/audio, saves, and private recovery identifiers out of public Git. Keep user updates within one screen.
+Work in standard chat and the cloud; do not use Codex services, Dot or the user’s computer. Ordinary source/metadata publication to `main` is authorized; do not force-push. Keep original inputs, generated code, executables, captures, audio, saves and private recovery identifiers out of public Git.
 
-The private continuation receipt binds the final publication to its tested native and complete evidence. The previous private checkpoint is retained unchanged with the new evidence; earlier unavailable evidence remains unavailable. For details only when needed, read the first section of [CURRENT-REBUILD.md](docs/recovery/CURRENT-REBUILD.md).
+The four existing status documents keep the tracked file count at **522**. Details: [latest recovery section](docs/recovery/CURRENT-REBUILD.md).

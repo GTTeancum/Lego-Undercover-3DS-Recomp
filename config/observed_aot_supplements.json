@@ -110,6 +110,26 @@
       "entry": "0x00151604",
       "end": "0x001516CC",
       "evidence": "Observed headless and desktop MissingBlock at 0x00151604. Fifty authenticated original instructions form one bounded byte-replication helper ending in an LR return to the already recorded continuation, conditional on successful memory accesses. Guest byte values remain unobserved; normal memory and return-target checks stay strict. End is exclusive; do not include the earlier unobserved prefix."
+    },
+    {
+      "entry": "0x00152AFC",
+      "end": "0x00152B20",
+      "evidence": "Observed headless and desktop MissingBlock at 0x00152AFC. Nine authenticated original instructions form one bounded flag-dependent table dispatcher ending in a computed-PC exit. Existing immediate-shift MOV, memory and fast evaluators handle the forms. With the captured registers, successful authenticated text-table access selects still-unrecorded 0x001529C4. End is exclusive; keep preceding table words as data and do not add unobserved targets or assume the captured LR return is recorded."
+    },
+    {
+      "entry": "0x001529C4",
+      "end": "0x00152A30",
+      "evidence": "Observed headless MissingBlock at 0x001529C4 after the authenticated nine-instruction dispatcher. Twenty-seven original instructions form one bounded byte-averaging helper, ending at its first LR return. Existing fast, memory and shifted ADD, MOV and ORR support handles the forms. Loaded bytes remain unobserved; memory faults can prevent completion or leave earlier writes. End is exclusive; the captured return 0x00150E6C remains unrecorded and is not included."
+    },
+    {
+      "entry": "0x00150E6C",
+      "end": "0x00150E7C",
+      "evidence": "Observed headless MissingBlock at 0x00150E6C after the byte-averaging helper returned. Four authenticated original instructions adjust the working pointer, reload two unknown guest-stack words, increment an argument and call recorded 0x00150DDC. Existing memory and fast support handles the forms. Normal memory and call-target checks remain strict. End is exclusive; the newly established return 0x00150E7C is still unrecorded and is not included."
+    },
+    {
+      "entry": "0x00150E7C",
+      "end": "0x00150E88",
+      "evidence": "Observed headless MissingBlock at 0x00150E7C. Three authenticated original instructions perform the canonical immediate flag test, establish LR 0x00150E94, and end at a conditional branch to recorded 0x00151028. With captured r4 equal to 8, normal execution sets Z and selects still-unrecorded fallthrough 0x00150E88. End is exclusive; do not add that unobserved fallthrough or the eventual LR continuation. Ordinary registry and execution-state checks remain strict."
     }
   ]
 }

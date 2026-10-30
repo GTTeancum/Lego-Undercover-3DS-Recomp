@@ -4,21 +4,25 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-**Resume from [CHECKPOINT.md](CHECKPOINT.md).** It contains only the latest state and next task; the longer recovery document preserves older evidence.
+**Resume from [CHECKPOINT.md](CHECKPOINT.md).** It contains the latest state and next task; the longer recovery document preserves older evidence.
 
 The native SDL3 window shows the whole second screen in the bottom-right corner. Tab enlarges it, F11 toggles fullscreen, and mouse clicks map to the original touchscreen coordinates. See [desktop build and controls](docs/DESKTOP.md).
 
-Startup now passes the `0x00151604` gap. One authenticated metadata block adds **50 instruction words / 200 bytes**, using existing instruction support. Fresh headless and desktop runs each advance **902 core-0 instructions / 3,364 diagnostic ns** beyond their respective `db19fee` runs and stop at **MissingBlock `0x00152AFC`**. All **599 original AOT pages / 603 files** and the previous 21 supplements remain unchanged. Current totals are **22 supplements / 321 words** and **111,065 blocks / 545,432 verified instruction words**.
+The continuation adds **4 metadata blocks / 43 instruction words** beyond the prior 22 blocks / 321 words. Totals are **26 supplements / 364 words**, with **111,069 registered blocks / 545,475 verified instruction words**. All **599 original AOT pages / 603 files** and all 22 preceding supplement records remain unchanged.
 
-All **84 enabled test suites have passing results**: 83 passed in the initial full run; one test could not launch because its executable lacked execute permission. Restoring that file's mode without changing its bytes allowed exactly that test to pass. The original failed result and both actual JUnits are preserved. No rebuild or full-suite rerun was used. Private generated CPP/JSON words were checked against the original input, and all previous supplemental records remain identical.
+Both final modes stop at **MissingBlock `0x00150E88`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
 
-Both native children and outer launchers exited **3** at the diagnostic missing block, with no timeout or stderr. Final registers, diagnostic time, complete audio, and state/save contents agree across modes. The existing **3,883-instruction** desktop/headless difference remains untraced.
+Cumulative change from the preserved same-mode `c1c85af` baseline: headless **+65 core-0 instructions / +243 diagnostic ns**; desktop **+65 core-0 instructions / +243 diagnostic ns**.
 
-The desktop presents **524 frames**. The actual 1280×720 first-nonblack startup capture and its decoded pixels match the preceding capture, including the lower-screen loading indicator. Usable menus, gameplay, speaker playback, and Windows execution remain unverified.
+The exact final native passed **84/84 enabled CTest suites** in its single full-suite invocation. The actual final JUnit records **0 failures, 0 errors and 0 skipped cases**. No test permission correction or automatic retry was used for that final build.
 
-**Next:** add the reviewed nine-instruction dispatcher at `0x00152AFC..0x00152B20`. Existing fast, memory and shifted-MOV support suffices. Its conditional selected target and the captured return are still unrecorded; the next checkpoint gives the exact scope.
+Cross-mode comparison matches final registers, diagnostic time, complete audio, state contents and save contents. The phase-2 comparison still records **3,883 fewer desktop core-0 instructions** than headless; the difference remains untraced.
 
-Public Git contains source and metadata. Original inputs, generated game code, executables, captures, saves and audio stay private. The exact tested native was preserved before both finite fresh runs.
+The desktop records **524 presentations**. The actual **1280×720 first-nonblack startup capture** has identical decoded RGBA pixels to the original baseline; complete BMP bytes are different. This records the initial startup image. Usable menus, gameplay, speaker playback and Windows execution remain unverified.
+
+**Next:** Append only **`[0x00150E88, 0x00150E94)` — 1 block / 3 words / 12 bytes**. Three original instructions form one bounded table dispatcher using existing fast and memory evaluators. Keep its table words as data and preserve ordinary memory and target validation. See the checkpoint for reviewed continuation coverage.
+
+Public Git contains source and metadata. The exact tested native was preserved before its finite fresh runs; original inputs, generated code, executables, captures, saves and audio remain private.
 
 ## Historical recovery records
 

@@ -29,12 +29,8 @@ newer. Otherwise, `LEGO_FETCH_SDL3=ON` downloads the SHA-256-pinned official SDL
 `-DSDL3_DIR=/path/to/lib/cmake/SDL3 -DLEGO_FETCH_SDL3=OFF`. SDL's Linux window
 backend also needs the appropriate system development libraries.
 
-The current Linux build uses SDL 3.4.18. All 84 enabled suites have passing
-results, including the ROM-free desktop smoke. The initial full run passed 83;
-one test was not launched because its executable lacked execute permission.
-Only that file's mode was corrected, with identical bytes, and only that test
-was then run. The original failed run and both real JUnits are preserved.
-The desktop smoke uses synthetic panels; actual game evidence is below.
+The current Linux build uses SDL 3.4.18. The exact final native passed **84/84 enabled CTest suites** in its single full-suite invocation. The actual final JUnit records **0 failures, 0 errors and 0 skipped cases**. No test permission correction or automatic retry was used for that final build.
+The ROM-free desktop smoke uses synthetic panels; actual game evidence is below.
 
 ## Run the current diagnostic profile
 
@@ -105,23 +101,16 @@ restore.
   A future verified minimap crop can use that seam; no game-specific minimap
   crop or automatic screen/menu integration is enabled now.
 
-The current original-game desktop run presents 524 frames and reaches
-**MissingBlock `0x00152AFC`**, as does the fresh headless run. Both modes advance
-902 core-0 instructions / 3,364 diagnostic ns beyond their respective
-`db19fee` captures. Native children and outer launchers each exited 3, with no
-timeout, stderr, cleanup signals, or remaining live owned process.
+The current original-game desktop evidence comes from the final frozen native. Both final modes stop at **MissingBlock `0x00150E88`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
 
-The first-nonblack screenshot shows the lower-screen loading indicator in the
-bottom-right inset. Its raw BMP and decoded 1280×720 RGBA pixels match the prior
-capture. This is an initial startup image, not a terminal-frame or gameplay
-observation. Current final registers, diagnostic time, complete audio, and
-actual state/save contents agree across modes. Desktop retains the unexplained
-3,883-instruction core-0 difference.
+Cumulative change from the preserved same-mode `c1c85af` baseline: headless **+65 core-0 instructions / +243 diagnostic ns**; desktop **+65 core-0 instructions / +243 diagnostic ns**.
 
-The next bounded task is the nine-word dispatcher at
-`0x00152AFC..0x00152B20`, using existing instruction support. Its conditional
-target `0x001529C4` and captured return `0x00150E6C` are still unrecorded.
-See [the short checkpoint](../CHECKPOINT.md) for the current continuation and
-[the recovery record](recovery/CURRENT-REBUILD.md) for detailed evidence.
-Original inputs, generated AOT, executables, saves, screenshots, and audio
-remain private and are not published with the source repository.
+The desktop records **524 presentations**. The actual **1280×720 first-nonblack startup capture** has identical decoded RGBA pixels to the original baseline; complete BMP bytes are different. This records the initial startup image. Usable menus, gameplay, speaker playback and Windows execution remain unverified.
+
+Cross-mode comparison matches final registers, diagnostic time, complete audio, state contents and save contents. The phase-2 comparison still records **3,883 fewer desktop core-0 instructions** than headless; the difference remains untraced.
+
+The next bounded task is **`[0x00150E88, 0x00150E94)` — 1 block / 3 words / 12 bytes**. Three original instructions form one bounded table dispatcher using existing fast and memory evaluators. Keep its table words as data and preserve ordinary memory and target validation.
+
+Reviewed continuations: computed target if authenticated table read succeeds `0x00152AFC` is recorded supplement; captured unchanged LR; eventual return remains conditional `0x00150E94` is unrecorded. Keep unobserved successor bodies outside this change.
+
+See [the short checkpoint](../CHECKPOINT.md) for the current continuation and [the recovery record](recovery/CURRENT-REBUILD.md) for the complete round comparisons. Original inputs, generated AOT, executables, saves, screenshots and audio remain private.

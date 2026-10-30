@@ -1,3 +1,66 @@
+# October 30, 2026 — observed dispatcher continuation
+
+## Current continuation
+
+Read [CHECKPOINT.md](../../CHECKPOINT.md) first. The tested candidate starts from `c1c85af`. The continuation adds **4 metadata blocks / 43 instruction words** beyond the prior 22 blocks / 321 words. Totals are **26 supplements / 364 words**, with **111,069 registered blocks / 545,475 verified instruction words**. All **599 original AOT pages / 603 files** and all 22 preceding supplement records remain unchanged.
+
+Each added range followed an authenticated actual preceding stop. Original words and preserved supplemental records were verified before each bounded run; future stops were not assumed.
+
+| Observed round | Added metadata | Actual headless stop | Change from preceding headless |
+| --- | --- | --- | --- |
+| 01 | `[0x00152AFC, 0x00152B20)`; 9 words | MissingBlock `0x001529C4` | +9 core-0 instructions / +34 diagnostic ns |
+| 02 | `[0x001529C4, 0x00152A30)`; 27 words | MissingBlock `0x00150E6C` | +27 core-0 instructions / +101 diagnostic ns |
+| 03 | `[0x00150E6C, 0x00150E7C)`; 4 words | MissingBlock `0x00150E7C` | +26 core-0 instructions / +97 diagnostic ns |
+| 04 | `[0x00150E7C, 0x00150E88)`; 3 words | MissingBlock `0x00150E88` | +3 core-0 instructions / +11 diagnostic ns |
+
+The first row compares with the original headless baseline; later rows compare with the preceding round. Only the final round also received a fresh desktop run.
+
+Both final modes stop at **MissingBlock `0x00150E88`**. Native-child / outer-launcher exits are **3/3** headless and **3/3** desktop. Neither run timed out or wrote stderr.
+
+Cumulative change from the preserved same-mode `c1c85af` baseline: headless **+65 core-0 instructions / +243 diagnostic ns**; desktop **+65 core-0 instructions / +243 diagnostic ns**.
+
+| Final actual measurement | Headless | SDL desktop |
+| --- | ---: | ---: |
+| Actual stop | MissingBlock `0x00150E88` | MissingBlock `0x00150E88` |
+| Core-0 instructions | 61,371,983 | 61,368,100 |
+| Core-1 instructions | 99 | 99 |
+| Diagnostic CPU ticks | 2,345,553,930 | 2,345,553,930 |
+| Diagnostic guest time, ns | 8,748,415,550 | 8,748,415,550 |
+| Thread / dispatch round | 7 / 21,843 | 7 / 21,843 |
+| Display periods / presentations | 523 / N/A | 523 / 524 |
+| Native-child / outer-launcher exit | 3 / 3 | 3 / 3 |
+| Wall timeout | False | False |
+| Host duration, seconds | 161.143 | 173.527 |
+| Complete audio records | 285,726 | 285,726 |
+
+Native-child and outer-launcher statuses describe the actual runtime. The runner’s administrative completion status is recorded separately and does not establish a successful game boot.
+
+## Validation and provenance
+
+The exact final native passed **84/84 enabled CTest suites** in its single full-suite invocation. The actual final JUnit records **0 failures, 0 errors and 0 skipped cases**. No test permission correction or automatic retry was used for that final build.
+
+The exact final native was preserved before both final runs. Every round keeps its own actual build/JUnit, selected executable, generated verification, source/input identities, bounded-run receipts and complete outputs. The frozen candidate contained **522 tracked files: 518 other files and the same four existing status documents**. All 522 candidate identities and all 606 original-input identities were checked before and after the build and game runs. Only these four existing status documents were updated after the final desktop capture closed; the tracked file count remains 522.
+
+Cross-mode comparison matches final registers, diagnostic time, complete audio, state contents and save contents. The phase-2 comparison still records **3,883 fewer desktop core-0 instructions** than headless; the difference remains untraced.
+
+The desktop records **524 presentations**. The actual **1280×720 first-nonblack startup capture** has identical decoded RGBA pixels to the original baseline; complete BMP bytes are different. This records the initial startup image. Usable menus, gameplay, speaker playback and Windows execution remain unverified.
+
+Complete audio, state and save comparisons use their full captured contents. Screenshot comparison uses complete BMP files and decoded RGBA pixels. Original inputs, generated game code, native bodies and runtime outputs remain private.
+
+## Next exact task
+
+Append only **`[0x00150E88, 0x00150E94)` — 1 block / 3 words / 12 bytes**. Three original instructions form one bounded table dispatcher using existing fast and memory evaluators. Keep its table words as data and preserve ordinary memory and target validation.
+
+Reviewed continuations: computed target if authenticated table read succeeds `0x00152AFC` is recorded supplement; captured unchanged LR; eventual return remains conditional `0x00150E94` is unrecorded. Keep unobserved successor bodies outside this change.
+
+Preserve the 26 current records. If this reviewed range alone is added, conditional totals become **27 supplements / 367 words**. Generate only from authenticated private input, verify existing admission and exact preservation, build/test, preserve the tested native, and use a finite fresh run to identify the next observed stop. Do not add unobserved successors.
+
+Work in standard chat and the cloud; do not use Codex services, Dot or the user’s computer. Ordinary source/metadata publication to `main` is authorized; do not force-push. Keep original inputs, generated code, executables, captures, audio, saves and private recovery identifiers out of public Git.
+
+The preceding recovery text is retained byte-for-byte below.
+
+---
+
 # October 30, 2026 — observed byte-replication helper
 
 ## Current continuation
