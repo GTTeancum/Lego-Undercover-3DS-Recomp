@@ -2,37 +2,41 @@
 
 ## Current status
 
-Five more startup gaps are filled: an eight-row processing loop, its return, the next setup and table dispatch, and two stack returns. Startup now completes both processing passes and reaches another missing helper. Start at [CHECKPOINT.md](../../CHECKPOINT.md). Menus and gameplay remain unverified.
+Five more startup gaps are filled. A 16-row processing pass and an eight-row helper now finish, and their missing return steps are restored. All five fresh runs passed their preceding stops. Startup reaches another missing call setup; menus and gameplay remain unverified. Start at [CHECKPOINT.md](../../CHECKPOINT.md).
 
-Base: `3a08db49fb3b1ff58e6b477765f94d8be3ec75dd`. Added 5 observed sections / 26 words. Totals: 86 logical sections / 87 physical blocks / 2047 words; 111,130 runtime blocks / 547,158 verified words. All 599 original pages / 603 files and all 81 preceding sections are preserved. Runtime, generator, tests and build configuration are unchanged. Only observed-range metadata is appended while preserving all previous records.
+Base: `9fa13bea84afc2adb3cdece78e1cdbfaaf7cdef5`. Added 5 observed sections / 70 words. Totals: 91 logical sections / 92 physical blocks / 2117 words; 111,135 runtime blocks / 547,228 verified words. All 599 original pages / 603 files and all 86 preceding sections are preserved. Runtime, generator, tests and build configuration are unchanged.
 
 | Round | Added interval | Words | Actual stop | Instructions beyond preceding run |
 | --- | --- | ---: | --- | ---: |
-| 01 | `[0x00155008, 0x00155040)` | 14 | `0x00155040` | +98 |
-| 02 | `[0x00155040, 0x00155044)` | 1 | `0x0014f510` | +1 |
-| 03 | `[0x0014F510, 0x0014F534)` | 9 | `0x0014f534` | +108 |
-| 04 | `[0x0014F534, 0x0014F538)` | 1 | `0x0014f5b4` | +1 |
-| 05 | `[0x0014F5B4, 0x0014F5B8)` | 1 | `0x00154b94` | +76 |
+| 01 | `[0x00154B94, 0x00154C2C)` | 38 | `0x00154C2C` | +38 |
+| 02 | `[0x00154C2C, 0x00154C80)` | 21 | `0x00154C80` | +315 |
+| 03 | `[0x00154C80, 0x00154C84)` | 1 | `0x00154F6C` | +24 |
+| 04 | `[0x00154F6C, 0x00154F90)` | 9 | `0x00154F90` | +65 |
+| 05 | `[0x00154F90, 0x00154F94)` | 1 | `0x0014FB20` | +2671 |
 
 ## Final measured result
 
-MissingBlock `0x00154B94`, thread 7, dispatch round 21846; native exit 3, no timeout and empty stderr. Core-0 instructions: 62,252,048; core-1: 99. CPU ticks: 2,346,433,995; diagnostic guest time: 8,751,698,004 ns; display periods: 523; audio records: 285,834.
+MissingBlock `0x0014FB20`, thread 7, dispatch round 21846; native exit 3, no timeout and empty stderr. Core-0 instructions: 62,255,161; core-1: 99. CPU ticks: 2,346,437,108; diagnostic guest time: 8,751,709,615 ns; display periods: 523; audio records: 285,834.
 
-Same-mode advance: 284 executed instructions / 1,059 diagnostic ns. These are not a performance benchmark or a gameplay percentage.
+Same-mode advance: 3,113 executed instructions / 11,611 diagnostic ns. These are not a performance benchmark or a gameplay percentage.
 
 ## Validation and scope
 
-All five builds passed 89/89 enabled tests once. No failures/errors/skips occurred in these final build gates. Source, original inputs, AOT pages and executables were verified unchanged around build and fresh finite execution. Every prior supplemental operation was preserved. Generated C++ and metadata agree with authenticated original instruction words. Exact executables were saved privately before execution.
+All five builds passed 89/89 enabled tests once, with zero failures/errors/skips. Source, original inputs, AOT pages and executables were verified unchanged around each build and fresh finite execution. Every prior supplemental operation was preserved. Generated C++ and metadata agree with authenticated original words. Exact executables were saved privately before execution.
 
-Complete audio, state and save contents are byte-for-byte identical to the preceding same-mode checkpoint. This does not establish speaker playback. The final post-stop captures remain completely black and are retained only as private diagnostics. No new screenshot is posted and no fresh windowed run was taken. No visual or gameplay milestone is claimed; speaker playback and Windows execution remain unverified. Passing diagnostic tests is not evidence of playable gameplay.
+Measured stop records confirm the first routine completed its requested 16 rows with the expected pointer advances and exhausted count. Its return and the existing caller dispatch then reached the next helper. That helper completed all eight requested rows with the one-time source adjustment excluded from its loop. The final return permits another 2,671 instructions of execution before the next missing entry. These checks establish pointer/count and continuation effects, not pixel values or isolated single-step return equivalence.
 
-This publication appends observed-range metadata and updates four status documents. Runtime, generator, tests and build configuration are unchanged. The status documents were updated after execution; all non-status source matches the final tested candidate. Hosted checks run without original game inputs. Their observed status is retained privately rather than predicted here.
+Complete audio, state and save contents are byte-for-byte identical to the preceding same-mode checkpoint. This does not establish speaker playback. The final post-stop captures remain completely black and are retained only as private diagnostics. No screenshot is posted and no fresh windowed run was taken. There is no new visual or gameplay milestone. Speaker playback and Windows execution remain unverified. The existing post-stop snapshot option was used only on the final run; no new capture-on/off paired comparison was performed.
+
+This publication appends observed-range metadata and updates four status documents after execution. All non-status source matches the final tested candidate. The previous checkpoint's release compiler, sanitizer and packaging jobs have now been observed passing. Fresh hosted status for this publication is retained separately; hosted checks run without original game inputs.
+
+One initial host configuration attempt exceeded a short wrapper timeout before the builds; the subsequent configuration completed. That development receipt is retained. None of the five game runs timed out, and none of their full test gates was retried.
 
 ## Next reviewed section
 
-`[0x154b94, 0x154c2c)`. Add the reviewed 38-instruction entry section that loads a mask, combines neighboring guest halfword and word values from two rows, writes two output words, advances the row pointers and decrements the row count. Its first control exit is a conditional return through LR. Future memory values, that condition outcome, the return destination and fallthrough at 0x00154C2C remain unobserved; do not include an unobserved successor body. Existing handlers accept this reviewed interval. The private review is tied to the actual final stop. Preserve memory faults, partial effects, flags and target validation. Do not infer stack-loaded returns from live LR or add unobserved successor bodies.
+`[0x0014FB20, 0x0014FB30)`. Add the reviewed four-instruction entry that saves LR on the guest stack, sets two working registers and calls the already recorded routine at 0x0014F190. Its stack write and future execution remain unobserved. The assigned return at 0x0014FB30 is still missing; do not include that continuation or invent a return target. Existing handlers accept this interval. The private review is tied to the actual final stop and confirms no overlap with existing recorded sections. Preserve memory faults, partial effects, flags and normal target validation.
 
-Use fresh owned state/save/output paths and finite execution. Preserve all 86 logical sections (87 physical blocks) and original AOT pages. No forced return, runtime decoding, game-code modification or fabricated GPU completion.
+Use fresh owned state/save/output paths and finite execution. Preserve all 91 logical sections (92 physical blocks) and original AOT pages. No forced return, runtime decoding, game-code modification or fabricated GPU completion.
 
 ## Working permissions
 

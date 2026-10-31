@@ -6,15 +6,15 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 Resume from [CHECKPOINT.md](CHECKPOINT.md).
 
-**What improved:** Five more startup gaps are filled: an eight-row processing loop, its return, the next setup and table dispatch, and two stack returns. Startup now completes both processing passes and reaches another missing helper. All 5 fresh startup runs passed their previous stopping points.
+**What improved:** Five more startup gaps are filled. A 16-row processing pass and an eight-row helper now finish, and their missing return steps are restored. All five fresh runs passed their preceding stops. Startup reaches another missing call setup; menus and gameplay remain unverified.
 
-**What is visible:** The final post-stop captures remain completely black and are retained only as private diagnostics. No new screenshot is posted and no fresh windowed run was taken. No visual or gameplay milestone is claimed; speaker playback and Windows execution remain unverified.
+**What is visible:** The final post-stop captures remain completely black and are retained only as private diagnostics. No screenshot is posted and no fresh windowed run was taken. There is no new visual or gameplay milestone. Speaker playback and Windows execution remain unverified.
 
 **Checks:** All five builds passed 89/89 enabled tests once. The exact tested builds and complete run evidence are saved privately. Tests and startup progress are not proof of playability.
 
 **Still unfinished:** Usable menus, gameplay, speaker playback and Windows execution remain unverified. Startup currently stops at another missing game-code section.
 
-**Next:** Restore the next row-processing helper, then check how far startup gets. Its operations are already supported; the detailed review is in CHECKPOINT.md. See [the recovery record](docs/recovery/CURRENT-REBUILD.md) for measured results and the exact continuation.
+**Next:** Restore the small entry into the next routine, then check how far startup gets. Its operations are already supported; the exact handoff is in CHECKPOINT.md. See [the recovery record](docs/recovery/CURRENT-REBUILD.md) for measured results and the next task.
 
 The whole touchscreen remains at bottom right; Tab enlarges it, F11 toggles fullscreen and mouse clicks map to touch input. See [desktop controls](docs/DESKTOP.md).
 
