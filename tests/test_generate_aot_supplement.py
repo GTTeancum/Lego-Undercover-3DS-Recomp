@@ -163,7 +163,7 @@ class TstImmediateAdmissionTests(unittest.TestCase):
         # Existing fast-path opcodes are classified separately by the frontend.
         # This new candidate permission must not admit neighboring ALU forms.
         for opcode in range(16):
-            if opcode in (0, 8):  # Independently admitted AND and canonical TST.
+            if opcode in (0, 3, 8):  # Independently admitted AND, RSB and canonical TST.
                 continue
             for flags in (False, True):
                 with self.subTest(opcode=opcode, flags=flags):
@@ -218,7 +218,7 @@ class AndImmediateAdmissionTests(unittest.TestCase):
 
     def test_neighboring_immediate_opcodes_remain_rejected(self):
         for opcode in range(1, 16):
-            if opcode == 8:
+            if opcode in (3, 8):
                 continue
             for flags in (False, True):
                 self.assertIsNone(mod.verified_alu_candidate(
@@ -247,6 +247,78 @@ class AndImmediateAdmissionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
             mod.render(code, {base: (raw, "<unknown>", ""), base+4: (end, "bx", "lr")},
                        [(base, base+8)])
+
+
+class RsbImmediateAdmissionTests(unittest.TestCase):
+    """Authored A32 immediate RSB fields; no original game words or addresses."""
+    def test_conditions_registers_s_bits_and_rotations(self):
+        for condition in range(15):
+            for register in range(15):
+                for flags in (False, True):
+                    for rotate in range(16):
+                        raw = immediate_test(opcode=3, condition=condition, flags=flags,
+                                             rn=register, rd=14-register,
+                                             rotate=rotate, value=0xA7)
+                        self.assertEqual(mod.verified_alu_candidate(raw), "rsb_immediate")
+
+    def test_every_encoded_immediate_is_allowed_not_just_negation(self):
+        for value in range(256):
+            for rotate in range(16):
+                for flags in (False, True):
+                    raw = immediate_test(opcode=3, flags=flags, rd=7,
+                                         rotate=rotate, value=value)
+                    self.assertEqual(mod.verified_alu_candidate(raw), "rsb_immediate")
+
+    def test_pc_reserved_condition_and_non_words_are_rejected(self):
+        for flags in (False, True):
+            for fields in ({"rn": 15}, {"rd": 15}, {"condition": 15}):
+                self.assertIsNone(mod.verified_alu_candidate(
+                    immediate_test(opcode=3, flags=flags, **fields)))
+        raw = immediate_test(opcode=3)
+        for bad in (-1, raw - (1 << 32), raw | (1 << 32)):
+            self.assertIsNone(mod.verified_alu_candidate(bad))
+
+    def test_register_rsb_and_neighbor_spaces_remain_unadmitted(self):
+        for primary in (0, 2, 3, 4, 5, 6, 7):
+            self.assertIsNone(mod.verified_alu_candidate(
+                immediate_test(opcode=3, primary=primary)))
+        for shift in range(4):
+            for amount in (0, 1, 31):
+                raw = shifted(3, flags=True, shift=shift, amount=amount)
+                self.assertIsNone(mod.verified_alu_candidate(raw))
+                self.assertIsNone(mod.verified_alu_candidate(raw | 0x10))
+        for opcode in (1, 2, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15):
+            for flags in (False, True):
+                self.assertIsNone(mod.verified_alu_candidate(
+                    immediate_test(opcode=opcode, flags=flags)))
+
+    def test_render_retains_original_condition_rotation_and_s_bit(self):
+        base = mod.frontend.BASE
+        terminal = (0xE12FFF1E, "bx", "lr")  # Authored ordinary return.
+        for flags, mnemonic in ((False, "rsbne"), (True, "rsbsne")):
+            raw = immediate_test(opcode=3, condition=1, flags=flags,
+                                 rn=6, rd=9, rotate=1, value=2)
+            code = struct.pack("<II", raw, terminal[0])
+            inst = {base: (raw, mnemonic, "r9, r6, #2147483648"), base+4: terminal}
+            source, receipt = mod.render(code, inst, [(base, base+8)])
+            row = receipt["blocks"][0]["instructions"][0]
+            self.assertEqual((row["raw"], row["opcode"], row["condition"],
+                              row["flags"], row["category"]),
+                             (raw, "CoreAlu", "Ne", 0, "rsb_immediate"))
+            self.assertIn(f"0x{raw:08X}U", source)
+            with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
+                mod.render(code, {base: (raw, "<unknown>", ""), base+4: terminal},
+                           [(base, base+8)])
+            with self.assertRaisesRegex(ValueError, "disassembly/input disagreement"):
+                mod.render(code, {base: (raw ^ 1, mnemonic, ""), base+4: terminal},
+                           [(base, base+8)])
+        for bad in (immediate_test(opcode=7), immediate_test(opcode=3, rn=15),
+                    immediate_test(opcode=3, rd=15), immediate_test(opcode=3, condition=15),
+                    shifted(3)):
+            with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
+                mod.render(struct.pack("<II", bad, terminal[0]),
+                           {base: (bad, "rsb", "r9, r6, #0"), base+4: terminal},
+                           [(base, base+8)])
 
 class SupplementRenderTests(unittest.TestCase):
     def render_words(self, descriptions):

@@ -456,19 +456,34 @@ const Block* FindBlock(const Registry& registry, std::uint32_t pc) noexcept {
         return nullptr;
     }
 
+    // A registry can be destroyed and its host storage reused. Pointer/count
+    // identity does not prove that a cached Block still belongs to the live
+    // registry. Retain only an index hint and validate it against the current
+    // arrays on every hit; never retain block/operation pointers. A miss is
+    // reusable only if its insertion gap still exists in the live sorted table.
     struct CacheEntry {
-        const BlockShard* shards{};
-        std::uint32_t shard_count{};
         std::uint32_t pc{};
-        const Block* block{};
+        std::uint32_t shard_index{};
+        std::uint32_t block_index{};
         bool valid{};
     };
     constexpr std::size_t kCacheSize = 1U << 14U;
     thread_local std::array<CacheEntry, kCacheSize> cache{};
     CacheEntry& cached = cache[(pc >> 2U) & (kCacheSize - 1U)];
-    if (cached.valid && cached.shards == registry.shards &&
-        cached.shard_count == registry.shard_count && cached.pc == pc) {
-        return cached.block;
+    if (cached.valid && cached.pc == pc &&
+        cached.shard_index < registry.shard_count) {
+        const BlockShard& live = registry.shards[cached.shard_index];
+        if (pc >= live.first_pc && pc <= live.last_pc && live.blocks != nullptr &&
+            cached.block_index <= live.block_count) {
+            const auto index = cached.block_index;
+            if (index < live.block_count && live.blocks[index].pc == pc) {
+                return &live.blocks[index];
+            }
+            if ((index == 0U || live.blocks[index - 1U].pc < pc) &&
+                (index == live.block_count || live.blocks[index].pc > pc)) {
+                return nullptr;
+            }
+        }
     }
 
     std::uint32_t low = 0U;
@@ -484,7 +499,8 @@ const Block* FindBlock(const Registry& registry, std::uint32_t pc) noexcept {
     if (low == 0U) {
         return nullptr;
     }
-    const BlockShard& shard = registry.shards[low - 1U];
+    const std::uint32_t shard_index = low - 1U;
+    const BlockShard& shard = registry.shards[shard_index];
     if (pc < shard.first_pc || pc > shard.last_pc ||
         shard.blocks == nullptr || shard.block_count == 0U) {
         return nullptr;
@@ -505,7 +521,7 @@ const Block* FindBlock(const Registry& registry, std::uint32_t pc) noexcept {
         low < shard.block_count && shard.blocks[low].pc == pc
             ? &shard.blocks[low]
             : nullptr;
-    cached = {registry.shards, registry.shard_count, pc, block, true};
+    cached = {pc, shard_index, low, true};
     return block;
 }
 

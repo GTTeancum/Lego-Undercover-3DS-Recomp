@@ -4,15 +4,15 @@ The SDL3 frontend displays both original LCD images in one resizable window. The
 
 ## Current verification scope
 
-The rebuild tool now accepts larger startup routines. The previously blocked routine and four more missing startup sections now run. All 5 fresh game runs passed their preceding stopping points. Each build passed **84/84 enabled headless tests once**, without failures, errors or skips. Its exact tested executable was saved privately before the run.
+Added the missing arithmetic support and fixed a code-table lookup crash exposed by tests. Five more startup sections now run, including both processing loops and their returns. All 5 fresh headless game runs passed their preceding stopping points. Each exact native passed its enabled tests once (84/84 (round 01), 86/86 (round 02), 86/86 (round 03), 86/86 (round 04), 86/86 (round 05)), with no failures, errors or skips, and was saved privately before its game run.
 
-There is no fresh original-game desktop run or screenshot for this checkpoint. SDL3 was unavailable locally, and its pinned archive could not be retrieved; the desktop configuration itself is unchanged. The earlier loading image is still the last verified visible result. Controls and layout are unchanged; menus, gameplay, speaker playback and Windows execution remain unverified.
+These were headless game runs. No new screenshot or visual progress is claimed; the earlier loading image remains the last verified windowed result. Speaker playback and Windows execution remain unverified. The pinned SDL3 archive could not be downloaded in this workspace; desktop configuration is unchanged. No new windowed original-game run was performed.
 
-Final headless stop: **MissingBlock `0x001515B8`**. The batch adds 5 sections / 245 words, with +9,035 executed instructions compared with the saved same-mode checkpoint. Complete audio, state and save contents match that baseline. This does not establish a visual change or playability.
+Final headless stop: **MissingBlock `0x00151B6C`**. This batch adds 5 sections / 128 words and advances 23,764 executed instructions beyond the prior same-mode checkpoint. The complete prior audio capture is preserved byte-for-byte as an exact prefix; the final capture adds 4 well-formed diagnostic records. Complete state and save contents match the prior same-mode checkpoint. This is a longer diagnostic capture, not evidence of speaker playback. This is not a visual or gameplay milestone.
 
-Next reviewed interval: **`[0x001515B8, 0x00151604)`**, 19 words. The next helper copies a pair of guest words to eight rows and returns through LR. Its memory values and eventual return destination remain unobserved. Existing handlers accept the reviewed instructions. Future successor execution is unobserved; do not fabricate target values or add unobserved bodies.
+Next interval: **`[0x00151B6C, 0x00151D10)`**. Add the next 105-instruction helper, which combines neighboring byte values into row words, restores its working pointer and returns through a stack-loaded address. The future memory values and return target remain unobserved. Existing handlers accept this reviewed interval.
 
-See [CHECKPOINT.md](../CHECKPOINT.md) and [the current recovery record](recovery/CURRENT-REBUILD.md). Tested executables, generated game code and runtime evidence remain private.
+See [CHECKPOINT.md](../CHECKPOINT.md) and [current recovery record](recovery/CURRENT-REBUILD.md). Original inputs and all generated game code, executables and runtime evidence stay private.
 
 ## Build
 

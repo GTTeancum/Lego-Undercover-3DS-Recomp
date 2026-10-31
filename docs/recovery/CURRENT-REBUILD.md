@@ -1,43 +1,41 @@
-# October 30, 2026 — larger startup routine continuation
+# October 30, 2026 — startup arithmetic and registry-lifetime continuation
 
 ## Current status
 
-The rebuild tool now accepts larger startup routines. The previously blocked routine and four more missing startup sections now run. This advances startup only; menus and gameplay remain unverified. Read [CHECKPOINT.md](../../CHECKPOINT.md) first.
+Added the missing arithmetic support and fixed a code-table lookup crash exposed by tests. Five more startup sections now run, including both processing loops and their returns. This advances startup only; menus and gameplay remain unverified. Start at [CHECKPOINT.md](../../CHECKPOINT.md).
 
-Base commit: `14b9f922de4bc570396c42ea5d9a30fced250604`. Added 5 observed sections / 245 instruction words. Totals: 54 supplemental blocks / 944 words; 111,097 runtime blocks / 546,055 verified words. Original 599 pages / 603 files and all 49 preceding supplemental records are unchanged. The generator's per-block limit is extended from 512 to 1024 bytes, retaining the same-page, first-exit, original-input, instruction-admission, alignment, text and nonoverlap checks. Python tests verify the new boundary, exact tail emission and rejection of missing/altered/unknown instructions. Synthetic C++ tests exercise 96-, 160- and 256-word blocks with interior loops through both dispatch paths. Runtime evaluators and build configuration are unchanged.
+Base: `28b8c7d9707f37daff3a66e507083db55ff0d176`. Added 5 observed sections / 128 words. Totals: 59 supplements / 1072 words; 111,102 runtime blocks / 546,183 verified instruction words. All 599 original pages / 603 files and 54 prior supplemental records are preserved. The generator now admits canonical immediate RSB with no PC operands. Its arithmetic still uses the existing evaluator. The runtime lookup cache now stores validated indices rather than borrowed block pointers, checking current entries and sorted insertion gaps on each hit. Two new native suites cover arithmetic and reused-registry lifetimes; Python policy tests cover the new admission. The same-page 1024-byte limit and all original-input, extent, overlap and first-exit guards remain unchanged.
 
 | Round | Added interval | Words | Actual stop | Instructions beyond preceding run |
 | --- | --- | ---: | --- | ---: |
-| 01 | `[0x00151D10, 0x00151F68)` | 150 | `0x00152a30` | +308 |
-| 02 | `[0x00152A30, 0x00152A7C)` | 19 | `0x001510d0` | +385 |
-| 03 | `[0x001510D0, 0x001510DC)` | 3 | `0x00152cc4` | +1307 |
-| 04 | `[0x00152CC4, 0x00152DCC)` | 66 | `0x00152834` | +1347 |
-| 05 | `[0x00152834, 0x00152850)` | 7 | `0x001515b8` | +5688 |
+| 01 | `[0x001515B8, 0x00151604)` | 19 | `0x0015330c` | +262 |
+| 02 | `[0x0015330C, 0x001533B4)` | 42 | `0x001533b4` | +150 |
+| 03 | `[0x001533B4, 0x001534B8)` | 65 | `0x001534b8` | +485 |
+| 04 | `[0x001534B8, 0x001534BC)` | 1 | `0x001511b8` | +13177 |
+| 05 | `[0x001511B8, 0x001511BC)` | 1 | `0x00151b6c` | +9690 |
 
 ## Final measured result
 
-The final native stopped at MissingBlock `0x001515B8`, thread 7, dispatch round 21843, exit 3. It did not time out and stderr was empty. It executed 61,387,994 core-0 and 99 core-1 instructions; diagnostic CPU ticks 2,345,569,941; guest time 8,748,475,267 ns; display periods 523; complete audio records 285,726.
+MissingBlock `0x00151B6C`, thread 7, dispatch round 21843; native exit 3, no timeout and empty stderr. Core-0 instructions: 61,411,758; core-1: 99. CPU ticks: 2,345,593,705; diagnostic guest time: 8,748,563,902 ns; display periods: 523; audio records: 285,730.
 
-Compared with the saved same-mode baseline, startup advanced 9,035 executed instructions / 33,698 diagnostic ns. This is not a performance benchmark or gameplay completion percentage.
+Same-mode advance: 23,764 executed instructions / 88,635 diagnostic ns. These are not a speed benchmark or a gameplay completion percentage.
 
-## Validation
+## Validation and scope
 
-All 5 exact natives passed their 84-test suite once, with no failures/errors/skips or automatic retries. Generated C++ words and metadata match their generation receipts and authenticated original code. All previous supplement records are preserved. Source, AOT, inputs and frozen executables were checked unchanged around the builds and finite runs. Each executable was saved privately before its run.
+Every exact new native passed its full enabled-test gate once: 84/84 (round 01), 86/86 (round 02), 86/86 (round 03), 86/86 (round 04), 86/86 (round 05), with zero failures/errors/skips. Targeted development tests first exposed a stale code-table pointer in the old lookup cache; the deterministic lifetime regression failed before the fix and passed afterward. The final focused Clang AddressSanitizer/UndefinedBehaviorSanitizer run passed all five selected suites. These development failures and final results are retained separately from successful build gates. Every previous supplemental operation and all original AOT files were preserved. Generated C++ and metadata match authenticated original instruction words. Source, original inputs, AOT and frozen executables were checked unchanged around compilation and each finite game run. The exact tested executable was saved privately before execution.
 
-Complete audio, save and state contents were compared byte-for-byte with the previous checkpoint and are unchanged. No new game-window run or screenshot was taken. The historical loading image is the last verified visible result. Speaker playback and Windows remain unverified.
+The complete prior audio capture is preserved byte-for-byte as an exact prefix; the final capture adds 4 well-formed diagnostic records. Complete state and save contents match the prior same-mode checkpoint. This is a longer diagnostic capture, not evidence of speaker playback. These were headless game runs. No new screenshot or visual progress is claimed; the earlier loading image remains the last verified windowed result. Speaker playback and Windows execution remain unverified.
 
-During test development, the new size tests first rejected the old limit as expected. One test diagnostic expectation was then corrected for the unknown-mnemonic terminal case; production behavior was unchanged. All final candidate gates passed.
-
-Source publication changes the supplement generator, its Python policy tests, the synthetic C++ registry test, the supplement manifest and four current status documents. The status documents are updated after the final run. Hosted verification runs without original game files; it is not a game test. Current hosted results are retained separately in the private checkpoint rather than predicted here.
+Publication includes the narrow instruction-admission change, registry cache lifetime fix, authored native and Python tests, test registration, observed-range metadata and four current status documents. The status documents were updated after the final run; all non-status source matches the final tested candidate. Hosted CI runs without original game files. Its observed status is retained privately rather than predicted here.
 
 ## Next reviewed section
 
-`[0x001515B8, 0x00151604)`: 19 words / 76 bytes. The next helper copies a pair of guest words to eight rows and returns through LR. Its memory values and eventual return destination remain unobserved. Existing handlers accept the reviewed instructions. The private offline review is tied to the final run's actual missing-code stop. Do not add an unobserved successor body or assume the eventual return destination is recorded.
+`[0x00151B6C, 0x00151D10)`. Add the next 105-instruction helper, which combines neighboring byte values into row words, restores its working pointer and returns through a stack-loaded address. The future memory values and return target remain unobserved. Existing handlers accept this reviewed interval. The private review is tied to the final actual missing-code stop. Preserve ordinary memory faults, partial effects and target validation. Do not infer a stack-loaded return from live LR or add unobserved successor bodies.
 
-Use fresh owned state/save/output paths, finite execution and strict ordinary memory/target checks. Preserve the original pages and 54 existing supplements; no forced return, game-code patch, runtime decoding or fabricated completion.
+Use fresh owned state/save/output paths and finite execution. Preserve all 59 supplements and 599 original pages. No forced return, runtime decoding, game-code modification or fabricated GPU completion.
 
-## Continuation permissions
+## Working permissions
 
-Use ordinary tools in the chat's cloud workspace, not Codex services, Dot or the user's computer. Ordinary source and metadata publication to `main` is authorized; never force-push. The user authorized ongoing private builds and backups in the existing private recovery folder. Keep original game inputs, generated code, executables and all captures private. Keep summaries short and plain.
+Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Source/metadata publication to `main` and ongoing private LEGO builds/backups are authorized. Never force-push. Keep original game inputs, generated code, executable bodies, audio, captures and saves private. Keep user-facing summaries short and plain.
 
-Previous current records remain in Git history and their separately preserved private checkpoints. Earlier recovery history remains in [HISTORY-7cf0d2a.md](HISTORY-7cf0d2a.md).
+Prior records remain in Git history and separately saved private checkpoints. Historical notes are retained in [HISTORY-7cf0d2a.md](HISTORY-7cf0d2a.md).

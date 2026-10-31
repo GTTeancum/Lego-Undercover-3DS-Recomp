@@ -6,17 +6,17 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 **Resume from [CHECKPOINT.md](CHECKPOINT.md).**
 
-**What improved:** The rebuild tool now accepts larger startup routines. The previously blocked routine and four more missing startup sections now run.
+**What improved:** Added the missing arithmetic support and fixed a code-table lookup crash exposed by tests. Five more startup sections now run, including both processing loops and their returns.
 
-**What was checked:** All 5 builds passed 84/84 enabled tests. A fresh headless run of each exact saved executable passed the preceding startup stop. Complete captured audio, state and saves match the prior checkpoint.
+**What was checked:** All 5 new builds passed their full test gates: 84/84 (round 01), 86/86 (round 02), 86/86 (round 03), 86/86 (round 04), 86/86 (round 05). A fresh headless game run of each exact saved executable passed its preceding startup stop. The complete prior audio capture is preserved byte-for-byte as an exact prefix; the final capture adds 4 well-formed diagnostic records. Complete state and save contents match the prior same-mode checkpoint. This is a longer diagnostic capture, not evidence of speaker playback.
 
-**What still blocks play:** The latest run stops at another missing section of original game code. Menus, gameplay, speaker playback and Windows execution remain unverified. No new game-window run or screenshot was taken because SDL3 was unavailable in the workspace; the earlier loading image remains the last verified visible result.
+**What still blocks play:** Startup stops at another missing section of original game code. Menus and gameplay remain unverified. These were headless game runs. No new screenshot or visual progress is claimed; the earlier loading image remains the last verified windowed result. Speaker playback and Windows execution remain unverified.
 
 The whole touchscreen stays in the bottom-right corner. **Tab** enlarges it, **F11** toggles fullscreen, and mouse clicks act as touch input. See [desktop build and controls](docs/DESKTOP.md).
 
-**Next:** The next helper copies a pair of guest words to eight rows and returns through LR. Its memory values and eventual return destination remain unobserved. The precise developer handoff is in [CHECKPOINT.md](CHECKPOINT.md).
+**Next:** Add the next 105-instruction helper, which combines neighboring byte values into row words, restores its working pointer and returns through a stack-loaded address. The future memory values and return target remain unobserved. The exact developer handoff is in [CHECKPOINT.md](CHECKPOINT.md).
 
-Public Git contains source and metadata. Tested executables, generated game code and run evidence are preserved privately.
+Public Git contains source and metadata. Tested builds, generated game code and complete run evidence are preserved privately.
 
 ## Historical recovery records
 
