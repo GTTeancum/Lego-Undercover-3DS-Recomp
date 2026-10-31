@@ -78,9 +78,10 @@ if(LEGO_AOT_DIR)
         add_custom_command(OUTPUT "${supplement}"
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_aot_supplement.py"
                 "${LEGO_SUPPLEMENT_CODE_BIN}" "${CMAKE_CURRENT_SOURCE_DIR}/config/observed_aot_supplements.json"
-                "${supplement}" --clang "${LEGO_SUPPLEMENT_CLANG}" --llvm-objdump "${LEGO_SUPPLEMENT_OBJDUMP}"
+                "${supplement}" --base-aot-dir "${LEGO_AOT_DIR}" --clang "${LEGO_SUPPLEMENT_CLANG}" --llvm-objdump "${LEGO_SUPPLEMENT_OBJDUMP}"
             DEPENDS "${LEGO_SUPPLEMENT_CODE_BIN}" tools/generate_aot_supplement.py
-                tools/generate_aot_pages_llvm.py config/observed_aot_supplements.json
+                tools/generate_aot_pages_llvm.py tools/aot_recorded_fallthrough.py
+                config/observed_aot_supplements.json ${aot_pages}
             VERBATIM)
         target_sources(LEGOChaseNative PRIVATE "${supplement}")
         target_compile_definitions(LEGOChaseNative PRIVATE LEGO_HAVE_AOT_SUPPLEMENT=1)

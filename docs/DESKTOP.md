@@ -2,11 +2,11 @@
 
 ## Current verified status
 
-Five more startup gaps are filled. A 16-row copying loop and an eight-row neighboring-data helper now complete, and their missing return steps are restored. Startup reaches the next unfinished helper. All 5 builds passed 89/89 enabled tests in headless mode. The final post-stop captures remain completely black and are retained privately. No fresh windowed run was performed and no visual milestone is claimed. Menus and gameplay remain unverified. Speaker playback and Windows execution also remain unverified.
+Five new startup gaps are filled, and the five tested fixes left unpublished last time are recovered. A sixteen-row copying loop and an eight-row processing helper now finish and return. The rebuild tool also safely joins a missing prefix to unchanged original code, without duplicating instructions or adding a jump. All five fresh runs passed their preceding stopping points. Startup reaches another missing helper; menus and gameplay remain unverified. The five previously unpublished fixes are included as recovered work. All 5 new builds passed 89/89 enabled tests. The final headless stop is MissingBlock `0x0015457c`.
 
-Final stop: **MissingBlock `0x00153d9c`**. This batch adds 5 sections / 53 words and advances 3,662 executed instructions from the preceding same-mode checkpoint. Complete audio, state and saves are unchanged. Desktop configuration is unchanged.
+The final post-stop screen captures remain completely black and are retained privately. No fresh windowed run was performed and no visual milestone is claimed. Menus, gameplay, speaker playback and Windows execution remain unverified.
 
-Next reviewed interval: **`[0x00153d9c, 0x00153e94)`**. See [CHECKPOINT.md](../CHECKPOINT.md) and [the current recovery record](recovery/CURRENT-REBUILD.md). Original inputs, generated code, executables and captures stay private.
+The existing post-stop snapshot option was used on the final fresh run. No new capture-on/off comparison was performed; the earlier paired evidence remains historical. See [CHECKPOINT.md](../CHECKPOINT.md) for the next task.
 
 ## Capture current screen pixels without SDL
 

@@ -4,21 +4,17 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-Resume from [CHECKPOINT.md](CHECKPOINT.md).
+**Resume from [CHECKPOINT.md](CHECKPOINT.md).** The previously unpublished fixes are recovered and included in this checkpoint.
 
-**What improved:** Five more startup gaps are filled. A 16-row copying loop and an eight-row neighboring-data helper now complete, and their missing return steps are restored. Startup reaches the next unfinished helper. All 5 fresh runs passed their preceding stopping points.
+**What improved:** Five new startup gaps are filled, and the five tested fixes left unpublished last time are recovered. A sixteen-row copying loop and an eight-row processing helper now finish and return. The rebuild tool also safely joins a missing prefix to unchanged original code, without duplicating instructions or adding a jump. All five fresh runs passed their preceding stopping points. Startup reaches another missing helper; menus and gameplay remain unverified.
 
-**What is visible:** The final post-stop captures remain completely black and are retained privately. No fresh windowed run was performed and no visual milestone is claimed.
+**Checks:** All 5 new builds passed 89/89 enabled tests and their fresh startup runs passed the preceding stopping points. The five recovered builds retain their original passing test/run evidence. State and saves are unchanged. All prior audio bytes are retained, with four silent diagnostic records appended.
 
-**Checks:** All 5 builds passed 89/89 enabled tests. Complete saves, state and captured audio match the previous checkpoint. Exact builds and full run evidence are preserved privately.
+**What still blocks play:** The program stops at missing game code. Menus, gameplay, speaker playback and Windows execution remain unverified. There is no new visible milestone.
 
-**Still unfinished:** Menus and gameplay remain unverified. Speaker playback and Windows execution also remain unverified. Startup still stops at missing game code; these are not playable builds.
+The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). The latest headless post-stop captures are black and remain private diagnostics.
 
-**Next:** Restore the next reviewed neighboring-row processing helper; its instructions are already supported. See [CHECKPOINT.md](CHECKPOINT.md) and [the recovery record](docs/recovery/CURRENT-REBUILD.md).
-
-The whole touchscreen remains at bottom right; Tab enlarges it, F11 toggles fullscreen and mouse clicks map to touch input. See [desktop controls](docs/DESKTOP.md).
-
-Public Git contains source and metadata, not original game inputs, generated game code, executables, saves, screenshots or audio.
+Public Git contains source and metadata only. Tested binaries, generated game instructions and full recovery evidence are preserved privately.
 
 ## Historical recovery records
 

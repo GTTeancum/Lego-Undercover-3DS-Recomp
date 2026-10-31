@@ -142,9 +142,81 @@ void MissingTailAndFault() {
     catch(const std::invalid_argument&) { threw=true; }
     CHECK(threw);
 }
+void JoinUnchangedOriginalBlock() {
+    // An authored same-page missing prefix joins an original loop. The join
+    // emits no branch, replaces no original operation and replays no setup.
+    constexpr auto start=page+0x400U, join=start+8U, done=join+12U;
+    const a32::PackedOp prefix_ops[]{
+        {Imm(4,10,10,1),a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al,a32::Immediate)},
+        {Imm(13,0,1,3),a32::EncodeMetadata(a32::Opcode::MovImm,a32::Condition::Al,a32::Immediate)}};
+    const a32::PackedOp loop_ops[]{
+        {Imm(4,2,2,1),a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al,a32::Immediate)},
+        {Imm(2,1,1,1,true),a32::EncodeMetadata(a32::Opcode::Sub,a32::Condition::Al,a32::Immediate|a32::SetFlags)},
+        {(1U<<28U)|(5U<<25U)|0x00fffffcU,a32::EncodeMetadata(a32::Opcode::Branch,a32::Condition::Ne)}};
+    const a32::PackedOp ret{al|(13U<<21U)|(15U<<12U)|14U,
+                           a32::EncodeMetadata(a32::Opcode::MovReg,a32::Condition::Al)};
+    const a32::Block original_blocks[]{{join,loop_ops,3,false},{done,&ret,1,false}};
+    const a32::BlockShard original_shard{page,page+0xffcU,original_blocks,2};
+    const a32::Registry original{&original_shard,1,nullptr,0};
+    const a32::Block prefix{start,prefix_ops,2,false};
+    lego::host::SupplementalRegistry merged(original,std::span(&prefix,1));
+    CHECK(a32::FindBlock(original,start)==nullptr);
+    CHECK(a32::FindBlock(merged.registry(),join)->ops==loop_ops);
+    CHECK(a32::FindBlock(merged.registry(),done)->ops==&ret);
+    auto initial=Initial();initial.r[14]=returned;initial.r[15]=start;
+    GuestMemory memory;Map(memory);
+    auto head=initial,head_expected=initial;
+    head_expected.r[10]=51;head_expected.r[1]=3;head_expected.r[15]=join;
+    const auto fell=a32::ExecuteBlock(prefix,head,memory);
+    CHECK(fell.kind==a32::ExitKind::Fallthrough && fell.pc==join);
+    Same(head,head_expected);
+    auto expected=initial;expected.r[10]=51;expected.r[1]=0;
+    expected.r[2]=3;expected.r[15]=returned;expected.cpsr=flags|a32::kFlagZ|a32::kFlagC;
+    auto stepped=initial;unsigned count=0,joins=0;
+    while(count<20 && stepped.r[15]!=returned){
+        const auto pc=stepped.r[15];
+        const auto r=StepRecordedA32(merged.registry(),stepped,memory);++count;
+        CHECK(r.fallback==a32::FallbackReason::None && r.detail==0);
+        if(pc==start+4U){++joins;CHECK(r.kind==a32::ExitKind::Fallthrough && r.pc==join);}
+        else CHECK(r.kind==a32::ExitKind::Fallthrough || r.kind==a32::ExitKind::Branch);
+    }
+    CHECK(count==12 && joins==1);Same(stepped,expected);
+    auto dispatched=initial;
+    const auto stopped=a32::Dispatch(merged.registry(),start,dispatched,memory,nullptr,nullptr,16);
+    CHECK(stopped.kind==a32::ExitKind::MissingBlock && stopped.pc==returned);
+    Same(dispatched,expected);
+    auto tail=initial;tail.r[15]=join;tail.r[1]=2;tail.r[2]=4;tail.r[10]=99;
+    auto tail_expected=tail;tail_expected.r[1]=0;tail_expected.r[2]=6;
+    tail_expected.r[15]=returned;tail_expected.cpsr=flags|a32::kFlagZ|a32::kFlagC;
+    CHECK(a32::Dispatch(merged.registry(),join,tail,memory,nullptr,nullptr,16).kind==a32::ExitKind::MissingBlock);
+    Same(tail,tail_expected);
+    CHECK(original.shards[0].blocks==original_blocks && original.shards[0].block_count==2);
+
+    // A missing original target stays missing; metadata cannot decode a tail.
+    const a32::BlockShard empty_shard{page,page+0xffcU,nullptr,0};
+    const a32::Registry empty{&empty_shard,1,nullptr,0};
+    lego::host::SupplementalRegistry missing(empty,std::span(&prefix,1));
+    auto absent=initial;
+    const auto no_tail=a32::Dispatch(missing.registry(),start,absent,memory,nullptr,nullptr,16);
+    CHECK(no_tail.kind==a32::ExitKind::MissingBlock && no_tail.pc==join);
+    Same(absent,head_expected);
+
+    // An original tail's failed memory access still faults after prefix effects.
+    const a32::PackedOp load{al|(1U<<26U)|(1U<<24U)|(1U<<23U)|(1U<<20U)|(3U<<12U),
+                            a32::EncodeMetadata(a32::Opcode::Ldr32,a32::Condition::Al)};
+    const a32::Block fault_block{join,&load,1,false};
+    const a32::BlockShard fault_shard{page,page+0xffcU,&fault_block,1};
+    const a32::Registry fault_base{&fault_shard,1,nullptr,0};
+    lego::host::SupplementalRegistry fault_registry(fault_base,std::span(&prefix,1));
+    GuestMemory unmapped;auto faulted=initial;
+    const auto fault=a32::Dispatch(fault_registry.registry(),start,faulted,unmapped,nullptr,nullptr,16);
+    CHECK(fault.kind==a32::ExitKind::MemoryFault && fault.pc==join && fault.detail==data);
+    Same(faulted,head_expected);
+}
+
 }
 int main() {
-    BoundaryAndLoop(); DirectSuffixAndTail(); MissingTailAndFault();
+    BoundaryAndLoop(); DirectSuffixAndTail(); MissingTailAndFault(); JoinUnchangedOriginalBlock();
     if(failures)return EXIT_FAILURE;
-    std::cout << "PASS: page-edge fallthrough, PC+8, cross-page loop suffix, direct tail, flags, stack return, strict missing tail and fault effects\n";
+    std::cout << "PASS: page-edge fallthrough, PC+8, cross-page loop suffix, direct tail, flags, stack return, original-block join, strict missing tail and fault effects\n";
 }
