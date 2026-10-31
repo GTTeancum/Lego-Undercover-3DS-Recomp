@@ -321,6 +321,31 @@
       "entry": "0x001522BC",
       "end": "0x001524F4",
       "evidence": "Observed headless MissingBlock at 0x001522BC after the cross-page helper completed. One hundred forty-two authenticated original instructions save registers, combine neighboring guest byte values into row words, restore the working pointer and return through a stack-loaded PC. Existing arithmetic and memory handlers accept this bounded same-page section. Preserve guarded reads, partial stores, pointer and stack writeback, unchanged flags and ordinary target validation. End is exclusive at unobserved 0x001524F4; do not infer the return from live LR or include a successor body."
+    },
+    {
+      "entry": "0x001524F4",
+      "end": "0x00152834",
+      "evidence": "Observed headless MissingBlock at 0x001524F4. Two hundred eight authenticated original instructions combine guest byte values with stack temporaries, write row words, restore the working pointer and return through a stack-loaded PC. Existing arithmetic and memory handlers cover this same-page interval within the tested 1024-byte bound. Preserve guarded reads, partial writes, flags, stack writeback and ordinary target validation. End is exclusive at recorded 0x00152834; do not infer the return from live LR or include an unobserved successor."
+    },
+    {
+      "entry": "0x00152EB4",
+      "end": "0x00152FC0",
+      "evidence": "Observed headless MissingBlock at 0x00152EB4 after the preceding large helper completed. Sixty-seven authenticated original instructions combine neighboring guest byte values into row words, restore the working pointer and return through a stack-loaded PC. Existing immediate-shift arithmetic, fast operations and memory handlers cover this same-page interval. Preserve guarded reads, partial writes, unchanged flags, stack writeback and ordinary target validation. End is exclusive at unobserved 0x00152FC0; do not infer the return from live LR or include a successor body."
+    },
+    {
+      "entry": "0x00152A7C",
+      "end": "0x00152AC8",
+      "evidence": "Observed headless MissingBlock at 0x00152A7C after the preceding neighboring-byte helper completed. Nineteen authenticated original instructions average four bytes from a guest word, replicate the result to four rows, restore the working pointer and return through LR. Existing fast arithmetic, immediate-shift and memory handlers cover this same-page interval. Preserve guarded reads, partial writes, pointer writeback, unchanged flags and ordinary return-target validation. End is exclusive at unrecorded 0x00152AC8; no unobserved successor is included."
+    },
+    {
+      "entry": "0x00153B20",
+      "end": "0x00153B38",
+      "evidence": "Observed headless MissingBlock at 0x00153B20 after the preceding averaging helper completed. Six authenticated original instructions copy four guest words per row, advance both pointers, decrement the row count and conditionally loop to the section entry. Existing multiple-register memory, fast arithmetic and branch handlers cover the section. Preserve guarded reads, partial stores, flags and normal loop dispatch. End is exclusive at unrecorded 0x00153B38; do not include the unobserved fallthrough."
+    },
+    {
+      "entry": "0x00153B38",
+      "end": "0x00153B3C",
+      "evidence": "Observed headless MissingBlock at 0x00153B38 after the row-copy loop completed. One authenticated original instruction returns through LR using the existing fast register-move handler. Preserve the remaining registers, flags and normal return-target validation. End is exclusive at unrecorded 0x00153B3C; no unobserved successor is included."
     }
   ]
 }

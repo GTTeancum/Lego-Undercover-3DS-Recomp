@@ -4,19 +4,21 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-**Resume from [CHECKPOINT.md](CHECKPOINT.md).**
+Resume from [CHECKPOINT.md](CHECKPOINT.md).
 
-**What improved:** Five more startup sections now run, including the recovered helper from the interrupted session. The rebuild tool also handles a larger routine that crosses a code-page boundary, without changing its original instructions or adding a jump.
+**What improved:** Five more missing startup sections now run: two byte-processing helpers, an averaging helper, a row-copying loop and its return step. Together they let startup move through a substantially longer stretch of its existing code. All 5 fresh startup runs passed their previous stopping points.
 
-**What was checked:** All 5 builds passed their enabled tests; the final build passed 88/88. Fresh headless runs passed their preceding stops. Complete state and save contents match the previous same-mode checkpoint. The entire prior audio capture is preserved byte-for-byte, with four valid silent diagnostic records appended; this is not evidence of speaker playback.
+**What is visible:** The earlier loading image remains the last verified windowed result. This checkpoint was tested without a game window; no visual change is claimed.
 
-**What still blocks play:** Startup reaches more missing original game code. Menus and gameplay remain unverified. These were headless runs. No fresh game-window run or screenshot was taken. The earlier loading image remains the last verified visible result. Speaker playback and Windows execution remain unverified.
+**Checks:** Each build passed 88/88 enabled tests. The exact tested builds and complete run evidence are saved privately. Tests and startup progress are not proof of playability.
 
-The whole touchscreen stays in the bottom-right corner. **Tab** enlarges it, **F11** toggles fullscreen, and mouse clicks act as touch input. See [desktop build and controls](docs/DESKTOP.md).
+**Still unfinished:** Usable menus, gameplay, speaker playback and Windows execution remain unverified. Startup currently stops at another missing game-code section.
 
-**Next:** Add the next 208-instruction helper, which combines guest byte values using stack temporaries, writes row words, restores its working pointer and returns through a stack-loaded PC. Its future memory values and return destination remain unobserved. The exact developer handoff is in [CHECKPOINT.md](CHECKPOINT.md).
+**Next:** Add the reviewed six-instruction loop that copies two guest words per row, advances both pointers, decrements its row count and conditionally repeats. Future memory values, loop completion and the fallthrough beyond this section remain unobserved; do not add the successor body. See [the recovery record](docs/recovery/CURRENT-REBUILD.md) for measured results and the exact continuation.
 
-Public Git contains source and metadata only. Tested builds, generated code and complete run evidence are preserved privately.
+The whole touchscreen remains at bottom right; Tab enlarges it, F11 toggles fullscreen and mouse clicks map to touch input. See [desktop controls](docs/DESKTOP.md).
+
+Public Git contains source and metadata, not original game inputs, generated game code, executables, saves, screenshots or audio.
 
 ## Historical recovery records
 
