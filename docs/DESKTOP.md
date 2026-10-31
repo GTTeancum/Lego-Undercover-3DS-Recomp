@@ -1,16 +1,12 @@
 # Optional desktop display
 
-The SDL3 frontend displays both original LCD images in one resizable window. The main screen keeps its proportions; the whole touchscreen appears at bottom right at approximately 28% of window width. Tab enlarges/restores it, F11 toggles fullscreen, and mouse clicks map to the original 320x240 touch coordinates.
+## Current verified status
 
-## Current verification scope
+Six more startup gaps are filled. Two eight-row processing passes now finish, and their missing call and return links are restored. Startup reaches the next unfinished helper. All 6 builds passed 89/89 enabled tests in headless mode. The final post-stop captures are completely black and remain private diagnostics. No fresh windowed run was taken and no visual milestone is claimed. Menus and gameplay remain unverified. Speaker playback and Windows execution also remain unverified.
 
-Five more startup gaps are filled. A 16-row processing pass and an eight-row helper now finish, and their missing return steps are restored. All five fresh runs passed their preceding stops. Startup reaches another missing call setup; menus and gameplay remain unverified. All five headless builds passed 89/89 enabled tests once. The final post-stop captures remain completely black and are retained only as private diagnostics. No screenshot is posted and no fresh windowed run was taken. There is no new visual or gameplay milestone. Speaker playback and Windows execution remain unverified.
+Final stop: **MissingBlock `0x00154844`**. This batch adds 6 sections / 126 words and advances 713 executed instructions from the preceding same-mode checkpoint. Complete audio, state and save contents match that checkpoint. Desktop configuration is unchanged.
 
-Final stop: **MissingBlock `0x0014FB20`**. This batch adds 5 sections / 70 words and advances 3,113 executed instructions beyond the prior same-mode checkpoint. Complete audio, state and save contents are byte-for-byte identical to that checkpoint. This does not establish speaker playback. Desktop configuration is unchanged.
-
-Next interval: **`[0x0014FB20, 0x0014FB30)`**. Add the reviewed four-instruction entry that saves LR on the guest stack, sets two working registers and calls the already recorded routine at 0x0014F190. Its stack write and future execution remain unobserved. The assigned return at 0x0014FB30 is still missing; do not include that continuation or invent a return target. Existing handlers accept this interval.
-
-See [CHECKPOINT.md](../CHECKPOINT.md) and [current recovery record](recovery/CURRENT-REBUILD.md). Original inputs, generated code, executables and captures stay private.
+Next reviewed interval: **`[0x00154844, 0x00154874)`**. See [CHECKPOINT.md](../CHECKPOINT.md) and [the current recovery record](recovery/CURRENT-REBUILD.md). Original game inputs, generated code, executables and captures stay private.
 
 ## Capture current screen pixels without SDL
 

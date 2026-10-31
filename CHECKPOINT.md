@@ -4,26 +4,28 @@ Updated October 31, 2026 (Eastern). Read this first and resume from `main`.
 
 ## Plain-English status
 
-Five more startup gaps are filled. A 16-row processing pass and an eight-row helper now finish, and their missing return steps are restored. All five fresh runs passed their preceding stops. Startup reaches another missing call setup; menus and gameplay remain unverified.
+Six more startup gaps are filled. Two eight-row processing passes now finish, and their missing call and return links are restored. Startup reaches the next unfinished helper. All 6 fresh runs passed their preceding stopping points. Menus and gameplay remain unverified. Speaker playback and Windows execution also remain unverified.
 
-The final post-stop captures remain completely black and are retained only as private diagnostics. No screenshot is posted and no fresh windowed run was taken. There is no new visual or gameplay milestone. Speaker playback and Windows execution remain unverified.
+The final post-stop captures are completely black and remain private diagnostics. No fresh windowed run was taken and no visual milestone is claimed.
 
 ## Verified developer state
 
-Base: `9fa13be`. Added 5 reviewed sections / 5 physical blocks / 70 words. Totals: **91 reviewed sections / 92 physical blocks / 2117 words**, **111,135 runtime blocks / 547,228 verified words**. All 599 original AOT pages / 603 files and all 86 prior sections are preserved. Runtime, generator, tests and build configuration are unchanged. Only observed-range metadata is appended.
+Base: `1f1df7b`. Added 6 reviewed sections / 6 physical blocks / 126 words. Totals: **97 reviewed sections / 98 physical blocks / 2243 words**, **111,141 runtime blocks / 547,354 verified words**. All 599 original pages / 603 files and all 91 prior sections are preserved. Runtime, generator, tests and build configuration are unchanged.
 
-Final stop: **MissingBlock `0x0014FB20`**. Same-mode advance: **+3,113 core-0 instructions / +11,611 diagnostic ns**. All five game runs ended at missing code with native exit 3, no timeout and empty stderr. Complete audio, state and save contents are byte-for-byte identical to the preceding same-mode checkpoint.
+Final stop: **MissingBlock `0x00154844`**. Same-mode advance: **+713 core-0 instructions / +2,660 diagnostic ns**. Complete audio, state and save contents match the previous checkpoint byte-for-byte.
 
-All five builds passed **89/89 enabled tests once**, with zero failures/errors/skips. Each exact tested executable was saved privately before its fresh game run. Measured pointer/count checks confirm the 16-row and eight-row passes; the second loop excludes its one-time prefix. These checks do not verify pixel values or establish a successful game boot.
+All 6 builds passed **89/89 enabled tests once**, with zero failures, errors or skips. Each exact tested executable was saved privately before its fresh finite run. Every run ended at missing code with native exit 3, no timeout and empty stderr. These checks do not establish playable gameplay.
+
+Measured stop records confirm the restored processing loop completes all eight requested rows with expected pointer advances and exhausted count, without replaying its one-time setup. The second paired-row helper also completes eight rows with its one-time source adjustment and register save executed once. These checks do not verify the output words or pixel values.
 
 ## Next exact task
 
-Next reviewed interval: **`[0x0014FB20, 0x0014FB30)`**, 4 instruction words. Add the reviewed four-instruction entry that saves LR on the guest stack, sets two working registers and calls the already recorded routine at 0x0014F190. Its stack write and future execution remain unobserved. The assigned return at 0x0014FB30 is still missing; do not include that continuation or invent a return target. Existing handlers accept this interval.
+`[0x00154844, 0x00154874)`, 12 original instruction words. Add the reviewed 12-instruction row-copying section. It adjusts the source pointer once, combines two guest words and an adjacent byte into two output words, advances the row pointers, decrements the count and conditionally repeats at the interior suffix 0x00154848. Future memory values, loop completion and fallthrough at 0x00154874 remain unobserved; do not include that successor. Existing handlers accept the interval. Preserve all 97 reviewed sections (98 page-local blocks) and the original 599 AOT pages. Do not invent a return target or include unobserved successor bodies.
 
-Preserve all 91 reviewed sections (92 physical blocks). Authenticate, generate and verify exact words, build/test, preserve the exact native, and use fresh owned storage for a finite run. No runtime decoding, forced returns, fabricated GPU completion, invented targets or unobserved successor bodies.
+Authenticate, generate and verify exact words, build/test, preserve the exact native, and use fresh owned storage for a finite run. No runtime decoding, forced returns, fabricated GPU completion or invented successors.
 
 ## Continuation rules
 
-Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Source/metadata publication to `main` and ongoing private builds/backups are authorized. Never force-push. Keep original inputs, generated game code, executables, audio, captures, saves and recovery identifiers private. Keep user summaries short and plain. Do not post completely black screen captures to the user; retain them only as private diagnostic evidence.
+Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Source/metadata publication to `main` and ongoing private builds/backups are authorized. Never force-push. Keep original inputs, generated game code, executables, audio, captures, saves and recovery identifiers private. Keep summaries short and plain. Do not post completely black screen captures.
 
 Details: [current recovery record](docs/recovery/CURRENT-REBUILD.md).

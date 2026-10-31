@@ -6,15 +6,15 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 Resume from [CHECKPOINT.md](CHECKPOINT.md).
 
-**What improved:** Five more startup gaps are filled. A 16-row processing pass and an eight-row helper now finish, and their missing return steps are restored. All five fresh runs passed their preceding stops. Startup reaches another missing call setup; menus and gameplay remain unverified.
+**What improved:** Six more startup gaps are filled. Two eight-row processing passes now finish, and their missing call and return links are restored. Startup reaches the next unfinished helper. All 6 fresh runs passed their preceding stopping points.
 
-**What is visible:** The final post-stop captures remain completely black and are retained only as private diagnostics. No screenshot is posted and no fresh windowed run was taken. There is no new visual or gameplay milestone. Speaker playback and Windows execution remain unverified.
+**What is visible:** The final post-stop captures are completely black and remain private diagnostics. No fresh windowed run was taken and no visual milestone is claimed.
 
-**Checks:** All five builds passed 89/89 enabled tests once. The exact tested builds and complete run evidence are saved privately. Tests and startup progress are not proof of playability.
+**Checks:** All 6 builds passed 89/89 enabled tests. Saves and captured audio match the previous checkpoint. The exact builds and complete run evidence are preserved privately.
 
-**Still unfinished:** Usable menus, gameplay, speaker playback and Windows execution remain unverified. Startup currently stops at another missing game-code section.
+**Still unfinished:** Menus and gameplay remain unverified. Speaker playback and Windows execution also remain unverified. Startup still stops at missing game code; these are not playable builds.
 
-**Next:** Restore the small entry into the next routine, then check how far startup gets. Its operations are already supported; the exact handoff is in CHECKPOINT.md. See [the recovery record](docs/recovery/CURRENT-REBUILD.md) for measured results and the next task.
+**Next:** Restore the next reviewed startup section, then check where execution stops. See [CHECKPOINT.md](CHECKPOINT.md) and [the recovery record](docs/recovery/CURRENT-REBUILD.md).
 
 The whole touchscreen remains at bottom right; Tab enlarges it, F11 toggles fullscreen and mouse clicks map to touch input. See [desktop controls](docs/DESKTOP.md).
 
