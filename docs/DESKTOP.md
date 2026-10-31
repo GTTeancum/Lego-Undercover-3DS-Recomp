@@ -4,15 +4,13 @@ The SDL3 frontend displays both original LCD images in one resizable window. The
 
 ## Current verification scope
 
-Added the missing arithmetic support and fixed a code-table lookup crash exposed by tests. Five more startup sections now run, including both processing loops and their returns. All 5 fresh headless game runs passed their preceding stopping points. Each exact native passed its enabled tests once (84/84 (round 01), 86/86 (round 02), 86/86 (round 03), 86/86 (round 04), 86/86 (round 05)), with no failures, errors or skips, and was saved privately before its game run.
+Five more startup sections now run, including the recovered helper from the interrupted session. The rebuild tool also handles a larger routine that crosses a code-page boundary, without changing its original instructions or adding a jump. All 5 fresh headless game runs passed their preceding stopping points. Each build passed its enabled tests; the final gate passed 88/88. These were headless runs. No fresh game-window run or screenshot was taken. The earlier loading image remains the last verified visible result. Speaker playback and Windows execution remain unverified.
 
-These were headless game runs. No new screenshot or visual progress is claimed; the earlier loading image remains the last verified windowed result. Speaker playback and Windows execution remain unverified. The pinned SDL3 archive could not be downloaded in this workspace; desktop configuration is unchanged. No new windowed original-game run was performed.
+Final stop: **MissingBlock `0x001524F4`**. This batch adds 5 sections / 533 words and advances 50,515 executed instructions beyond the prior same-mode checkpoint. Complete state and save contents match the previous same-mode checkpoint. The entire prior audio capture is preserved byte-for-byte, with four valid silent diagnostic records appended; this is not evidence of speaker playback. This is not a visual or gameplay milestone. Desktop configuration is unchanged.
 
-Final headless stop: **MissingBlock `0x00151B6C`**. This batch adds 5 sections / 128 words and advances 23,764 executed instructions beyond the prior same-mode checkpoint. The complete prior audio capture is preserved byte-for-byte as an exact prefix; the final capture adds 4 well-formed diagnostic records. Complete state and save contents match the prior same-mode checkpoint. This is a longer diagnostic capture, not evidence of speaker playback. This is not a visual or gameplay milestone.
+Next interval: **`[0x1524F4, 0x152834)`**. Add the next 208-instruction helper, which combines guest byte values using stack temporaries, writes row words, restores its working pointer and returns through a stack-loaded PC. Its future memory values and return destination remain unobserved. Existing handlers accept this reviewed interval.
 
-Next interval: **`[0x00151B6C, 0x00151D10)`**. Add the next 105-instruction helper, which combines neighboring byte values into row words, restores its working pointer and returns through a stack-loaded address. The future memory values and return target remain unobserved. Existing handlers accept this reviewed interval.
-
-See [CHECKPOINT.md](../CHECKPOINT.md) and [current recovery record](recovery/CURRENT-REBUILD.md). Original inputs and all generated game code, executables and runtime evidence stay private.
+See [CHECKPOINT.md](../CHECKPOINT.md) and [current recovery record](recovery/CURRENT-REBUILD.md). Original inputs, generated code, executables and captures stay private.
 
 ## Build
 

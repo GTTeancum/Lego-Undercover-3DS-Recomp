@@ -1,41 +1,43 @@
-# October 30, 2026 — startup arithmetic and registry-lifetime continuation
+# October 30, 2026 — startup continuation
 
 ## Current status
 
-Added the missing arithmetic support and fixed a code-table lookup crash exposed by tests. Five more startup sections now run, including both processing loops and their returns. This advances startup only; menus and gameplay remain unverified. Start at [CHECKPOINT.md](../../CHECKPOINT.md).
+Five more startup sections now run, including the recovered helper from the interrupted session. The rebuild tool also handles a larger routine that crosses a code-page boundary, without changing its original instructions or adding a jump. Start at [CHECKPOINT.md](../../CHECKPOINT.md). Menus and gameplay remain unverified.
 
-Base: `28b8c7d9707f37daff3a66e507083db55ff0d176`. Added 5 observed sections / 128 words. Totals: 59 supplements / 1072 words; 111,102 runtime blocks / 546,183 verified instruction words. All 599 original pages / 603 files and 54 prior supplemental records are preserved. The generator now admits canonical immediate RSB with no PC operands. Its arithmetic still uses the existing evaluator. The runtime lookup cache now stores validated indices rather than borrowed block pointers, checking current entries and sorted insertion gaps on each hit. Two new native suites cover arithmetic and reused-registry lifetimes; Python policy tests cover the new admission. The same-page 1024-byte limit and all original-input, extent, overlap and first-exit guards remain unchanged.
+Base: `7e076537fd8514aa595a74e20cab71833e5a41ba`. Added 5 observed sections / 533 words. Totals: 64 logical sections / 65 physical blocks / 1605 words; 111,108 runtime blocks / 546,716 verified words. All 599 original pages / 603 files and 59 prior supplemental records are preserved. The generator adds explicit page-boundary fallthrough support. It validates a complete logical section up to 1024 bytes before emitting same-page physical pieces. The first real control exit still has to be the section's last original word. Existing input authentication, instruction admission, text bounds, alignment, size and nonoverlap checks remain. Runtime evaluators are unchanged.
 
 | Round | Added interval | Words | Actual stop | Instructions beyond preceding run |
 | --- | --- | ---: | --- | ---: |
-| 01 | `[0x001515B8, 0x00151604)` | 19 | `0x0015330c` | +262 |
-| 02 | `[0x0015330C, 0x001533B4)` | 42 | `0x001533b4` | +150 |
-| 03 | `[0x001533B4, 0x001534B8)` | 65 | `0x001534b8` | +485 |
-| 04 | `[0x001534B8, 0x001534BC)` | 1 | `0x001511b8` | +13177 |
-| 05 | `[0x001511B8, 0x001511BC)` | 1 | `0x00151b6c` | +9690 |
+| 01 | `[0x00151B6C, 0x00151D10)` | 105 | `0x001534bc` | +3813 |
+| 02 | `[0x001534BC, 0x001535DC)` | 72 | `0x001535dc` | +380 |
+| 03 | `[0x001535DC, 0x001535E0)` | 1 | `0x00151f68` | +18126 |
+| 04 | `[0x00151F68, 0x001522BC)` | 213 | `0x001522bc` | +17737 |
+| 05 | `[0x001522BC, 0x001524F4)` | 142 | `0x001524f4` | +10459 |
 
 ## Final measured result
 
-MissingBlock `0x00151B6C`, thread 7, dispatch round 21843; native exit 3, no timeout and empty stderr. Core-0 instructions: 61,411,758; core-1: 99. CPU ticks: 2,345,593,705; diagnostic guest time: 8,748,563,902 ns; display periods: 523; audio records: 285,730.
+MissingBlock `0x001524F4`, thread 7, dispatch round 21843; native exit 3, no timeout and empty stderr. Core-0 instructions: 61,462,273; core-1: 99. CPU ticks: 2,345,644,220; diagnostic guest time: 8,748,752,312 ns; display periods: 523; audio records: 285,734.
 
-Same-mode advance: 23,764 executed instructions / 88,635 diagnostic ns. These are not a speed benchmark or a gameplay completion percentage.
+Same-mode advance: 50,515 executed instructions / 188,410 diagnostic ns. These are not a performance benchmark or a gameplay percentage.
 
 ## Validation and scope
 
-Every exact new native passed its full enabled-test gate once: 84/84 (round 01), 86/86 (round 02), 86/86 (round 03), 86/86 (round 04), 86/86 (round 05), with zero failures/errors/skips. Targeted development tests first exposed a stale code-table pointer in the old lookup cache; the deterministic lifetime regression failed before the fix and passed afterward. The final focused Clang AddressSanitizer/UndefinedBehaviorSanitizer run passed all five selected suites. These development failures and final results are retained separately from successful build gates. Every previous supplemental operation and all original AOT files were preserved. Generated C++ and metadata match authenticated original instruction words. Source, original inputs, AOT and frozen executables were checked unchanged around compilation and each finite game run. The exact tested executable was saved privately before execution.
+Each exact new native passed its enabled-test gate, once with no failures/errors/skips: 86/86 (round 01), 86/86 (round 02), 86/86 (round 03), 88/88 (round 04), 88/88 (round 05). Source, original inputs, AOT pages and executables were verified unchanged around build and fresh finite execution. Every previous supplemental operation was preserved. Generated C++ and metadata agree with authenticated original instruction words. Exact executables were saved privately before execution.
 
-The complete prior audio capture is preserved byte-for-byte as an exact prefix; the final capture adds 4 well-formed diagnostic records. Complete state and save contents match the prior same-mode checkpoint. This is a longer diagnostic capture, not evidence of speaker playback. These were headless game runs. No new screenshot or visual progress is claimed; the earlier loading image remains the last verified windowed result. Speaker playback and Windows execution remain unverified.
+The interrupted pending build was recovered. Its saved test report passed 86 suites, and the fresh first build has identical generated operations. Its run evidence was unavailable, so this continuation uses a new build and fresh game run instead of claiming a prior result.
 
-Publication includes the narrow instruction-admission change, registry cache lifetime fix, authored native and Python tests, test registration, observed-range metadata and four current status documents. The status documents were updated after the final run; all non-status source matches the final tested candidate. Hosted CI runs without original game files. Its observed status is retained privately rather than predicted here.
+Complete state and save contents match the previous same-mode checkpoint. The entire prior audio capture is preserved byte-for-byte, with four valid silent diagnostic records appended; this is not evidence of speaker playback. These were headless runs. No fresh game-window run or screenshot was taken. The earlier loading image remains the last verified visible result. Speaker playback and Windows execution remain unverified. Passing diagnostic tests is not evidence of playable gameplay.
+
+This publication changes the generator, observed-range metadata, two authored test files, CMake test registration and four status documents. The old 62-block generation was independently checked byte-for-byte unchanged before adding the first crossing section. Six new Python policy tests, 41 existing policy tests, the page-boundary runtime fixture and five focused Clang address/undefined-behavior sanitizer suites passed. The new policy tests rejected the old generator; a diagnostic expectation in one test was corrected during development, with those earlier failures retained rather than described as passes. The status documents were updated after execution; all non-status source matches the final tested candidate. Hosted checks run without original game inputs. Their observed status is retained privately rather than predicted here.
 
 ## Next reviewed section
 
-`[0x00151B6C, 0x00151D10)`. Add the next 105-instruction helper, which combines neighboring byte values into row words, restores its working pointer and returns through a stack-loaded address. The future memory values and return target remain unobserved. Existing handlers accept this reviewed interval. The private review is tied to the final actual missing-code stop. Preserve ordinary memory faults, partial effects and target validation. Do not infer a stack-loaded return from live LR or add unobserved successor bodies.
+`[0x1524F4, 0x152834)`. Add the next 208-instruction helper, which combines guest byte values using stack temporaries, writes row words, restores its working pointer and returns through a stack-loaded PC. Its future memory values and return destination remain unobserved. Existing handlers accept this reviewed interval. The private review is tied to the actual final stop. Preserve memory faults, partial effects, flags and target validation. Do not infer stack-loaded returns from live LR or add unobserved successor bodies.
 
-Use fresh owned state/save/output paths and finite execution. Preserve all 59 supplements and 599 original pages. No forced return, runtime decoding, game-code modification or fabricated GPU completion.
+Use fresh owned state/save/output paths and finite execution. Preserve all 64 logical sections (65 physical blocks) and original AOT pages. No forced return, runtime decoding, game-code modification or fabricated GPU completion.
 
 ## Working permissions
 
-Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Source/metadata publication to `main` and ongoing private LEGO builds/backups are authorized. Never force-push. Keep original game inputs, generated code, executable bodies, audio, captures and saves private. Keep user-facing summaries short and plain.
+Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Source/metadata publication to `main` and ongoing private builds/backups are authorized. Never force-push. Keep original inputs, generated game code, executables, audio, captures, saves and recovery identifiers private. Keep user summaries short and plain.
 
-Prior records remain in Git history and separately saved private checkpoints. Historical notes are retained in [HISTORY-7cf0d2a.md](HISTORY-7cf0d2a.md).
+Prior records remain in Git history and separately saved private checkpoints. Historical notes remain in [HISTORY-7cf0d2a.md](HISTORY-7cf0d2a.md).

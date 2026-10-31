@@ -295,6 +295,32 @@
       "entry": "0x001511B8",
       "end": "0x001511BC",
       "evidence": "Observed headless MissingBlock at 0x001511B8 after the restored arithmetic routine returned. One authenticated original instruction branches through LR using existing fast register-move logic. Preserve flags, registers and ordinary target validation. End is exclusive at recorded 0x001511BC; no unobserved successor body is included."
+    },
+    {
+      "entry": "0x00151B6C",
+      "end": "0x00151D10",
+      "evidence": "Observed headless MissingBlock at 0x00151B6C. One hundred five authenticated original instructions combine neighboring guest byte values into row words, restore the working pointer and return through a stack-loaded PC. Existing arithmetic and memory handlers cover this same-page interval. Preserve guarded reads, partial writes, stack writeback and ordinary target validation. End is exclusive at recorded 0x00151D10; do not infer the return from live LR or include an unobserved successor."
+    },
+    {
+      "entry": "0x001534BC",
+      "end": "0x001535DC",
+      "evidence": "Observed headless MissingBlock at 0x001534BC after the neighboring-byte helper completed. Seventy-two authenticated original instructions save arguments, prepare buffered values, combine them with guest row bytes through a lookup table, and end at the first conditional branch to interior 0x0015352C. Existing immediate reverse subtraction, shifted arithmetic and memory handlers cover the section. Preserve flags, guarded reads, partial byte writes, pointer writeback and ordinary target validation. End is exclusive at unobserved 0x001535DC; no successor body is included."
+    },
+    {
+      "entry": "0x001535DC",
+      "end": "0x001535E0",
+      "evidence": "Observed headless MissingBlock at 0x001535DC after the restored row-processing loop completed. One authenticated original instruction restores saved argument and working registers plus PC from the guest stack. Existing multiple-register memory support covers the form. Preserve guarded reads, partial-load effects, stack writeback and subsequent target validation. End is exclusive at recorded 0x001535E0; do not infer the return from live LR or include an unobserved destination."
+    },
+    {
+      "entry": "0x00151F68",
+      "end": "0x001522BC",
+      "evidence": "Observed headless MissingBlock at 0x00151F68 after the restored processing routine returned. Two hundred thirteen authenticated original instructions save registers, combine neighboring guest byte values into row words, restore the working pointer and return through a stack-loaded PC. This reviewed logical section crosses one page boundary. Explicit page_fallthrough emits two page-local blocks with ordinary sequential flow and no inserted instruction or branch. Preserve guarded reads, partial writes, stack writeback and target validation. End is exclusive at unobserved 0x001522BC; no successor body is included.",
+      "page_fallthrough": true
+    },
+    {
+      "entry": "0x001522BC",
+      "end": "0x001524F4",
+      "evidence": "Observed headless MissingBlock at 0x001522BC after the cross-page helper completed. One hundred forty-two authenticated original instructions save registers, combine neighboring guest byte values into row words, restore the working pointer and return through a stack-loaded PC. Existing arithmetic and memory handlers accept this bounded same-page section. Preserve guarded reads, partial stores, pointer and stack writeback, unchanged flags and ordinary target validation. End is exclusive at unobserved 0x001524F4; do not infer the return from live LR or include a successor body."
     }
   ]
 }
