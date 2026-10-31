@@ -6,15 +6,15 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 Resume from [CHECKPOINT.md](CHECKPOINT.md).
 
-**What improved:** Seven more startup gaps are filled: two calls, their setup and dispatch, a complete 16-row processing helper, its return and the next caller dispatch. Fresh execution now reaches the next missing helper. All 7 fresh startup runs passed their previous stopping points.
+**What improved:** Five more startup gaps are filled: an eight-row processing loop, its return, the next setup and table dispatch, and two stack returns. Startup now completes both processing passes and reaches another missing helper. All 5 fresh startup runs passed their previous stopping points.
 
 **What is visible:** The final post-stop captures remain completely black and are retained only as private diagnostics. No new screenshot is posted and no fresh windowed run was taken. No visual or gameplay milestone is claimed; speaker playback and Windows execution remain unverified.
 
-**Checks:** All seven builds passed 89/89 enabled tests once. The exact tested builds and complete run evidence are saved privately. Tests and startup progress are not proof of playability.
+**Checks:** All five builds passed 89/89 enabled tests once. The exact tested builds and complete run evidence are saved privately. Tests and startup progress are not proof of playability.
 
 **Still unfinished:** Usable menus, gameplay, speaker playback and Windows execution remain unverified. Startup currently stops at another missing game-code section.
 
-**Next:** Add the reviewed 14-instruction helper section that loads a mask, combines neighboring guest word and halfword values into one output row word, advances pointers, decrements the row count and conditionally loops to an interior suffix at 0x00155010. The actual future memory values, loop completion and fallthrough at 0x00155040 remain unobserved. Do not include that successor body or invent a return target. See [the recovery record](docs/recovery/CURRENT-REBUILD.md) for measured results and the exact continuation.
+**Next:** Restore the next row-processing helper, then check how far startup gets. Its operations are already supported; the detailed review is in CHECKPOINT.md. See [the recovery record](docs/recovery/CURRENT-REBUILD.md) for measured results and the exact continuation.
 
 The whole touchscreen remains at bottom right; Tab enlarges it, F11 toggles fullscreen and mouse clicks map to touch input. See [desktop controls](docs/DESKTOP.md).
 

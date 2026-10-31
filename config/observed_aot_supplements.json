@@ -406,6 +406,31 @@
       "entry": "0x0014F4B4",
       "end": "0x0014F510",
       "evidence": "Observed headless MissingBlock at 0x0014F4B4 after the completed row-processing helper returned through its original LR. Twenty-three authenticated original instructions reload saved arguments, derive scaled row pointers and an index, preserve a working pointer, and select the next routine through an immutable relative-offset table. Existing fast operations, immediate shifts, shifted ADD, immediate AND and memory handlers cover this same-page interval. Preserve guarded reads, original register effects, flags and computed-target validation. Keep table words as data. End is exclusive at unobserved 0x0014F510; no unobserved dispatch target or later continuation is included."
+    },
+    {
+      "entry": "0x00155008",
+      "end": "0x00155040",
+      "evidence": "Observed headless MissingBlock at 0x00155008. Fourteen authenticated original instructions load a mask, combine neighboring guest word and halfword values into an output row word, advance pointers, decrement the row count and conditionally repeat at the interior suffix 0x00155010. Existing arithmetic and memory handlers cover this same-page interval. Preserve guarded reads, partial writes, flags and ordinary target validation. End is exclusive at unobserved 0x00155040; no successor body is included."
+    },
+    {
+      "entry": "0x00155040",
+      "end": "0x00155044",
+      "evidence": "Observed headless MissingBlock at 0x00155040 after the restored row-processing loop completed all eight requested rows. One authenticated original instruction returns through LR using the existing fast register-move handler. Preserve the other registers, flags and ordinary execution-state and target validation. End is exclusive at unobserved 0x00155044; no successor body is included."
+    },
+    {
+      "entry": "0x0014F510",
+      "end": "0x0014F534",
+      "evidence": "Observed headless MissingBlock at 0x0014F510 after the row-processing helper returned. Nine authenticated original instructions reload and halve a guest-stack row count, adjust source and destination pointers, establish LR 0x0014F534 and dispatch through the immutable original relative-offset table. Existing fast, shifted arithmetic and memory handlers cover this same-page interval. Keep table words as data and preserve guarded reads, flags and ordinary target validation. End is exclusive at unobserved 0x0014F534; no unobserved destination or continuation is included."
+    },
+    {
+      "entry": "0x0014F534",
+      "end": "0x0014F538",
+      "evidence": "Observed headless MissingBlock at 0x0014F534 after the second row-processing dispatch completed. One authenticated original instruction restores nine general registers and PC from the guest stack. Existing multiple-register memory support covers this same-page interval. Preserve guarded reads, partial-load effects, stack writeback and subsequent execution-state and target validation. End is exclusive at unobserved 0x0014F538; do not infer the return from live LR or include an unobserved destination."
+    },
+    {
+      "entry": "0x0014F5B4",
+      "end": "0x0014F5B8",
+      "evidence": "Observed headless MissingBlock at 0x0014F5B4 after the saved-register return completed. One authenticated original instruction loads PC from the guest stack and advances SP by four bytes. Existing memory support covers this same-page interval. Preserve guarded reads, fault behavior, stack writeback and subsequent execution-state and target validation. End is exclusive at unobserved 0x0014F5B8; do not infer the actual return from live LR or include an unobserved destination."
     }
   ]
 }
