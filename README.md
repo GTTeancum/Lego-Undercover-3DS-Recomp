@@ -6,7 +6,7 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 Resume from [CHECKPOINT.md](CHECKPOINT.md).
 
-**What improved:** Five more startup gaps are filled. A four-row copying loop and a 16-row neighboring-data pass now complete, and their missing return steps are restored. Startup reaches the next unfinished helper. All 5 fresh runs passed their preceding stopping points.
+**What improved:** Five more startup gaps are filled. A 16-row copying loop and an eight-row neighboring-data helper now complete, and their missing return steps are restored. Startup reaches the next unfinished helper. All 5 fresh runs passed their preceding stopping points.
 
 **What is visible:** The final post-stop captures remain completely black and are retained privately. No fresh windowed run was performed and no visual milestone is claimed.
 
@@ -14,7 +14,7 @@ Resume from [CHECKPOINT.md](CHECKPOINT.md).
 
 **Still unfinished:** Menus and gameplay remain unverified. Speaker playback and Windows execution also remain unverified. Startup still stops at missing game code; these are not playable builds.
 
-**Next:** Restore the next reviewed row-copying loop and check where startup stops. See [CHECKPOINT.md](CHECKPOINT.md) and [the recovery record](docs/recovery/CURRENT-REBUILD.md).
+**Next:** Restore the next reviewed neighboring-row processing helper; its instructions are already supported. See [CHECKPOINT.md](CHECKPOINT.md) and [the recovery record](docs/recovery/CURRENT-REBUILD.md).
 
 The whole touchscreen remains at bottom right; Tab enlarges it, F11 toggles fullscreen and mouse clicks map to touch input. See [desktop controls](docs/DESKTOP.md).
 

@@ -4,23 +4,23 @@ Updated October 31, 2026 (Eastern). Read this first and resume from `main`.
 
 ## Plain-English status
 
-Five more startup gaps are filled. A four-row copying loop and a 16-row neighboring-data pass now complete, and their missing return steps are restored. Startup reaches the next unfinished helper. All 5 fresh game runs passed their preceding stopping points. Menus and gameplay remain unverified. Speaker playback and Windows execution also remain unverified.
+Five more startup gaps are filled. A 16-row copying loop and an eight-row neighboring-data helper now complete, and their missing return steps are restored. Startup reaches the next unfinished helper. All 5 fresh game runs passed their preceding stopping points. Menus and gameplay remain unverified. Speaker playback and Windows execution also remain unverified.
 
 The final post-stop captures remain completely black and are retained privately. No fresh windowed run was performed and no visual milestone is claimed.
 
 ## Verified developer state
 
-Base: `8f1d469`. Added 5 reviewed sections / 5 physical blocks / 52 words. Totals: **102 reviewed sections / 103 physical blocks / 2295 words**, **111,146 runtime blocks / 547,406 verified words**. All 599 original AOT pages / 603 files and all 97 preceding sections are preserved. Runtime, generator, tests and build configuration are unchanged. Only observed-range metadata is appended.
+Base: `2a3fd03`. Added 5 reviewed sections / 5 physical blocks / 53 words. Totals: **107 reviewed sections / 108 physical blocks / 2348 words**, **111,151 runtime blocks / 547,459 verified words**. All 599 original AOT pages / 603 files and all 102 preceding sections are preserved. Runtime, generator, tests and build configuration are unchanged. Only observed-range metadata is appended.
 
-Final stop: **MissingBlock `0x00154c84`**. Same-mode advance: **+11,125 core-0 instructions / +41,494 diagnostic ns**. All runs ended at missing code with native exit 3, no timeout and empty stderr. Complete audio, state and save contents match the preceding same-mode checkpoint byte-for-byte. These are not gameplay or performance percentages.
+Final stop: **MissingBlock `0x00153d9c`**. Same-mode advance: **+3,662 core-0 instructions / +13,658 diagnostic ns**. All runs ended at missing code with native exit 3, no timeout and empty stderr. Complete audio, state and save contents match the preceding same-mode checkpoint byte-for-byte. These are not gameplay or performance percentages.
 
-Every build passed **89/89 enabled tests once**, with zero failures/errors/skips. Each exact tested executable was saved privately before its fresh run. Measured pointer/count and instruction-count checks confirm the first restored loop completed all four requested rows and the neighboring-row pass completed all sixteen output rows, without repeating their one-time prefixes. These checks do not validate output words or pixels.
+Every build passed **89/89 enabled tests once**, with zero failures/errors/skips. Each exact tested executable was saved privately before its fresh run. Measured pointer/count and instruction-count checks confirm the first restored copying loop completed all sixteen requested rows and the neighboring-row helper completed all eight output rows without repeating their one-time prefixes. These checks do not validate output words or pixels.
 
 ## Next exact task
 
-Next reviewed interval: **`[0x00154c84, 0x00154cb0)`**. Add the reviewed 11-instruction row-copying section. It adjusts the source pointer once, loads a preceding byte and two guest words, combines shifted byte lanes into two output words, advances both row pointers, decrements the count and conditionally repeats at interior suffix 0x00154C88. Existing handlers accept the interval. Future memory values, loop completion and fallthrough at 0x00154CB0 remain unobserved; do not include that successor or invent a return target.
+Next reviewed interval: **`[0x00153d9c, 0x00153e94)`**. Add the reviewed 62-instruction section. It saves three registers, adjusts the source pointer once, loads a mask, combines neighboring guest rows into four-word outputs, advances row pointers and decrements the row count by two. Its first control exit conditionally repeats at the interior suffix 0x00153DE4, excluding the one-time prefix. Existing handlers accept the interval. Future memory values, loop completion and fallthrough at 0x00153E94 remain unobserved; do not add that successor or invent a return target.
 
-Preserve all 102 reviewed sections (103 page-local blocks). Authenticate, generate and verify exact words, build/test, preserve the exact native, and use fresh owned storage for one finite run. No runtime decoding, forced returns, fabricated GPU completion, invented targets or unobserved successor bodies.
+Preserve all 107 reviewed sections (108 page-local blocks). Authenticate, generate and verify exact words, build/test, preserve the exact native, and use fresh owned storage for one finite run. No runtime decoding, forced returns, fabricated GPU completion, invented targets or unobserved successor bodies.
 
 ## Continuation rules
 
