@@ -4,13 +4,13 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-**Resume from [CHECKPOINT.md](CHECKPOINT.md).** The previously unpublished fixes are recovered and included in this checkpoint.
+**Resume from [CHECKPOINT.md](CHECKPOINT.md).** It contains the latest measured state and next task.
 
-**What improved:** Five new startup gaps are filled, and the five tested fixes left unpublished last time are recovered. A sixteen-row copying loop and an eight-row processing helper now finish and return. The rebuild tool also safely joins a missing prefix to unchanged original code, without duplicating instructions or adding a jump. All five fresh runs passed their preceding stopping points. Startup reaches another missing helper; menus and gameplay remain unverified.
+**What improved:** Six more startup gaps are filled. Three processing loops now finish their requested rows, and all three missing return steps are restored. All six fresh game runs passed their preceding stopping points. Startup reaches another missing setup step; menus and gameplay remain unverified.
 
-**Checks:** All 5 new builds passed 89/89 enabled tests and their fresh startup runs passed the preceding stopping points. The five recovered builds retain their original passing test/run evidence. State and saves are unchanged. All prior audio bytes are retained, with four silent diagnostic records appended.
+**Checks:** All 6 new builds passed 89/89 enabled tests and their fresh startup runs passed the preceding stopping points. Complete audio, state and save contents match the previous same-mode checkpoint byte-for-byte.
 
-**What still blocks play:** The program stops at missing game code. Menus, gameplay, speaker playback and Windows execution remain unverified. There is no new visible milestone.
+**What still blocks play:** Startup still stops at missing game code. Menus, gameplay, speaker playback and Windows execution remain unverified. There is no new visible milestone.
 
 The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). The latest headless post-stop captures are black and remain private diagnostics.
 

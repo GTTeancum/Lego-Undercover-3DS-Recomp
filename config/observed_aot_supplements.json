@@ -589,6 +589,36 @@
       "entry": "0x00154778",
       "end": "0x0015477C",
       "evidence": "Observed headless MissingBlock at 0x00154778 after the neighboring-word loop completed. One authenticated original instruction returns through LR using the existing register-move handler. Preserve all other registers, flags and ordinary target validation. End is exclusive at 0x0015477C; do not include an unobserved successor body or manufacture a return destination."
+    },
+    {
+      "entry": "0x0015457C",
+      "end": "0x001546B0",
+      "evidence": "Observed headless MissingBlock at 0x0015457C. Seventy-seven authenticated original instructions save three registers, adjust the source pointer once, load a mask and combine neighboring guest rows into four-word outputs. The section advances row pointers, decrements the count by two and ends at its first conditional branch to interior suffix 0x001545D8, excluding the one-time setup. Existing arithmetic and memory handlers cover the interval. Preserve guarded reads, partial writes, flags and target validation. End is exclusive; unobserved fallthrough 0x001546B0 is not included."
+    },
+    {
+      "entry": "0x001546B0",
+      "end": "0x001546B4",
+      "evidence": "Observed headless MissingBlock at 0x001546B0 after the neighboring-row processing loop completed. One authenticated original instruction restores r5, r6 and PC from the guest stack. Existing multiple-register memory support covers the form. Preserve guarded reads, partial-load effects, stack writeback and ordinary target validation. End is exclusive; do not infer the return from live LR or include an unobserved successor body."
+    },
+    {
+      "entry": "0x00154D50",
+      "end": "0x00154D90",
+      "evidence": "Observed headless MissingBlock at 0x00154D50 after the preceding stack return and existing caller code. Sixteen authenticated original instructions load a mask, adjust the source pointer once, combine a preceding byte and two guest words into two output words, advance both row pointers and decrement the row count. The first control exit conditionally repeats at interior suffix 0x00154D58, excluding the one-time setup. Existing arithmetic and memory handlers cover the interval. Preserve guarded reads, partial stores, flags and target validation. End is exclusive; unobserved fallthrough 0x00154D90 is not included."
+    },
+    {
+      "entry": "0x00154D90",
+      "end": "0x00154D94",
+      "evidence": "Observed headless MissingBlock at 0x00154D90 after the four-row processing loop completed. One authenticated original instruction moves LR into PC through the existing register-move handler. Preserve the incoming link value, flags and ordinary execution-state and target validation. End is exclusive at recorded 0x00154D94; no unobserved successor body is included."
+    },
+    {
+      "entry": "0x001552A8",
+      "end": "0x001552D4",
+      "evidence": "Observed headless MissingBlock at 0x001552A8 after the restored return allowed further caller execution. Eleven authenticated original instructions load a mask, adjust the source pointer once, combine a preceding guest byte and one guest word into an output row word, advance pointers with ordinary writeback and decrement the row count. The first control exit conditionally repeats at interior suffix 0x001552B0, excluding the one-time setup. Existing arithmetic and memory handlers cover the interval. Preserve guarded reads, partial effects, flags and ordinary target validation. End is exclusive; unobserved fallthrough 0x001552D4 is not included."
+    },
+    {
+      "entry": "0x001552D4",
+      "end": "0x001552D8",
+      "evidence": "Observed headless MissingBlock at 0x001552D4 after the eight-row processing loop completed. One authenticated original instruction moves LR into PC through the existing register-move handler. Preserve all other registers, flags and ordinary execution-state and return-target validation. End is exclusive; no unobserved successor body or invented return destination is included."
     }
   ]
 }

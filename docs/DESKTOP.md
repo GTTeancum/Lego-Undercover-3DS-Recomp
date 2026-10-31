@@ -2,9 +2,9 @@
 
 ## Current verified status
 
-Five new startup gaps are filled, and the five tested fixes left unpublished last time are recovered. A sixteen-row copying loop and an eight-row processing helper now finish and return. The rebuild tool also safely joins a missing prefix to unchanged original code, without duplicating instructions or adding a jump. All five fresh runs passed their preceding stopping points. Startup reaches another missing helper; menus and gameplay remain unverified. The five previously unpublished fixes are included as recovered work. All 5 new builds passed 89/89 enabled tests. The final headless stop is MissingBlock `0x0015457c`.
+Six more startup gaps are filled. Three processing loops now finish their requested rows, and all three missing return steps are restored. All six fresh game runs passed their preceding stopping points. Startup reaches another missing setup step; menus and gameplay remain unverified. All 6 new builds passed 89/89 enabled tests. The final headless stop is MissingBlock `0x0014f58c`.
 
-The final post-stop screen captures remain completely black and are retained privately. No fresh windowed run was performed and no visual milestone is claimed. Menus, gameplay, speaker playback and Windows execution remain unverified.
+The final post-stop screen captures remain completely black and are retained privately. No fresh windowed run was performed and no visible milestone is claimed. Menus, gameplay, speaker playback and Windows execution remain unverified.
 
 The existing post-stop snapshot option was used on the final fresh run. No new capture-on/off comparison was performed; the earlier paired evidence remains historical. See [CHECKPOINT.md](../CHECKPOINT.md) for the next task.
 
