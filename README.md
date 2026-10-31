@@ -4,17 +4,17 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-**Resume from [CHECKPOINT.md](CHECKPOINT.md).** All eleven previously pending startup fixes are included. The publication resumes the two saved tested batches; it does not claim new game runs.
+**Resume from [CHECKPOINT.md](CHECKPOINT.md).** All eleven formerly pending startup fixes were published as `461a306` before this continuation.
 
-**What improved:** Five more startup gaps are filled. The four-row neighboring-data helper and the sixteen-row processing loop now finish, and both missing return steps are restored. All five fresh startup runs passed their previous stopping points. Startup reaches another missing helper; menus and gameplay remain unverified.
+**What improved:** Five new startup gaps are filled. A sixteen-row neighboring-byte processing loop and an eight-row copying loop now complete, their missing return steps are restored, and a setup step connects to existing code. All five fresh runs passed their preceding stops. Startup reaches another missing helper; menus and gameplay remain unverified.
 
-**Checks:** All 5 new builds passed 89/89 enabled tests, and all fresh runs passed their preceding stops. The six previously tested unpublished fixes are preserved, not counted as new runs. Complete captured audio, state and save contents match the recovered candidate byte-for-byte.
+**Checks:** Every one of the 5 new builds passed 89/89 enabled tests. Each fresh startup run passed its previous stopping point. State and saves match the preceding checkpoint. Its full audio capture remains an exact prefix, with 4 additional diagnostic records.
 
-**What still blocks play:** Startup still stops at missing code. Menus, gameplay, speaker playback and Windows execution remain unverified. No new windowed run was performed.
+**Still unfinished:** Startup stops at another missing section. Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh windowed run was performed.
 
 The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). Completely black diagnostic captures stay private.
 
-Public Git contains source and metadata only. Tested binaries, generated instructions and full recovery evidence are preserved privately. The previously rejected synthetic test upload was accepted unchanged on the requested retry.
+Public Git contains source and metadata only; exact tested binaries, generated operations and complete recovery evidence remain private.
 
 ## Historical recovery records
 
