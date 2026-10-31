@@ -520,18 +520,20 @@ void InteriorLoopAndStackReturn(){
  CHECK(a32::FindBlock(shift_base,entry)==nullptr && a32::FindBlock(shift_base,pop_pc)==nullptr);
 }
 
+template<unsigned word_count>
 void LongBlockAndInteriorSuffix(){
- // Authored 96-word block: the first control exit is its final BNE, and its
- // loop starts beyond word 64. Prefix counters expose any truncation or
- // accidental prefix replay when either dispatcher resolves the loop suffix.
- constexpr unsigned word_count=96U, loop_index=90U;
+ // Authored blocks cover the old bound and the new 1 KiB limit. The only
+ // control exit is the final BNE; larger variants loop beyond word 128.
+ // Prefix counters expose truncation, skipped words and prefix replay.
+ static_assert(word_count>=96U && word_count<=256U);
+ constexpr unsigned loop_index=word_count-6U;
  constexpr auto entry=kShiftPc+0xa00U, loop=entry+loop_index*4U;
  constexpr auto branch_pc=entry+(word_count-1U)*4U, end=entry+word_count*4U;
- static_assert(word_count*4U>256U && word_count*4U<=512U);
+ static_assert(word_count*4U>256U && word_count*4U<=1024U);
  static_assert((entry>>12U)==((end-1U)>>12U));
  std::array<a32::PackedOp,word_count> ops{};
  for(auto& op:ops){
-   // ADD r10, r10, #1; the 86 middle prefix words have no control effects.
+   // ADD r10, r10, #1; every middle prefix word increments the counter.
    op={(14U<<28U)|(1U<<25U)|(4U<<21U)|(10U<<16U)|(10U<<12U)|1U,
        a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al,a32::Immediate)};
  }
@@ -542,18 +544,18 @@ void LongBlockAndInteriorSuffix(){
  ops[3]={(14U<<28U)|(1U<<25U)|(4U<<21U)|(12U<<16U)|(12U<<12U)|1U,
          a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al,a32::Immediate)};
  // Extract byte 0x34, subtract 3*4 and accumulate 40 on each loop visit.
- ops[90]={ShiftWord(0,false,1,8,6,5,4),
+ ops[loop_index+0U]={ShiftWord(0,false,1,8,6,5,4),
           a32::EncodeMetadata(a32::Opcode::CoreAlu,a32::Condition::Al)};
- ops[91]={ShiftWord(2,false,0,2,6,7,6),
+ ops[loop_index+1U]={ShiftWord(2,false,0,2,6,7,6),
           a32::EncodeMetadata(a32::Opcode::CoreAlu,a32::Condition::Al)};
- ops[92]={ShiftWord(4,false,0,0,0,6,0),
+ ops[loop_index+2U]={ShiftWord(4,false,0,0,0,6,0),
           a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al)};
- ops[93]={(14U<<28U)|(1U<<25U)|(4U<<21U)|(2U<<16U)|(2U<<12U)|1U,
+ ops[loop_index+3U]={(14U<<28U)|(1U<<25U)|(4U<<21U)|(2U<<16U)|(2U<<12U)|1U,
           a32::EncodeMetadata(a32::Opcode::Add,a32::Condition::Al,a32::Immediate)};
- ops[94]={(14U<<28U)|(1U<<25U)|(2U<<21U)|(1U<<20U)|(1U<<16U)|(1U<<12U)|1U,
+ ops[loop_index+4U]={(14U<<28U)|(1U<<25U)|(2U<<21U)|(1U<<20U)|(1U<<16U)|(1U<<12U)|1U,
           a32::EncodeMetadata(a32::Opcode::Sub,a32::Condition::Al,a32::Immediate|a32::SetFlags)};
- // Architectural PC is word 97; a displacement of -7 words reaches word 90.
- ops[95]={(1U<<28U)|(5U<<25U)|0x00fffff9U,
+ // At the final branch, PC+8 minus seven words reaches the loop start.
+ ops[loop_index+5U]={(1U<<28U)|(5U<<25U)|0x00fffff9U,
           a32::EncodeMetadata(a32::Opcode::Branch,a32::Condition::Ne)};
  const a32::Block addition{entry,ops.data(),word_count,false};
  lego::host::SupplementalRegistry merged(shift_base,std::span(&addition,1));
@@ -576,16 +578,16 @@ void LongBlockAndInteriorSuffix(){
  const auto first=a32::ExecuteBlock(addition,first_pass,memory);
  CHECK(first.kind==a32::ExitKind::Branch && first.pc==loop);
  CHECK(first_pass.r[0]==40U && first_pass.r[1]==2U && first_pass.r[2]==1U);
- CHECK(first_pass.r[10]==95U && first_pass.r[12]==0x31U);
+ CHECK(first_pass.r[10]==word_count-1U && first_pass.r[12]==0x31U);
  CHECK(first_pass.cpsr==(kOtherCpsr|C));
 
  auto expected=initial;
  expected.r[0]=120U;expected.r[1]=0U;expected.r[2]=3U;expected.r[6]=40U;
- expected.r[10]=95U;expected.r[12]=0x31U;expected.r[15]=end;
+ expected.r[10]=word_count-1U;expected.r[12]=0x31U;expected.r[15]=end;
  expected.cpsr=kOtherCpsr|Z|C;
  auto stepped=initial;
  unsigned steps=0, loop_visits=0, taken=0;
- while(stepped.r[15]!=end && steps<128U){
+ while(stepped.r[15]!=end && steps<word_count+32U){
    const auto pc=stepped.r[15];
    if(pc==loop)++loop_visits;
    const auto result=StepRecordedA32(merged.registry(),stepped,memory);++steps;
@@ -594,7 +596,7 @@ void LongBlockAndInteriorSuffix(){
    }else CHECK(result.kind==a32::ExitKind::Fallthrough && result.pc==pc+4U);
    CHECK(result.fallback==a32::FallbackReason::None && result.detail==0U);
  }
- CHECK(steps==108U && loop_visits==3U && taken==2U);
+ CHECK(steps==word_count+12U && loop_visits==3U && taken==2U);
  CHECK(stepped.r==expected.r && stepped.cpsr==expected.cpsr);
  CHECK(stepped.fpscr==expected.fpscr && stepped.vfp==expected.vfp);
  CHECK(stepped.thread_pointer==expected.thread_pointer);
@@ -636,4 +638,4 @@ void LongBlockAndInteriorSuffix(){
  CHECK(shift_base.shards[0].blocks==nullptr && shift_base.shards[0].block_count==0U);
 }
 }
-int main(){ValidAndExecution();Invalid();ImmediateShiftSemantics();AndAndSubtractShiftSemantics();TstImmediateSemantics();TstConditionalDispatch();ComputedPcDispatch();InteriorLoopAndStackReturn();LongBlockAndInteriorSuffix();if(failures)return EXIT_FAILURE;std::cout<<"PASS: immutable compile-time supplement, shifted MOV/ADD/ORR/AND/SUB and immediate TST semantics, flag-driven and computed-PC dispatch, large-block and interior-loop suffix execution, memory-loaded return, data/code separation, holes/overlap/range/lifetime, allocation failure, unchanged base and strict missing-PC stop\n";}
+int main(){ValidAndExecution();Invalid();ImmediateShiftSemantics();AndAndSubtractShiftSemantics();TstImmediateSemantics();TstConditionalDispatch();ComputedPcDispatch();InteriorLoopAndStackReturn();LongBlockAndInteriorSuffix<96U>();LongBlockAndInteriorSuffix<160U>();LongBlockAndInteriorSuffix<256U>();if(failures)return EXIT_FAILURE;std::cout<<"PASS: immutable compile-time supplement, shifted MOV/ADD/ORR/AND/SUB and immediate TST semantics, flag-driven and computed-PC dispatch, large-block and interior-loop suffix execution, memory-loaded return, data/code separation, holes/overlap/range/lifetime, allocation failure, unchanged base and strict missing-PC stop\n";}

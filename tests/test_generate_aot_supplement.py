@@ -384,48 +384,91 @@ class SupplementRenderTests(unittest.TestCase):
             self.render_words([(0xEA000000, "b", "0x00100008"),
                                (0xE12FFF1E, "bx", "lr")])
 
-    def test_full_512_byte_block_retains_every_word_and_terminal(self):
+    def test_bounded_large_blocks_retain_every_word_and_terminal(self):
         forms = [
             (shifted(0, rn=11, rd=5, rm=9, shift=2, amount=11),
              "and", "r5, r11, r9, asr #11"),
             (shifted(2, rn=6, rd=10, rm=3, flags=True, shift=1, amount=9),
              "subs", "r10, r6, r3, lsr #9"),
         ]
-        descriptions = [forms[i % 2] for i in range(127)]
-        descriptions.append((0x1A000000, "bne", "#0"))
-        _, receipt = self.render_words(descriptions)
-        block = receipt["blocks"][0]
-        self.assertEqual(block["end"] - block["entry"], 512)
-        self.assertEqual(len(block["instructions"]), 128)
-        self.assertEqual([row["raw"] for row in block["instructions"]],
-                         [raw for raw, _, _ in descriptions])
-        self.assertEqual((block["instructions"][-1]["opcode"],
-                          block["instructions"][-1]["condition"]), ("Branch", "Ne"))
+        # Cover the old boundary, its first new word, a 600-byte section and
+        # the last two sizes within the new 1 KiB bound. No words may be lost.
+        for words in (128, 129, 150, 255, 256):
+            with self.subTest(words=words):
+                descriptions = [forms[i % 2] for i in range(words - 1)]
+                descriptions.append((0x1A000000, "bne", "#0"))
+                source, receipt = self.render_words(descriptions)
+                block = receipt["blocks"][0]
+                self.assertEqual(block["end"] - block["entry"], words * 4)
+                self.assertEqual(len(block["instructions"]), words)
+                self.assertEqual([row["raw"] for row in block["instructions"]],
+                                 [raw for raw, _, _ in descriptions])
+                self.assertEqual([row["pc"] for row in block["instructions"]],
+                                 list(range(block["entry"], block["end"], 4)))
+                self.assertEqual((block["instructions"][-1]["opcode"],
+                                  block["instructions"][-1]["condition"]), ("Branch", "Ne"))
+                self.assertIn(f'ops0,{words}U,false', source)
 
     def test_larger_blocks_still_require_the_first_control_exit_at_the_end(self):
         body = (shifted(0, rn=11, rd=5, rm=9, shift=2, amount=11),
                 "and", "r5, r11, r9, asr #11")
         with self.assertRaisesRegex(ValueError, "must end at a decoded branch/return"):
-            self.render_words([body] * 128)
-        # A conditional branch remains a control exit even when it might fall through.
-        descriptions = [body] * 128
-        descriptions[96] = (0x1A000000, "bne", "#0")
-        descriptions[-1] = (0xE12FFF1E, "bx", "lr")
-        with self.assertRaisesRegex(ValueError, "internal control-flow exit"):
-            self.render_words(descriptions)
+            self.render_words([body] * 256)
+        # Early control exits stay rejected on both sides of the old boundary.
+        for index in (96, 127, 128, 191, 254):
+            with self.subTest(index=index):
+                descriptions = [body] * 256
+                descriptions[index] = (0x1A000000, "bne", "#0")
+                descriptions[-1] = (0xE12FFF1E, "bx", "lr")
+                with self.assertRaisesRegex(ValueError, "internal control-flow exit"):
+                    self.render_words(descriptions)
+
+    def test_large_block_tail_still_requires_authenticated_supported_words(self):
+        base = mod.frontend.BASE
+        body = (shifted(0, rn=11, rd=5, rm=9, shift=2, amount=11),
+                "and", "r5, r11, r9, asr #11")
+        descriptions = [body] * 255 + [(0xE12FFF1E, "bx", "lr")]
+        code = b"".join(struct.pack("<I", raw) for raw, _, _ in descriptions)
+        inst = {base + i * 4: item for i, item in enumerate(descriptions)}
+        ranges = mod.checked_ranges(range_manifest([(base, base + 1024)]))
+        for index in (128, 254, 255):
+            with self.subTest(index=index):
+                pc = base + index * 4
+                missing = dict(inst)
+                del missing[pc]
+                with self.assertRaisesRegex(ValueError, "missing LLVM instruction"):
+                    mod.render(code, missing, ranges)
+                altered = dict(inst)
+                raw, mnemonic, operands = altered[pc]
+                altered[pc] = (raw ^ 1, mnemonic, operands)
+                with self.assertRaisesRegex(ValueError, "disassembly/input disagreement"):
+                    mod.render(code, altered, ranges)
+                unknown = dict(inst)
+                unknown[pc] = (raw, "<unknown>", "")
+                # Raw BX is classified directly, but still needs a decoded
+                # terminal. Other unknown words fail instruction admission.
+                reason = ("must end at a decoded branch/return" if index == 255
+                          else "unverified supplemental opcode class")
+                with self.assertRaisesRegex(ValueError, reason):
+                    mod.render(code, unknown, ranges)
 
     def test_manifest_size_page_text_overlap_and_count_bounds(self):
         base = mod.frontend.BASE
-        for size in (4, 256, 260, 508, 512):
+        self.assertEqual(mod.MAX_SUPPLEMENT_BYTES, 1024)
+        for size in (4, 256, 260, 508, 512, 516, 600, 1020, 1024):
             with self.subTest(size=size):
                 ranges = [(base, base + size)]
                 self.assertEqual(mod.checked_ranges(range_manifest(ranges)), ranges)
         for ranges in ([(base + 0xE00, base + 0x1000)],
-                       [(base + 512, base + 1024), (base, base + 512)],
+                       [(base + 0xC00, base + 0x1000)],
+                       [(base + 1024, base + 2048), (base, base + 1024)],
                        [(base + i * 4, base + (i + 1) * 4) for i in range(128)]):
             with self.subTest(ranges=ranges):
                 self.assertEqual(mod.checked_ranges(range_manifest(ranges)), sorted(ranges))
-        for ranges in ([], [(base, base + 516)], [(base + 0xFFC, base + 0x1004)],
+        for ranges in ([], [(base, base + 1028)], [(base, base + 4096)],
+                       [(base + 0xFFC, base + 0x1004)],
+                       [(base + 0xC04, base + 0x1004)],
+                       [(base, base + 1024), (base + 1020, base + 1028)],
                        [(base, base + 8), (base + 4, base + 12)],
                        [(base + 1, base + 4)], [(base, base + 6)], [(base, base)],
                        [(base + 4, base)], [(base - 4, base)],

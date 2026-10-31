@@ -6,15 +6,15 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 **Resume from [CHECKPOINT.md](CHECKPOINT.md).**
 
-**What improved:** Five more startup gaps are filled, including the byte-processing loop and its return. Startup now runs through that routine and reaches a larger unfinished helper.
+**What improved:** The rebuild tool now accepts larger startup routines. The previously blocked routine and four more missing startup sections now run.
 
 **What was checked:** All 5 builds passed 84/84 enabled tests. A fresh headless run of each exact saved executable passed the preceding startup stop. Complete captured audio, state and saves match the prior checkpoint.
 
-**What still blocks play:** The latest run stops at another missing section of original game code. Menus, gameplay, speaker playback and Windows execution remain unverified. No new game-window run or screenshot was taken; the earlier loading image remains the last verified visible result.
+**What still blocks play:** The latest run stops at another missing section of original game code. Menus, gameplay, speaker playback and Windows execution remain unverified. No new game-window run or screenshot was taken because SDL3 was unavailable in the workspace; the earlier loading image remains the last verified visible result.
 
 The whole touchscreen stays in the bottom-right corner. **Tab** enlarges it, **F11** toggles fullscreen, and mouse clicks act as touch input. See [desktop build and controls](docs/DESKTOP.md).
 
-**Next:** The next helper combines guest byte values into row words and returns through the stack. It requires a tested increase to the size limit before the rebuild tool can include it. The precise developer handoff is in [CHECKPOINT.md](CHECKPOINT.md).
+**Next:** The next helper copies a pair of guest words to eight rows and returns through LR. Its memory values and eventual return destination remain unobserved. The precise developer handoff is in [CHECKPOINT.md](CHECKPOINT.md).
 
 Public Git contains source and metadata. Tested executables, generated game code and run evidence are preserved privately.
 

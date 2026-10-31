@@ -245,6 +245,31 @@
       "entry": "0x001537D0",
       "end": "0x001537D4",
       "evidence": "Observed headless MissingBlock at 0x001537D0 after the restored byte-processing loop completed. One authenticated original instruction restores r10, r11, r12 and PC from the guest stack. Existing memory support covers the form. Preserve ordinary memory faults, partial-load effects, stack writeback and subsequent target validation. End is exclusive; do not infer the actual return from live LR or include an unobserved successor body."
+    },
+    {
+      "entry": "0x00151D10",
+      "end": "0x00151F68",
+      "evidence": "Observed headless MissingBlock at 0x00151D10. One hundred fifty authenticated original instructions form a same-page helper ending at its first stack-loaded PC return. Existing arithmetic and memory handlers cover every instruction. The tested 1024-byte size policy admits this 600-byte interval without splitting it or changing control flow. Preserve ordinary memory faults, partial effects, stack writeback and target validation. End is exclusive; the future return address remains unobserved and no successor body is included."
+    },
+    {
+      "entry": "0x00152A30",
+      "end": "0x00152A7C",
+      "evidence": "Observed headless MissingBlock at 0x00152A30 after the larger helper completed. Nineteen authenticated original instructions read four guest bytes, average and replicate them into row words, restore the working pointer and return through LR. Existing fast arithmetic, immediate-shift and memory handlers cover this same-page interval. Preserve ordinary memory faults, partial writes and target validation. End is exclusive; no unobserved successor body is included."
+    },
+    {
+      "entry": "0x001510D0",
+      "end": "0x001510DC",
+      "evidence": "Observed headless MissingBlock at 0x001510D0 after the larger helper and byte-averaging helper completed. Three authenticated original instructions form a relative-offset table dispatcher ending in a computed-PC exit. Existing fast arithmetic and memory handlers cover the forms. Preserve the immutable original table as data, ordinary memory checks and target validation. End is exclusive at the already supplemented 0x001510DC; do not add an unobserved dispatch target."
+    },
+    {
+      "entry": "0x00152CC4",
+      "end": "0x00152DCC",
+      "evidence": "Observed headless MissingBlock at 0x00152CC4 after the reviewed table dispatch completed. Sixty-six authenticated original instructions save registers, combine neighboring guest byte values into row words, restore the working pointer and return through a stack-loaded PC. Existing immediate and shifted arithmetic, fast operations and memory handlers cover this same-page interval. Preserve guarded reads, partial writes, stack writeback and ordinary target validation. End is exclusive at recorded 0x00152DCC; no unobserved successor is included."
+    },
+    {
+      "entry": "0x00152834",
+      "end": "0x00152850",
+      "evidence": "Observed headless MissingBlock at 0x00152834 after the preceding byte-combination helper completed. Seven authenticated original instructions load a guest row word, copy it to four rows with normal pointer writeback, restore the working pointer and return through LR. Existing fast load/arithmetic and memory handlers cover this same-page interval. Preserve guarded reads, partial writes and ordinary return-target validation. End is exclusive at recorded 0x00152850; no unobserved successor is included."
     }
   ]
 }

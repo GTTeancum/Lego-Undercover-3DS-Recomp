@@ -1,24 +1,24 @@
-# October 30, 2026 — startup decisions continuation
+# October 30, 2026 — larger startup routine continuation
 
 ## Current status
 
-Five more startup gaps are filled, including the byte-processing loop and its return. Startup now runs through that routine and reaches a larger unfinished helper. This advances startup only; menus and gameplay remain unverified. Read [CHECKPOINT.md](../../CHECKPOINT.md) first.
+The rebuild tool now accepts larger startup routines. The previously blocked routine and four more missing startup sections now run. This advances startup only; menus and gameplay remain unverified. Read [CHECKPOINT.md](../../CHECKPOINT.md) first.
 
-Base commit: `fb309a51629d785ee6f821819543f8e518df6bc8`. Added 5 observed sections / 38 instruction words. Totals: 49 supplemental blocks / 699 words; 111,092 runtime blocks / 545,810 verified words. Original 599 pages / 603 files and all 44 preceding supplemental records are unchanged. No runtime, evaluator, generator, test or build-configuration change was needed.
+Base commit: `14b9f922de4bc570396c42ea5d9a30fced250604`. Added 5 observed sections / 245 instruction words. Totals: 54 supplemental blocks / 944 words; 111,097 runtime blocks / 546,055 verified words. Original 599 pages / 603 files and all 49 preceding supplemental records are unchanged. The generator's per-block limit is extended from 512 to 1024 bytes, retaining the same-page, first-exit, original-input, instruction-admission, alignment, text and nonoverlap checks. Python tests verify the new boundary, exact tail emission and rejection of missing/altered/unknown instructions. Synthetic C++ tests exercise 96-, 160- and 256-word blocks with interior loops through both dispatch paths. Runtime evaluators and build configuration are unchanged.
 
 | Round | Added interval | Words | Actual stop | Instructions beyond preceding run |
 | --- | --- | ---: | --- | ---: |
-| 01 | `[0x001510BC, 0x001510D0)` | 5 | `0x001510dc` | +493 |
-| 02 | `[0x001510DC, 0x001510E8)` | 3 | `0x001510b0` | +3014 |
-| 03 | `[0x001510B0, 0x001510BC)` | 3 | `0x00153768` | +96 |
-| 04 | `[0x00153768, 0x001537D0)` | 26 | `0x001537d0` | +80 |
-| 05 | `[0x001537D0, 0x001537D4)` | 1 | `0x00151d10` | +760 |
+| 01 | `[0x00151D10, 0x00151F68)` | 150 | `0x00152a30` | +308 |
+| 02 | `[0x00152A30, 0x00152A7C)` | 19 | `0x001510d0` | +385 |
+| 03 | `[0x001510D0, 0x001510DC)` | 3 | `0x00152cc4` | +1307 |
+| 04 | `[0x00152CC4, 0x00152DCC)` | 66 | `0x00152834` | +1347 |
+| 05 | `[0x00152834, 0x00152850)` | 7 | `0x001515b8` | +5688 |
 
 ## Final measured result
 
-The final native stopped at MissingBlock `0x00151D10`, thread 7, dispatch round 21843, exit 3. It did not time out and stderr was empty. It executed 61,378,959 core-0 and 99 core-1 instructions; diagnostic CPU ticks 2,345,560,906; guest time 8,748,441,569 ns; display periods 523; complete audio records 285,726.
+The final native stopped at MissingBlock `0x001515B8`, thread 7, dispatch round 21843, exit 3. It did not time out and stderr was empty. It executed 61,387,994 core-0 and 99 core-1 instructions; diagnostic CPU ticks 2,345,569,941; guest time 8,748,475,267 ns; display periods 523; complete audio records 285,726.
 
-Compared with the saved same-mode baseline, startup advanced 4,443 executed instructions / 16,572 diagnostic ns. This is not a performance benchmark or gameplay completion percentage.
+Compared with the saved same-mode baseline, startup advanced 9,035 executed instructions / 33,698 diagnostic ns. This is not a performance benchmark or gameplay completion percentage.
 
 ## Validation
 
@@ -26,13 +26,15 @@ All 5 exact natives passed their 84-test suite once, with no failures/errors/ski
 
 Complete audio, save and state contents were compared byte-for-byte with the previous checkpoint and are unchanged. No new game-window run or screenshot was taken. The historical loading image is the last verified visible result. Speaker playback and Windows remain unverified.
 
-Source publication changes only the supplement manifest and four current status documents. The status documents are updated after the final run. Hosted verification runs without original game files; it is not a game test. Current hosted results are retained separately in the private checkpoint rather than predicted here.
+During test development, the new size tests first rejected the old limit as expected. One test diagnostic expectation was then corrected for the unknown-mnemonic terminal case; production behavior was unchanged. All final candidate gates passed.
+
+Source publication changes the supplement generator, its Python policy tests, the synthetic C++ registry test, the supplement manifest and four current status documents. The status documents are updated after the final run. Hosted verification runs without original game files; it is not a game test. Current hosted results are retained separately in the private checkpoint rather than predicted here.
 
 ## Next reviewed section
 
-`[0x00151D10, 0x00151F68)`: 150 words / 600 bytes. The next helper combines guest byte values into row words and returns through the stack. It requires a tested increase to the size limit before the rebuild tool can include it. All instruction forms are individually supported, but the complete interval exceeds the current 512-byte generation limit. Add a tested size-policy extension first; do not bypass its bounds or fabricate a branch to split the routine. The private offline review is tied to the final run's actual missing-code stop. Do not add an unobserved successor body or infer a stack-loaded target from live LR.
+`[0x001515B8, 0x00151604)`: 19 words / 76 bytes. The next helper copies a pair of guest words to eight rows and returns through LR. Its memory values and eventual return destination remain unobserved. Existing handlers accept the reviewed instructions. The private offline review is tied to the final run's actual missing-code stop. Do not add an unobserved successor body or assume the eventual return destination is recorded.
 
-Use fresh owned state/save/output paths, finite execution and strict ordinary memory/target checks. Preserve the original pages and 49 existing supplements; no forced return, game-code patch, runtime decoding or fabricated completion.
+Use fresh owned state/save/output paths, finite execution and strict ordinary memory/target checks. Preserve the original pages and 54 existing supplements; no forced return, game-code patch, runtime decoding or fabricated completion.
 
 ## Continuation permissions
 

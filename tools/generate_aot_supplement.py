@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse, hashlib, json, pathlib, struct, tempfile
 import generate_aot_pages_llvm as frontend
 
-MAX_SUPPLEMENT_BYTES = 512  # At most 128 A32 words, still within one 4 KiB page.
+MAX_SUPPLEMENT_BYTES = 1024  # At most 256 A32 words, still within one 4 KiB page.
 
 def verified_alu_candidate(raw: int) -> str | None:
     """Admit canonical shifted AND/SUB/ADD/ORR/MOV and immediate AND/TST forms.
