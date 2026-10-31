@@ -2,11 +2,11 @@
 
 ## Current verified status
 
-Six more startup gaps are filled. Two eight-row processing passes now finish, and their missing call and return links are restored. Startup reaches the next unfinished helper. All 6 builds passed 89/89 enabled tests in headless mode. The final post-stop captures are completely black and remain private diagnostics. No fresh windowed run was taken and no visual milestone is claimed. Menus and gameplay remain unverified. Speaker playback and Windows execution also remain unverified.
+Five more startup gaps are filled. A four-row copying loop and a 16-row neighboring-data pass now complete, and their missing return steps are restored. Startup reaches the next unfinished helper. All 5 builds passed 89/89 enabled tests in headless mode. The final post-stop captures remain completely black and are retained privately. No fresh windowed run was performed and no visual milestone is claimed. Menus and gameplay remain unverified. Speaker playback and Windows execution also remain unverified.
 
-Final stop: **MissingBlock `0x00154844`**. This batch adds 6 sections / 126 words and advances 713 executed instructions from the preceding same-mode checkpoint. Complete audio, state and save contents match that checkpoint. Desktop configuration is unchanged.
+Final stop: **MissingBlock `0x00154c84`**. This batch adds 5 sections / 52 words and advances 11,125 executed instructions from the preceding same-mode checkpoint. Complete audio, state and saves are unchanged. Desktop configuration is unchanged.
 
-Next reviewed interval: **`[0x00154844, 0x00154874)`**. See [CHECKPOINT.md](../CHECKPOINT.md) and [the current recovery record](recovery/CURRENT-REBUILD.md). Original game inputs, generated code, executables and captures stay private.
+Next reviewed interval: **`[0x00154c84, 0x00154cb0)`**. See [CHECKPOINT.md](../CHECKPOINT.md) and [the current recovery record](recovery/CURRENT-REBUILD.md). Original inputs, generated code, executables and captures stay private.
 
 ## Capture current screen pixels without SDL
 

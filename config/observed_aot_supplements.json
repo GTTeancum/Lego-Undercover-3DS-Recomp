@@ -486,6 +486,31 @@
       "entry": "0x001543EC",
       "end": "0x001543F0",
       "evidence": "Observed headless MissingBlock at 0x001543EC after the paired-row helper completed all eight requested rows. One authenticated original instruction restores r5, r6, r11 and PC from the guest stack. Existing multiple-register memory support covers the form. Preserve guarded reads, partial-load effects, stack writeback, flags and subsequent execution-target validation. End is exclusive at 0x001543F0; do not infer the loaded return from live LR or include an unobserved successor."
+    },
+    {
+      "entry": "0x00154844",
+      "end": "0x00154874",
+      "evidence": "Observed headless MissingBlock at 0x00154844. Twelve authenticated original instructions adjust the source pointer once, combine two guest words and an adjacent byte into two output words, advance row pointers and conditionally repeat at interior 0x00154848. Existing fast, shifted arithmetic and memory handlers cover the interval. Preserve ordinary memory faults, partial writes, flags and target validation. End is exclusive; unobserved fallthrough 0x00154874 is not included."
+    },
+    {
+      "entry": "0x00154874",
+      "end": "0x00154878",
+      "evidence": "Observed headless MissingBlock at 0x00154874 after the four-row copying loop completed. One authenticated original instruction returns through LR using the existing fast register-move handler. Preserve flags, all other registers and normal execution-target validation. End is exclusive; no unobserved successor body or assumed future return is included."
+    },
+    {
+      "entry": "0x00154CB4",
+      "end": "0x00154D14",
+      "evidence": "Observed headless MissingBlock at 0x00154CB4 after the restored copying helper returned. Twenty-four authenticated original instructions load a mask, adjust the source pointer once, combine guest bytes and words from two source rows, store two output words and decrement the row count. The first control exit is a conditional return through LR. Existing fast, shifted arithmetic and memory handlers cover the interval. Preserve guarded reads, partial writes, flags and normal target validation. End is exclusive; future return behavior and fallthrough 0x00154D14 remain unobserved and are not included."
+    },
+    {
+      "entry": "0x00154D14",
+      "end": "0x00154D4C",
+      "evidence": "Observed headless MissingBlock at 0x00154D14 after the preceding two-row setup selected fallthrough. Fourteen authenticated original instructions load and combine the next guest row with preserved neighboring values, store two words, advance the pointers, decrement the count and conditionally branch to recorded interior suffix 0x00154CDC. Existing fast, shifted arithmetic and memory handlers cover this interval. Preserve ordinary memory faults, partial effects, flags and target validation. End is exclusive; unobserved fallthrough 0x00154D4C is not included."
+    },
+    {
+      "entry": "0x00154D4C",
+      "end": "0x00154D50",
+      "evidence": "Observed headless MissingBlock at 0x00154D4C after the neighboring-row helper completed all sixteen requested output rows. One authenticated original instruction returns through LR using the existing fast register-move handler. Preserve all other registers, flags and ordinary target validation. End is exclusive; no unobserved successor body is included and later execution is not assumed."
     }
   ]
 }
