@@ -2,11 +2,11 @@
 
 ## Current verified status
 
-Six more startup gaps are filled. Three processing loops now finish their requested rows, and all three missing return steps are restored. All six fresh game runs passed their preceding stopping points. Startup reaches another missing setup step; menus and gameplay remain unverified. All 6 new builds passed 89/89 enabled tests. The final headless stop is MissingBlock `0x0014f58c`.
+This checkpoint publishes the two previously pending tested batches based on `e44b7c4`; resume from [CHECKPOINT.md](../CHECKPOINT.md).
 
-The final post-stop screen captures remain completely black and are retained privately. No fresh windowed run was performed and no visible milestone is claimed. Menus, gameplay, speaker playback and Windows execution remain unverified.
+Five more startup gaps are filled. The four-row neighboring-data helper and the sixteen-row processing loop now finish, and both missing return steps are restored. All five fresh startup runs passed their previous stopping points. Startup reaches another missing helper; menus and gameplay remain unverified. All 5 new builds passed 89/89 enabled tests. The final headless stop is MissingBlock `0x00153e98`. The six earlier unpublished fixes remain included.
 
-The existing post-stop snapshot option was used on the final fresh run. No new capture-on/off comparison was performed; the earlier paired evidence remains historical. See [CHECKPOINT.md](../CHECKPOINT.md) for the next task.
+The final post-stop screen captures are black and remain private diagnostics. No fresh windowed run or paired capture-on/off comparison was performed. Menus, gameplay, speaker playback and Windows execution remain unverified. See [CHECKPOINT.md](../CHECKPOINT.md).
 
 ## Capture current screen pixels without SDL
 

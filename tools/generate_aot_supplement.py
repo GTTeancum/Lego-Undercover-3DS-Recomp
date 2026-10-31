@@ -10,6 +10,7 @@ import argparse, hashlib, json, pathlib, re, struct, tempfile
 import generate_aot_pages_llvm as frontend
 from aot_recorded_fallthrough import recorded_page_ranges
 
+MAX_SUPPLEMENT_SECTIONS = 256  # Bounded reviewed metadata; at most 256 KiB of input words.
 MAX_SUPPLEMENT_BYTES = 1024  # At most 256 original words per reviewed logical section.
 PAGE_BYTES = 4096  # Emitted physical blocks must stay inside their registry shard.
 
@@ -65,7 +66,7 @@ def checked_ranges(document: dict) -> list[tuple[int, int]]:
     if document.get('format') != 'lego_observed_aot_supplements_v1':
         raise ValueError('unsupported supplement manifest')
     raw = document.get('blocks')
-    if not isinstance(raw, list) or not 1 <= len(raw) <= 128:
+    if not isinstance(raw, list) or not 1 <= len(raw) <= MAX_SUPPLEMENT_SECTIONS:
         raise ValueError('supplement block count outside host bound')
     for block in raw:
         if 'recorded_fallthrough' in block:

@@ -534,7 +534,7 @@ class SupplementRenderTests(unittest.TestCase):
         for ranges in ([(base + 0xE00, base + 0x1000)],
                        [(base + 0xC00, base + 0x1000)],
                        [(base + 1024, base + 2048), (base, base + 1024)],
-                       [(base + i * 4, base + (i + 1) * 4) for i in range(128)]):
+                       [(base + i * 4, base + (i + 1) * 4) for i in range(256)]):
             with self.subTest(ranges=ranges):
                 self.assertEqual(mod.checked_ranges(range_manifest(ranges)), sorted(ranges))
         for ranges in ([], [(base, base + 1028)], [(base, base + 4096)],
@@ -545,7 +545,7 @@ class SupplementRenderTests(unittest.TestCase):
                        [(base + 1, base + 4)], [(base, base + 6)], [(base, base)],
                        [(base + 4, base)], [(base - 4, base)],
                        [(base + mod.frontend.TEXT_BYTES, base + mod.frontend.TEXT_BYTES + 4)],
-                       [(base + i * 4, base + (i + 1) * 4) for i in range(129)]):
+                       [(base + i * 4, base + (i + 1) * 4) for i in range(257)]):
             with self.subTest(ranges=ranges):
                 with self.assertRaises(ValueError):
                     mod.checked_ranges(range_manifest(ranges))
@@ -566,6 +566,98 @@ class SupplementRenderTests(unittest.TestCase):
             llvm.assert_not_called()
             self.assertFalse(output.exists())
             self.assertFalse(output.with_suffix(".json").exists())
+
+
+class SupplementCountTests(unittest.TestCase):
+    """Independent synthetic sections exercise bounded metadata growth, not game code."""
+
+    @staticmethod
+    def fixture(count):
+        base = mod.frontend.BASE
+        code = bytearray((count - 1) * 16 + 8)
+        inst, ranges = {}, []
+        for index in range(count):
+            start = base + index * 16
+            # Two authored operations per section; holes must remain holes.
+            descriptions = [(0xE3A02000 | (index & 255), "mov", f"r2, #{index & 255}"),
+                            (0xE12FFF1E, "bx", "lr")]
+            for offset, row in enumerate(descriptions):
+                pc = start + offset * 4
+                struct.pack_into("<I", code, pc - base, row[0])
+                inst[pc] = row
+            ranges.append((start, start + 8))
+        return bytes(code), inst, ranges
+
+    def test_many_sections_retain_exact_order_words_and_gaps(self):
+        for count in (128, 129, 255, 256):
+            with self.subTest(count=count):
+                code, inst, ranges = self.fixture(count)
+                checked = mod.checked_ranges(range_manifest(list(reversed(ranges))))
+                self.assertEqual(checked, ranges)
+                source, receipt = mod.render(code, inst, checked)
+                self.assertEqual(len(receipt["blocks"]), count)
+                self.assertEqual(source.count("a32::EncodeMetadata("), count * 2)
+                for index, (block, interval) in enumerate(zip(receipt["blocks"], ranges)):
+                    self.assertEqual((block["entry"], block["end"]), interval)
+                    self.assertEqual([row["pc"] for row in block["instructions"]],
+                                     [interval[0], interval[0] + 4])
+                    self.assertEqual([row["raw"] for row in block["instructions"]],
+                                     [0xE3A02000 | index, 0xE12FFF1E])
+                    self.assertEqual([row["opcode"] for row in block["instructions"]],
+                                     ["MovImm", "BranchReg"])
+                    self.assertIn(f"0x{interval[0]:08X}U,ops{index},2U,false", source)
+
+    def test_manifest_count_remains_bounded(self):
+        base = mod.frontend.BASE
+        for count in (0, 257, 512):
+            ranges = [(base + i * 4, base + (i + 1) * 4) for i in range(count)]
+            with self.subTest(count=count):
+                with self.assertRaisesRegex(ValueError, "block count outside host bound"):
+                    mod.checked_ranges(range_manifest(ranges))
+        self.assertEqual(mod.MAX_SUPPLEMENT_SECTIONS, 256)
+        self.assertEqual(mod.MAX_SUPPLEMENT_BYTES, 1024)
+
+    def test_late_sections_keep_alignment_overlap_extent_and_page_guards(self):
+        _, _, valid = self.fixture(256)
+        start, end = valid[-1]
+        replacements = [(start + 1, end), (start, end + 2),
+                        (valid[-2][0], valid[-2][1]),
+                        (start, start + 1028), (start, start + 20),
+                        (mod.frontend.BASE + mod.frontend.TEXT_BYTES,
+                         mod.frontend.BASE + mod.frontend.TEXT_BYTES + 4)]
+        for replacement in replacements:
+            with self.subTest(replacement=replacement):
+                with self.assertRaises(ValueError):
+                    mod.checked_ranges(range_manifest(valid[:-1] + [replacement]))
+
+    def test_late_sections_still_require_bound_supported_original_words(self):
+        code, inst, ranges = self.fixture(256)
+        checked = mod.checked_ranges(range_manifest(ranges))
+        for index in (128, 255):
+            pc = ranges[index][0]
+            with self.subTest(index=index):
+                missing = dict(inst)
+                del missing[pc]
+                with self.assertRaisesRegex(ValueError, "missing LLVM instruction"):
+                    mod.render(code, missing, checked)
+                changed = dict(inst)
+                raw, mnemonic, operands = changed[pc]
+                changed[pc] = (raw ^ 1, mnemonic, operands)
+                with self.assertRaisesRegex(ValueError, "disassembly/input disagreement"):
+                    mod.render(code, changed, checked)
+                unknown = dict(inst)
+                unknown[pc] = (raw, "<unknown>", "")
+                # Raw fast-path MOV remains recognized, but unknown decoded
+                # text is an unsafe interior control exit and must be rejected.
+                with self.assertRaisesRegex(ValueError, "internal control-flow exit"):
+                    mod.render(code, unknown, checked)
+                unsupported = dict(inst)
+                authored_eor = 0xE0212583
+                unsupported[pc] = (authored_eor, "eor", "r2, r1, r3, lsl #11")
+                altered_code = bytearray(code)
+                struct.pack_into("<I", altered_code, pc - mod.frontend.BASE, authored_eor)
+                with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
+                    mod.render(bytes(altered_code), unsupported, checked)
 
 
 if __name__ == "__main__":

@@ -4,26 +4,30 @@ Updated October 31, 2026 (Eastern). Read this first and resume from `main`.
 
 ## Plain-English status
 
-Six more startup gaps are filled. Three processing loops now finish their requested rows, and all three missing return steps are restored. All six fresh game runs passed their preceding stopping points. Startup reaches another missing setup step; menus and gameplay remain unverified.
+Five more startup gaps are filled. The four-row neighboring-data helper and the sixteen-row processing loop now finish, and both missing return steps are restored. All five fresh startup runs passed their previous stopping points. Startup reaches another missing helper; menus and gameplay remain unverified.
 
-The final post-stop screen captures remain completely black and are retained privately. No fresh windowed run was performed and no visible milestone is claimed. Menus, gameplay, speaker playback and Windows execution remain unverified.
+This batch preserves all six earlier unpublished fixes and adds 5 newly tested sections. The final post-stop screen captures are black and remain private diagnostics. Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh windowed run was performed.
 
-## Verified developer state
+## Verified state
 
-Base: `cf4ec78`. Added 6 reviewed sections / 6 physical blocks / 107 words. Totals: **123 reviewed sections / 124 physical blocks / 2632 supplemental words**, **111,167 runtime blocks / 547,743 verified words**. Runtime, generator, tests and build configuration are unchanged. All 117 previous reviewed sections and all 599 original AOT pages / 603 files are preserved. Only observed-range metadata and four status documents change; the documents were updated after execution.
+Publication base: `e44b7c4`. This checkpoint includes all eleven previously unpublished sections from two tested batches. All 129 recovered sections and all 599 original AOT pages / 603 files are preserved. Runtime, generator, tests and build settings are unchanged in this batch; the previously tested 256-section limit is retained.
 
-Final stop: **MissingBlock `0x0014f58c`**. Same-mode advance: **+2,732 executed core-0 instructions / +10,189 diagnostic ns**. These are not gameplay or performance percentages.
+Totals: **134 reviewed sections / 135 page-local blocks / 2741 supplemental words**; **111,178 runtime blocks / 547,852 verified words**.
 
-All 6 builds passed **89/89 enabled tests once**, with zero failures, errors or skips. Each exact tested executable was saved privately before its fresh finite run. No run timed out or wrote stderr. Complete audio, state and save contents match the previous same-mode checkpoint byte-for-byte. These are startup checks, not gameplay or speaker playback.
+Final stop: **MissingBlock `0x00153e98`**. New measured advance: **5,925 executed instructions** beyond the recovered pending build; **11,615** beyond the last published checkpoint. These are not gameplay percentages.
+
+All 5 fresh builds passed **89/89 enabled tests once**. Exact tested natives were saved privately before their fresh finite runs. No run timed out or wrote stderr. Complete captured audio, state and save contents match the recovered candidate byte-for-byte. These checks do not establish playable gameplay.
 
 ## Next exact task
 
-Next reviewed interval: **`[0x14f58c, 0x14f5a4)`**. Add the reviewed six-instruction setup section. It initializes two working registers, saves six registers on the guest stack, loads two guest-state words and branches to the already recorded interior suffix at 0x0014F464. Existing handlers accept the interval. Preserve guarded memory accesses, partial effects, flags and normal target validation. Future memory values and execution beyond this section remain unobserved; do not add an unobserved successor body or invent a return target.
+Next reviewed interval: **`[0x153e98, 0x153f10)`**. Add the reviewed 30-instruction section. It loads a mask, adjusts the source pointer once, reads four guest words and a following halfword, combines shifted and masked neighboring values into four output words, advances both row pointers and decrements the count. Its first control exit conditionally repeats at interior suffix 0x00153EA0, excluding the mask load and one-time adjustment. Existing handlers accept the interval. Future memory values, loop completion and fallthrough at 0x00153F10 remain unobserved; do not add that successor or invent a return target. The private review in rounds/05/next-review/review.json is bound to the actual final stop and has no overlaps with original or supplemental code.
 
-Preserve all 123 reviewed sections (124 page-local blocks). Authenticate, generate and verify exact words, build/test, preserve the exact native, and use fresh owned storage for a finite run. No runtime decoding, forced returns, fabricated GPU completion, invented targets or unobserved successor bodies.
+Preserve all 134 reviewed sections. Authenticate the private inputs, verify exact original words and existing sections, build/test, preserve the exact native, then use fresh owned storage for a finite run. No runtime decoding, forced returns, fabricated GPU completion, invented targets or unobserved successor bodies.
 
-## Continuation rules
+## Publication and permissions
 
-Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Source/metadata publication to main and ongoing private builds/backups are authorized. Never force-push. Keep original inputs, generated code, executables, captures, audio, saves and recovery identifiers private. Keep summaries short and plain. Do not post completely black screenshots.
+The user requested publication before further development. The previously rejected synthetic test-file upload was retried through the same GitHub action and accepted unchanged. Its blob and the complete manifest match the verified pending archive exactly. This publication recovers the saved work; it does not claim new game runs. Fresh hosted results must be checked separately.
+
+Ordinary source/metadata publication and ongoing private builds/backups are authorized. Never force-push. Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Keep original inputs, generated game code, binaries, captures, audio, saves and private recovery identifiers out of public Git. Keep summaries short and plain; do not post completely black captures.
 
 Details: [current recovery record](docs/recovery/CURRENT-REBUILD.md).
