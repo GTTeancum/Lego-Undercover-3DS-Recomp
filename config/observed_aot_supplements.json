@@ -346,6 +346,31 @@
       "entry": "0x00153B38",
       "end": "0x00153B3C",
       "evidence": "Observed headless MissingBlock at 0x00153B38 after the row-copy loop completed. One authenticated original instruction returns through LR using the existing fast register-move handler. Preserve the remaining registers, flags and normal return-target validation. End is exclusive at unrecorded 0x00153B3C; no unobserved successor is included."
+    },
+    {
+      "entry": "0x001546B8",
+      "end": "0x001546D0",
+      "evidence": "Observed headless MissingBlock at 0x001546B8. Six authenticated original instructions copy two guest words per row, advance both pointers by the original row stride, decrement the row count and conditionally branch back to this section. Existing fast arithmetic and multiple-register memory handlers cover the forms. Preserve guarded reads, partial stores, flags, pointer changes and ordinary target validation. End is exclusive at the unobserved fallthrough 0x001546D0; no successor body is included."
+    },
+    {
+      "entry": "0x001546D0",
+      "end": "0x001546D4",
+      "evidence": "Observed headless MissingBlock at 0x001546D0 after the row-copying loop completed. One authenticated original instruction returns through LR using the existing fast register-move handler. Preserve all other registers, flags and ordinary execution-state and return-target validation. End is exclusive at unobserved 0x001546D4; no successor body is included."
+    },
+    {
+      "entry": "0x0014F318",
+      "end": "0x0014F31C",
+      "evidence": "Observed headless MissingBlock at 0x0014F318 after the row-copy helper returned. One authenticated original branch-with-link instruction calls already recorded 0x00150BA0 and establishes return 0x0014F31C. The existing fast branch handler covers this form. Preserve LR assignment, flags and ordinary target validation. End is exclusive at the unobserved continuation 0x0014F31C; no successor body is included."
+    },
+    {
+      "entry": "0x0014F31C",
+      "end": "0x0014F320",
+      "evidence": "Observed headless MissingBlock at 0x0014F31C after the restored direct call completed. One authenticated original load obtains PC from the guest stack and advances SP by the original four bytes. The existing memory handler covers the form. Preserve guarded reads, fault behavior, stack writeback and subsequent execution-state and target validation. End is exclusive at recorded 0x0014F320; do not infer the actual return from live LR or add an unobserved destination."
+    },
+    {
+      "entry": "0x0014F5A4",
+      "end": "0x0014F5B4",
+      "evidence": "Observed headless MissingBlock at 0x0014F5A4 after the restored stack return. Four authenticated original instructions save LR on the stack, initialize two working registers and call 0x0014F444 while establishing return 0x0014F5B4. Existing memory and fast handlers cover the forms. Preserve guarded stack writes, SP writeback, LR assignment, flags and target validation. End is exclusive; neither the unobserved call target nor the later continuation is included."
     }
   ]
 }

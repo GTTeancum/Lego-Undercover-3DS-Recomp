@@ -4,13 +4,44 @@ The SDL3 frontend displays both original LCD images in one resizable window. The
 
 ## Current verification scope
 
-Five more missing startup sections now run: two byte-processing helpers, an averaging helper, a row-copying loop and its return step. Together they let startup move through a substantially longer stretch of its existing code. All 5 fresh headless game runs passed their preceding stops. Each build passed 88/88 enabled tests. These were headless runs. No fresh game-window run or screenshot was taken. The earlier loading image remains the last verified visible result. Speaker playback and Windows execution remain unverified.
+Five more startup gaps are filled: a copying loop, its return, a missing call, a stack return and the next call setup. The program can also save both current screen images after execution stops, without SDL. All 5 fresh headless game runs passed their preceding stops. The first four builds each passed 88/88 enabled tests once; the final build passed 89/89 once, including the new snapshot suite. A fresh headless post-stop capture shows both screens completely black: 400x240 top and 320x240 bottom. This is the current stopped scanout, not a windowed screenshot or the earlier first-nonblack loading capture. Those different capture points are not a regression comparison. No fresh windowed run was possible because the pinned SDL3 download failed. Menus, gameplay, speaker playback and Windows execution remain unverified.
 
-Final stop: **MissingBlock `0x001546B8`**. This batch adds 5 sections / 301 words and advances 787,859 executed instructions beyond the prior same-mode checkpoint. Complete state and save contents match the preceding same-mode checkpoint. The entire prior audio capture is preserved byte-for-byte, with 96 valid silent diagnostic records appended; this is not evidence of speaker playback. This is not a visual or gameplay milestone. Desktop configuration is unchanged.
+Final stop: **MissingBlock `0x0014F444`**. This batch adds 5 sections / 13 words and advances 1,244 executed instructions beyond the prior same-mode checkpoint. Complete state and save contents match the preceding same-mode checkpoint. The entire prior audio capture is preserved byte-for-byte, with four valid silent diagnostic records appended; this is not evidence of speaker playback. This is not a visual or gameplay milestone. SDL configuration and controls are unchanged.
 
-Next interval: **`[0x1546b8, 0x1546d0)`**. Add the reviewed six-instruction loop that copies two guest words per row, advances both pointers, decrements its row count and conditionally repeats. Future memory values, loop completion and the fallthrough beyond this section remain unobserved; do not add the successor body. Existing handlers accept this reviewed interval.
+Next interval: **`[0x14f444, 0x14f44c)`**. Add the reviewed two-instruction entry that saves six registers on the guest stack and calls the already recorded routine at 0x0015117C. Its later continuation at 0x0014F44C remains unobserved; do not include that successor or invent a return target. Existing handlers accept this reviewed interval.
 
 See [CHECKPOINT.md](../CHECKPOINT.md) and [current recovery record](recovery/CURRENT-REBUILD.md). Original inputs, generated code, executables and captures stay private.
+
+## Capture current screen pixels without SDL
+
+Add `--scanout-snapshot NEW_DIRECTORY` to the existing diagnostic launch. It is
+optional and defaults to off; a headless build can use it. The parent directory
+must already exist, but `NEW_DIRECTORY` must not exist. For example, add:
+
+```bash
+--frontend headless --scanout-snapshot "$LEGO_DESKTOP_RUN/final-scanout"
+```
+
+Use the authenticated inputs and diagnostic profile in the private continuation. Do not
+reuse the state, save, audio, screenshot or snapshot paths from an earlier run.
+The option writes `top.ppm` (400x240) and `bottom.ppm` (320x240), using the existing
+scanout decoder only after `Run` has returned. The files contain raw RGB samples
+in P6 order, without resampling or an asserted transfer characteristic. Original
+runtime diagnostics are printed before the additional snapshot result. The
+normal diagnostic exit code is preserved on successful capture.
+
+This is not the SDL window, not a first-nonblack capture, and not a boot-success
+signal. Existing files/directories are refused; invalid frames or write failures
+report an error and retain partial output. The capture does not synthesize a
+frame, attach an input producer, advance a guest event or issue a render command.
+Both current stopped screens are black. The earlier loading picture was captured
+at a different time, so comparing those two capture points does not demonstrate a
+regression. No fresh windowed game execution is claimed.
+
+A deliberate capture-disabled run of the same final native matched all original
+diagnostics after path normalization, all counters, the stop, and complete audio,
+state and save contents. Two selected snapshot/display tests also passed Clang
+address/undefined-behavior sanitizers; six command-line validation cases passed.
 
 ## Build
 

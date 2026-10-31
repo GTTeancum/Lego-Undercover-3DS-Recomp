@@ -1,6 +1,7 @@
 # Screen layout and scanout decoding remain usable by ROM-free headless tests.
 add_library(lego_frontend_core STATIC
     src/frontend/display_frame.cpp
+    src/frontend/display_snapshot.cpp
     src/frontend/screen_layout.cpp)
 target_link_libraries(lego_frontend_core PUBLIC lego_ctr)
 

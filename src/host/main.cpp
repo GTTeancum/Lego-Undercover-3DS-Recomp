@@ -3,6 +3,7 @@
 #include "host/launch_header.h"
 #include "host/dsp_special_input.h"
 #include "host/dsp_audio_file.h"
+#include "frontend/display_snapshot.h"
 #ifdef LEGO_HAVE_DESKTOP
 #include "frontend/desktop_window.h"
 #endif
@@ -95,6 +96,7 @@ int main(int argc,char** argv) {
         if (argc<2 || std::string_view(argv[1])=="--help") {
             std::cout<<"LEGOChaseNative code.bin [--block-limit N] [--host-event-limit N] [--rtc-ms-since-1900 N] [--shared-extdata-root DIR] [--save-data-root DIR] [--ptm-step-mode empty] [--romfs FILE] [--gpu-vram-mode reference-zero] [--display-clock-mode reference-idle] [--cfg-profile reference-stereo] [--cfg-sound-mode mono|stereo|surround] [--cfg-language ja|en|fr|de|it|es|zh-cn|ko|nl|pt|ru|zh-tw] [--cpu-mode diagnostic-dual] [--exheader FILE] [--dsp-special-profile empty-config | --dsp-special-block FILE] [--dsp-executor guarded-teakra|live-teakra] [--dsp-reset-profile reference-zero-data] [--dsp-probe-steps N] [--dsp-audio-mode capture|capture-reference-silence] [--dsp-audio-file NEW_FILE] [--dsp-transmit-profile reference-stereo] [--dsp-boot-mode reference-slice]\n"
                        "Optional desktop: --frontend sdl|headless [--desktop-screenshot NEW_BMP]\n"
+                       "Optional post-stop capture: --scanout-snapshot NEW_DIRECTORY (raw LCD PPM files, no SDL needed)\n"
                        "Reconstruction diagnostic; not a playable release.\n";
             return argc<2 ? 2 : 0;
         }
@@ -105,7 +107,7 @@ int main(int argc,char** argv) {
         std::filesystem::path dsp_special_path, dsp_audio_path;
         bool dsp_audio_file_selected=false;
         bool desktop_selected=false,frontend_selected=false;
-        std::filesystem::path desktop_screenshot;
+        std::filesystem::path desktop_screenshot, scanout_snapshot;
         bool dsp_special_selected=false;
         auto vram_mode=ctr::GpuVramMode::Unconfigured;
         auto display_mode=ctr::DisplayClockMode::Disabled;
@@ -132,6 +134,11 @@ int main(int argc,char** argv) {
                 if(!desktop_screenshot.empty() || !argv[i+1][0])
                     throw std::runtime_error("select one new desktop screenshot BMP path");
                 desktop_screenshot=argv[i+1];
+            }
+            else if(option=="--scanout-snapshot") {
+                if(!scanout_snapshot.empty() || !argv[i+1][0])
+                    throw std::runtime_error("select one new scanout snapshot directory");
+                scanout_snapshot=argv[i+1];
             }
             else if(option=="--cpu-mode") {
                 if(std::string_view(argv[i+1])!="diagnostic-dual")
@@ -257,6 +264,12 @@ int main(int argc,char** argv) {
                     throw std::runtime_error("invalid RTC epoch (decimal milliseconds since 1900; minimum 2000-01-01)");
             }
             else throw std::runtime_error("unknown option");
+        }
+        if(!scanout_snapshot.empty()) {
+            const auto parent=scanout_snapshot.has_parent_path()?scanout_snapshot.parent_path():std::filesystem::path(".");
+            if(!std::filesystem::is_directory(parent) ||
+               std::filesystem::exists(std::filesystem::symlink_status(scanout_snapshot)))
+                throw std::runtime_error("scanout snapshot requires a NEW directory under an existing parent");
         }
         if(!desktop_screenshot.empty() && !desktop_selected)
             throw std::runtime_error("desktop screenshot requires --frontend sdl");
@@ -478,6 +491,16 @@ int main(int argc,char** argv) {
             else std::cout<<" unreadable";
         }
         std::cout<<'\n';
+        // Capture only after Run and all original stop diagnostics. No frontend
+        // is attached, and no guest event, input, render command or clock is advanced.
+        if(!scanout_snapshot.empty()) {
+            lego::frontend::DualScreenFrame frame; std::string error;
+            if(!lego::frontend::ReadDisplayFrame(runner.gpu_diagnostics(),frame,error) ||
+               !lego::frontend::WriteDisplaySnapshot(frame,scanout_snapshot,error))
+                throw std::runtime_error("post-stop scanout snapshot failed: "+error);
+            std::cout<<"scanout_snapshot="<<scanout_snapshot.generic_string()
+                     <<" phase=after_run top=400x240 bottom=320x240 format=P6 raw_rgb=true guest_advanced=false\n";
+        }
         if (result.reason==ctr::RunnerStopReason::ProcessExited) return 0;
         if (result.reason==ctr::RunnerStopReason::HostQuit) return 0;
         if (result.reason==ctr::RunnerStopReason::HostFrontendError) return 2;

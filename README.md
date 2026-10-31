@@ -6,15 +6,15 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 Resume from [CHECKPOINT.md](CHECKPOINT.md).
 
-**What improved:** Five more missing startup sections now run: two byte-processing helpers, an averaging helper, a row-copying loop and its return step. Together they let startup move through a substantially longer stretch of its existing code. All 5 fresh startup runs passed their previous stopping points.
+**What improved:** Five more startup gaps are filled: a copying loop, its return, a missing call, a stack return and the next call setup. The program can also save both current screen images after execution stops, without SDL. All 5 fresh startup runs passed their previous stopping points.
 
-**What is visible:** The earlier loading image remains the last verified windowed result. This checkpoint was tested without a game window; no visual change is claimed.
+**What is visible:** A fresh headless post-stop capture shows both screens completely black: 400x240 top and 320x240 bottom. This is the current stopped scanout, not a windowed screenshot or the earlier first-nonblack loading capture. Those different capture points are not a regression comparison. No fresh windowed run was possible because the pinned SDL3 download failed. Menus, gameplay, speaker playback and Windows execution remain unverified.
 
-**Checks:** Each build passed 88/88 enabled tests. The exact tested builds and complete run evidence are saved privately. Tests and startup progress are not proof of playability.
+**Checks:** The first four builds each passed 88/88 enabled tests once; the final build passed 89/89 once, including the new snapshot suite. The exact tested builds and complete run evidence are saved privately. Tests and startup progress are not proof of playability.
 
 **Still unfinished:** Usable menus, gameplay, speaker playback and Windows execution remain unverified. Startup currently stops at another missing game-code section.
 
-**Next:** Add the reviewed six-instruction loop that copies two guest words per row, advances both pointers, decrements its row count and conditionally repeats. Future memory values, loop completion and the fallthrough beyond this section remain unobserved; do not add the successor body. See [the recovery record](docs/recovery/CURRENT-REBUILD.md) for measured results and the exact continuation.
+**Next:** Add the reviewed two-instruction entry that saves six registers on the guest stack and calls the already recorded routine at 0x0015117C. Its later continuation at 0x0014F44C remains unobserved; do not include that successor or invent a return target. See [the recovery record](docs/recovery/CURRENT-REBUILD.md) for measured results and the exact continuation.
 
 The whole touchscreen remains at bottom right; Tab enlarges it, F11 toggles fullscreen and mouse clicks map to touch input. See [desktop controls](docs/DESKTOP.md).
 
