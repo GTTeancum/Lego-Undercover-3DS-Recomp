@@ -12,6 +12,40 @@ Next interval: **`[0x155008, 0x155040)`**. Add the reviewed 14-instruction helpe
 
 See [CHECKPOINT.md](../CHECKPOINT.md) and [current recovery record](recovery/CURRENT-REBUILD.md). Original inputs, generated code, executables and captures stay private.
 
+## Capture current screen pixels without SDL
+
+Add `--scanout-snapshot NEW_DIRECTORY` to the existing diagnostic launch. It is
+optional and defaults to off; a headless build can use it. The parent directory
+must already exist, but `NEW_DIRECTORY` must not exist. For example, add:
+
+```bash
+--frontend headless --scanout-snapshot "$LEGO_DESKTOP_RUN/final-scanout"
+```
+
+Use the authenticated inputs and diagnostic profile in the private continuation. Do not
+reuse the state, save, audio, screenshot or snapshot paths from an earlier run.
+The option writes `top.ppm` (400x240) and `bottom.ppm` (320x240), using the existing
+scanout decoder only after `Run` has returned. The files contain raw RGB samples
+in P6 order, without resampling or an asserted transfer characteristic. Original
+runtime diagnostics are printed before the additional snapshot result. The
+normal diagnostic exit code is preserved on successful capture.
+
+This is not the SDL window, not a first-nonblack capture, and not a boot-success
+signal. Existing files/directories are refused; invalid frames or write failures
+report an error and retain partial output. The capture does not synthesize a
+frame, attach an input producer, advance a guest event or issue a render command.
+Both current stopped screens are black. The earlier loading picture was captured
+at a different time, so comparing those two capture points does not demonstrate a
+regression. No fresh windowed game execution is claimed.
+
+At checkpoint `0755bde`, a deliberate capture-disabled run of the same final native
+matched all original
+diagnostics after path normalization, all counters, the stop, and complete audio,
+state and save contents. Two selected snapshot/display tests also passed Clang
+address/undefined-behavior sanitizers; six command-line validation cases passed.
+Those are retained earlier results, not a new paired run in the current checkpoint.
+Keep completely black captures private rather than posting them in user updates.
+
 ## Build
 
 Desktop support defaults to off. The headless build does not require SDL. With the public source in `repo`, restored private AOT in `restored-aot/generated2`, and authenticated private inputs:
