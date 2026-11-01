@@ -6,11 +6,11 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 **Resume from [CHECKPOINT.md](CHECKPOINT.md).**
 
-**What improved:** Eight more missing startup sections now execute. A four-row copy loop, its nested stack returns, and a larger row-processing loop complete through the original control flow. Restoring the final return advances execution by 28,863 instructions before the next missing row-copy entry.
+**What improved:** Six more missing startup sections now execute. An eight-row copy loop, an alternating row-processing loop and their returns complete through the original control flow. A one-instruction mask-load prefix rejoins unchanged original AOT coverage and advances startup by another 24,040 instructions before the next missing row-processing entry.
 
-**Checks:** Eight fresh headless Release builds each passed all 90 enabled tests. Eight accepted startup runs retain complete captures and unchanged state/save contents. The final capture adds four valid zero-sample records while preserving the complete baseline prefix. Independent loop and return-state predictions matched.
+**Checks:** Six accepted headless Release candidates each passed all 90 enabled tests. Six accepted startup runs retain complete captures and unchanged state/save contents. The final capture adds four valid zero-sample records while preserving the complete baseline prefix. Three independent loop-state predictions matched; the checkpoint also records two recovered verification failures.
 
-**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. Startup stops at MissingBlock `0x001543F0`.
+**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. Startup stops at MissingBlock `0x00154B44`.
 
 The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). Black diagnostic captures remain private.
 

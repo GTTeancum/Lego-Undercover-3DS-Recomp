@@ -804,6 +804,39 @@
       "entry": "0x00153D54",
       "end": "0x00153D58",
       "evidence": "Observed headless MissingBlock at 0x00153D54 after the row-processing interval matched its predicted instruction count, suffix-loop pointer advances, single stack push and flags. One authenticated original instruction restores two working registers and returns through the saved guest-stack PC using the existing multi-register memory handler. Preserve ordered guarded loads, partial register effects on a later fault, delayed SP writeback and normal loaded-PC validation; do not use the live LR, which the processing body repurposes as data. End is exclusive at 0x00153D58; the adjacent previously recorded entry remains unchanged and no unobserved successor is added."
+    },
+    {
+      "entry": "0x001543F0",
+      "end": "0x0015442C",
+      "evidence": "Observed headless MissingBlock at 0x001543F0 after the preceding row-processing return advanced through recorded startup code. Fifteen authenticated original instructions apply a one-time source adjustment, read a preceding byte and aligned word group, reconstruct four output words with existing shifts and arithmetic, store them, advance both row pointers and conditionally repeat the suffix at 0x001543F4. Preserve the complete guarded source reads including the trailing byte discarded from output, ordered partial memory effects, pointer updates and count-derived condition flags. The backedge must skip the one-time adjustment. End is exclusive at 0x0015442C; the unobserved loop-exit successor remains excluded."
+    },
+    {
+      "entry": "0x0015442C",
+      "end": "0x00154430",
+      "evidence": "Observed headless MissingBlock at 0x0015442C after the authenticated row-copy loop completes eight suffix iterations with the predicted register and flag state. The single original unconditional register move transfers control to the live link register without changing flags or other registers. Preserve the existing register-to-PC execution semantics and resume only through already recorded coverage; do not infer or admit any later indirect successor. End is exclusive at 0x00154430 and the unobserved following instruction remains excluded."
+    },
+    {
+      "entry": "0x00154974",
+      "end": "0x00154A14",
+      "evidence": "Observed headless MissingBlock at 0x00154974 after the preceding row-copy return resumes recorded startup code. Forty authenticated original instructions load the packing mask, apply a one-time source adjustment, read two strided source rows through aligned multi-register and halfword loads, preserve the staged shifts, masking and wrapping additions, store two output words, advance the destination and decrement the row count. The first control exit is the original conditional register-to-PC return. Preserve all guarded reads, ordered partial memory effects, pointer updates, count-derived flags and conditional return behavior. End is exclusive at 0x00154A14; the unobserved fallthrough and any later loop branch remain excluded."
+    },
+    {
+      "entry": "0x00154A14",
+      "end": "0x00154A6C",
+      "evidence": "Observed headless MissingBlock at 0x00154A14 after the preceding row-processing interval stores its first output row and leaves a count of three. Twenty-two authenticated original instructions read the next strided row, retain the staged shifts, masking and wrapping additions, combine the carried row values, store two output words, advance the destination and decrement the count. The final conditional branch targets the already reviewed suffix at 0x001549BC, skipping the mask load and one-time source adjustment. Preserve the alternating row values, complete guarded reads, partial memory effects, pointer order and count-derived flags. End is exclusive at 0x00154A6C; the unobserved loop-exit successor remains excluded."
+    },
+    {
+      "entry": "0x00154A6C",
+      "end": "0x00154A70",
+      "evidence": "Observed headless MissingBlock at 0x00154A6C after the alternating row-processing suffix completes its predicted final three rows with zero count. The single authenticated original unconditional register move returns through the live link register while preserving flags and all other registers. Retain the existing register-to-PC semantics and allow the original recorded caller to resume without forcing any later branch or return. End is exclusive at 0x00154A70, the start of a previously reviewed separate copy interval; no unobserved successor is added."
+    },
+    {
+      "entry": "0x00154AA0",
+      "end": "0x00154AA4",
+      "evidence": "Observed headless MissingBlock at 0x00154AA0 after the preceding restored return continues through recorded startup paths. The single authenticated original PC-relative load restores the packing mask before sequential execution joins the exact unchanged original block at 0x00154AA4. Authenticate the existing page by its recorded hash and retain the original block coverage, including the strided halfword and word reads, alternating row-processing sections and return. Preserve the guarded load, destination register and unchanged flags; do not duplicate original instructions or admit any later unobserved successor. End is exclusive at the authenticated original entry 0x00154AA4.",
+      "recorded_fallthrough": {
+        "page_sha256": "a2cde5d397077d05b7045e7636c0626904e3ef4f307792d5560a9a6163a3d34e"
+      }
     }
   ]
 }
