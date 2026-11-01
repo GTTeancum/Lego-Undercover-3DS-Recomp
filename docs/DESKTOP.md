@@ -2,11 +2,11 @@
 
 ## Current verified status
 
-Resume from [CHECKPOINT.md](../CHECKPOINT.md). This continuation starts from `f64a85a`.
+Resume from [CHECKPOINT.md](../CHECKPOINT.md). This continuation starts from `f18fb67`.
 
-The instruction-support blocker is cleared, and four more missing startup sections now run. The formerly blocked bit-processing step, its table dispatch, the selected call and its return all execute. Startup reaches another small missing caller step. All 4 new builds passed 90/90 enabled tests. The final headless stop is MissingBlock `0x0014fba4`.
+Six more missing startup sections now run, including the unfinished caller step recovered from the preceding session. Startup proceeds through a table lookup, bit processing, its table dispatch, a processing path that returns through existing code, and the following call. It now reaches another missing setup entry. Five newly built candidates passed 90/90 enabled tests; the recovered candidate's historical passing report is retained separately. The final headless stop is MissingBlock `0x0014FFA8`.
 
-Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh screen capture or windowed run was performed. No new capture-on/off comparison was performed. Earlier black captures remain private historical evidence; no fresh visible milestone is claimed.
+Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. No new capture-on/off comparison was performed. Earlier black captures remain private historical evidence; no fresh visible milestone is claimed.
 
 ## Capture current screen pixels without SDL
 

@@ -1,44 +1,70 @@
-# October 31, 2026 — register-controlled shift and startup continuation
+# October 31, 2026 — six observed startup continuations
 
-Read [CHECKPOINT.md](../../CHECKPOINT.md) first. Base: `f64a85a95924a90ed72afebd3fc5ed842356f091`. The baseline was already published and was verified on main before work began.
+Read [CHECKPOINT.md](../../CHECKPOINT.md) first. Base: `f18fb670b8a7c1c6fbd05df4c901c8ccd4c69468`. Goal: a full playable recompilation; menus and gameplay are still unverified.
 
 ## What changed
 
-The instruction-support blocker is cleared, and four more missing startup sections now run. The formerly blocked bit-processing step, its table dispatch, the selected call and its return all execute. Startup reaches another small missing caller step.
+Six more missing startup sections now run, including the unfinished caller step recovered from the preceding session. Startup proceeds through a table lookup, bit processing, its table dispatch, a processing path that returns through existing code, and the following call. It now reaches another missing setup entry.
 
-The generator now narrowly admits canonical MOV with a register-controlled left shift. Other register-controlled shift forms, PC operands and neighboring encodings remain rejected. The existing CPU evaluator is unchanged. All 142 preceding sections and all 599 original AOT pages / 603 files are preserved. CMake enables one independently authored CPU suite; existing admission tests are extended. Runtime evaluators are unchanged. Four status documents were updated only after the runs; all other published source bytes match the final tested candidate.
+The runtime, generator, tests and build configuration are unchanged. All 146 preceding reviewed sections and all 599 original AOT pages / 603 files are preserved. Generated operations authenticate against the exact supported original input. The only public implementation change is six appended observed ranges in `config/observed_aot_supplements.json`. Four status documents were updated after the runs. Every other source byte matches the final tested candidate.
 
-## Fresh measured runs
+The preceding session had saved, but not published, the first caller candidate. Its executable and generated-source hashes, all 2,853 input words, historical 90-test report and 532 nonmanifest source files were checked before reuse. Its sole additional section was the already reviewed caller step. The fresh source build regenerated the published baseline's supplemental C++ byte-for-byte before the additions.
 
-| Round | Added section, exclusive end | Actual MissingBlock stop | Extra executed instructions |
+## Accepted fresh runs
+
+| Round | Added interval, exclusive end | Actual MissingBlock stop | Extra executed instructions |
 | --- | --- | --- | ---: |
-| 01 | `[0x0014FF08, 0x0014FF2C)` | `0x0014ff2c` | +9 |
-| 02 | `[0x0014FF2C, 0x0014FF3C)` | `0x0014fe74` | +4 |
-| 03 | `[0x0014FE74, 0x0014FE84)` | `0x0014fe84` | +336 |
-| 04 | `[0x0014FE84, 0x0014FE88)` | `0x0014fba4` | +1 |
+| 01 (recovered) | `[0x0014FBA4, 0x0014FBAC)` | `0x0014fed8` | +15 |
+| 02 | `[0x0014FED8, 0x0014FEE0)` | `0x0015003c` | +2 |
+| 03 | `[0x0015003C, 0x00150060)` | `0x00150060` | +9 |
+| 04 | `[0x00150060, 0x00150070)` | `0x0014ff90` | +4 |
+| 05 | `[0x0014FF90, 0x0014FFA8)` | `0x0014fee0` | +102 |
+| 06 | `[0x0014FEE0, 0x0014FEE8)` | `0x0014ffa8` | +15 |
 
-Each new interval followed an actual preceding missing-code stop. No branch or return was forced. Total advance: 350 core-0 instructions and 1,306 diagnostic ns, not gameplay or host performance.
+Each interval followed a recorded missing-code stop. No branch, return or completion was forced. Total advance: 147 core-0 instructions and 548 diagnostic ns.
 
-All 4 new builds passed **90/90 enabled tests once**, with zero failures, errors or skips. Every exact tested native was saved privately before its fresh finite startup run. All runs ended at missing original code with native exit 3, no timeout and empty stderr. Inputs, original pages, source and exact natives were checked before and after execution. Complete captured audio, state and saves are byte-for-byte unchanged from the baseline. Captured audio is diagnostic data, not speaker playback.
+Five newly built headless Release candidates each passed **90/90 enabled tests**, with zero failures, errors or skips. The recovered candidate retains its verified historical 90-test report and was executed again in this session. All six accepted fresh startup runs ended at missing original code with native exit 3, no timeout and empty stderr. Every accepted capture contains all 285,842 reported records (4,573,504 bytes). Complete audio, state and saves are byte-for-byte identical to the baseline.
 
-## Instruction verification
+The final executable reports 111,196 runtime blocks and 547,987 verified instruction words. All 603 original AOT files also match the preceding private checkpoint's inventory. Original inputs and frozen executables were verified before and after the accepted runs. Source snapshots were checked across each new build and test run.
 
-The new CPU suite passed 87,682 authored cases covering every low-byte shift count, flags, conditions, overlapping registers and preserved CPU state. Seven new generator-policy tests cover admission and rejection; all 52 policy cases passed. Three focused Clang address/undefined-behavior sanitizer suites passed. The new policy generated byte-identical C++ for the preceding manifest before any new section was added.
+## Meaningful semantic checks
 
-The shift reference uses independent repeated bit-wise arithmetic and fixed architectural boundary examples, not the runtime shifter. Conditions, S-bit behavior, count high bits, source/destination overlap, SP/LR and all other CPU fields are checked. Stepping, complete-block execution and dispatch paths are covered. Policy tests reject PC operands, noncanonical fields, other shift kinds, neighboring opcodes, unknown decoding and mismatched input words. Original terminal, extent, overlap and authentication guards remain intact.
+- Independent scalar table reads, shifting and flag calculations predicted the nine-instruction processing step's complete reported register state and untaken conditional call. The actual run matched, advancing nine instructions.
+- An independent relative-offset calculation predicted the next four-instruction dispatch destination. The actual run matched every reported register and advanced four instructions.
+- The selected processing entry preserves a six-register stack context and enters an existing block four instructions after its beginning. Review confirmed suffix execution without replaying its prefix, and that the two saved dimensions fit the existing stack accesses. Its fresh run returned to the caller after 102 additional instructions. No claim about rendered pixels is derived from this control-flow result.
+- The last caller step preserves flags and the saved guest-stack link while entering the now-recorded routine again. Its fresh run advances 15 instructions to the next actual missing entry.
 
-Measured startup state matches the nine restored instructions, including authenticated table-derived count, shifted value, condition flags and the untaken conditional call. The next four-instruction dispatch matches the authenticated relative-offset table and preserves all other reported state. These observations are distinct from controlled-data tests and do not establish gameplay or rendered-pixel correctness. Expected old-policy test failures are retained privately, not reported as passes.
+## Rejected attempts and environment repair
+
+Initial local verification exposed incomplete build outputs and two filesystem tests that could not drop an isolated child's privileges inside the restricted process sandbox. The affected outputs were regenerated, and the full suite passed in the permitted cloud execution environment. The first recovered-caller run retained a truncated audio prefix despite reporting a complete write. That capture was rejected and preserved; the same frozen native was rerun in fresh isolated storage and produced a complete, byte-identical capture. Subsequent accepted runs validate actual file length and record count as well as checksums. The root cause of the incomplete outputs was not established; no runtime change was made to conceal it.
+
+The fresh baseline suite and all five newly built candidates passed 90/90 after environment repair. Historical tests, rejected runs and accepted new runs are kept distinct. No new source tests, instruction-policy expansion or runtime workaround were introduced in this batch.
+
+## Reproduce the build
+
+Use the exact supported original inputs and the preserved 599-page AOT archive. Keep all generated content and build outputs private. With CMake, GCC, Clang, LLVM objdump, Ninja and Python available:
+
+```sh
+cmake -S . -B /absolute/private/build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DLEGO_BUILD_DESKTOP=OFF \
+  -DLEGO_AOT_DIR=/absolute/private/aot/generated2 \
+  -DLEGO_SUPPLEMENT_CODE_BIN=/absolute/private/inputs/code.bin
+cmake --build /absolute/private/build --parallel 6
+ctest --test-dir /absolute/private/build --output-on-failure --timeout 90
+```
+
+When the tests run as root, their isolated permission-test children must be allowed to drop identity; the restricted cloud process sandbox did not provide that capability. Use a suitable permitted execution environment without weakening the tests.
+
+The private checkpoint retains the exact headless command and diagnostic profiles. Use fresh owned state/save/audio folders, the same original inputs, the 100,000,000 block limit and a 600-second process limit. Compare actual audio records, complete state/save bytes and the actual stop; a reported record count alone is insufficient.
 
 ## Visible status and hosted checks
 
-Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh screen capture or windowed run was performed. No fresh capture-on/off comparison or visible milestone is claimed. Earlier black captures remain private.
+Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. Complete captured audio is diagnostic data, not speaker playback. No new visual milestone or capture-on/off comparison is claimed.
 
-The baseline compiler, sanitizer and packaging jobs passed. Current hosted observations are recorded in the private publication receipt; no pending job is called successful. Hosted tests do not execute the original game.
+The baseline GitHub compiler, sanitizer and packaging checks passed. Current publication and hosted-check results are recorded in the private publication receipt; do not infer a completed current run from the baseline. Hosted checks are ROM-free and do not execute the original game.
 
 ## Next exact task
 
-Actual stop: **MissingBlock `0x0014fba4`**. Next reviewed interval: `[0x0014FBA4, 0x0014FBAC)`, two original instruction words. Add the reviewed caller step that advances a working value by eight and calls the now-recorded routine at 0x0014FF08. Existing handlers accept the interval. Preserve flags, link assignment and ordinary target validation. The assigned continuation at 0x0014FBAC remains unobserved and must not be included.
+Actual stop: **MissingBlock `0x0014FFA8`**. The next reviewed interval is **`[0x0014FFA8, 0x0014FFB8)`**, four original words. It saves LR on the guest stack, sets both working dimensions to four, and calls the already recorded routine at `0x0014F444`. Existing handlers accept the interval. Preserve guarded stack-write ordering, flags, the link assignment and ordinary target validation. The assigned continuation at `0x0014FFB8` remains unobserved and must not be included.
 
-Preserve all 146 reviewed sections (147 page-local blocks). Reauthenticate the original input, review the full first-exit interval, generate and verify exact words, build/test, preserve the exact native and use fresh owned storage for a finite run. Do not add unobserved successors, invent return targets, decode at runtime or fabricate GPU completion.
-
-Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Ordinary publication and ongoing private backups are authorized. Keep original inputs, generated code, tested binaries and complete run evidence private.
+Preserve all 152 reviewed sections and every original page. Use ordinary chat/cloud tools only. Publishing source/metadata and compiling through GitHub Actions are authorized for this project; keep original inputs, generated instructions, natives and full evidence private, and never force-push.

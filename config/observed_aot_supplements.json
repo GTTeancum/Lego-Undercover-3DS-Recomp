@@ -734,6 +734,36 @@
       "entry": "0x0014FE84",
       "end": "0x0014FE88",
       "evidence": "Observed headless MissingBlock at 0x0014FE84 after the restored call completed through existing code. One authenticated original instruction loads PC from the guest stack and advances SP by four bytes. Existing guarded memory handling covers the form. Preserve read faults, writeback ordering, flags and ordinary execution-state and target validation. End is exclusive; the future loaded return target is not inferred from live LR and no unobserved successor is included."
+    },
+    {
+      "entry": "0x0014FBA4",
+      "end": "0x0014FBAC",
+      "evidence": "Observed headless MissingBlock at 0x0014FBA4 after the restored stack return. Two authenticated original instructions advance r11 by eight and call the now-recorded routine at 0x0014FF08. Existing fast arithmetic and branch handlers accept the interval. Preserve flags, unrelated registers, original link assignment and ordinary target validation. End is exclusive; the assigned continuation at 0x0014FBAC remains unobserved and no successor body is included."
+    },
+    {
+      "entry": "0x0014FED8",
+      "end": "0x0014FEE0",
+      "evidence": "Observed headless MissingBlock at 0x0014FED8 after the restored caller and existing table dispatch. Two authenticated original instructions save LR on the guest stack with pre-decrement writeback, then call 0x0015003C. Existing guarded memory and branch handlers accept the interval. Preserve stack-write ordering, flags, link assignment and ordinary target validation. End is exclusive; the call target and assigned continuation at 0x0014FEE0 are not included without their own observed missing-code stop."
+    },
+    {
+      "entry": "0x0015003C",
+      "end": "0x00150060",
+      "evidence": "Observed headless MissingBlock at 0x0015003C after the restored stack push and call. Nine authenticated original instructions read two immutable byte tables, shift the working bit value using the already verified canonical MOV register-controlled LSL, update the remaining bit count, save LR in a working register and conditionally call recorded 0x00151168. Existing memory, arithmetic, condition and branch handlers accept the interval. Preserve flags and normal memory and target checks. End is exclusive at 0x00150060; the continuation and unobserved successor bodies remain excluded."
+    },
+    {
+      "entry": "0x00150060",
+      "end": "0x00150070",
+      "evidence": "Observed headless MissingBlock at 0x00150060 after the restored table-derived shift and untaken conditional call. Four authenticated original instructions locate an immutable relative-offset table, read the selected word, restore LR from the working register and dispatch through the computed PC. Existing arithmetic, guarded memory and target-validation handlers accept the interval. Table words remain data. End is exclusive at 0x00150070; no computed destination body or unobserved successor is included."
+    },
+    {
+      "entry": "0x0014FF90",
+      "end": "0x0014FFA8",
+      "evidence": "Observed headless MissingBlock at 0x0014FF90 after the restored table dispatch. Six authenticated original instructions set two dimensions to four, save the original six-register context on the guest stack, load a working register pair through the original data pointer and branch to the already recorded suffix at 0x0014F464. Existing memory, arithmetic and branch handlers accept this interval. Preserve guarded writes and loads, flags, the saved context and suffix entry without replaying the recorded prefix at 0x0014F454. End is exclusive at 0x0014FFA8; no unobserved successors are added."
+    },
+    {
+      "entry": "0x0014FEE0",
+      "end": "0x0014FEE8",
+      "evidence": "Observed headless MissingBlock at 0x0014FEE0 after the restored processing path returned through existing recorded code. Two authenticated original instructions advance r11 by 2048 and call the now-recorded routine at 0x0015003C. Existing immediate arithmetic and branch handlers accept the interval. Preserve flags, other registers, the saved guest-stack context and original link assignment. End is exclusive at 0x0014FEE8; the assigned continuation and any unobserved callees remain excluded."
     }
   ]
 }

@@ -6,11 +6,11 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 **Resume from [CHECKPOINT.md](CHECKPOINT.md).**
 
-**What improved:** The instruction-support blocker is cleared, and four more missing startup sections now run. The formerly blocked bit-processing step, its table dispatch, the selected call and its return all execute. Startup reaches another small missing caller step.
+**What improved:** Six more missing startup sections now run, including the unfinished caller step recovered from the preceding session. Startup proceeds through a table lookup, bit processing, its table dispatch, a processing path that returns through existing code, and the following call. It now reaches another missing setup entry.
 
-**Checks:** Every new build passed 90/90 enabled tests. The new instruction suite checked 87,682 authored cases, and focused memory-safety tests passed. Complete captured audio, state and saves are byte-for-byte unchanged from the baseline.
+**Checks:** The final headless Release build passes all 90 enabled tests. Six accepted fresh startup runs retain complete audio captures, state and saves identical to the baseline. Independent expected-state checks passed for the table processing and dispatch.
 
-**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh screen capture or windowed run was performed. Startup still stops at missing original game code.
+**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. Startup still stops at missing original game code.
 
 The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). Black diagnostic captures remain private.
 
