@@ -699,6 +699,21 @@
       "entry": "0x0014FB08",
       "end": "0x0014FB20",
       "evidence": "Observed headless MissingBlock at 0x0014FB08 after the restored copying-loop return and existing caller execution. Six authenticated original instructions initialize two working registers, save six registers on the guest stack, form a guest-state pointer, load two guest words and branch to the already recorded interior suffix at 0x0014F1B0. Existing fast arithmetic, multiple-register memory and branch handlers cover the interval. Preserve guarded accesses, partial stack and register effects, flags and ordinary target validation. End is exclusive at recorded 0x0014FB20; no unobserved successor body or invented return destination is included."
+    },
+    {
+      "entry": "0x00153B3C",
+      "end": "0x00153BC4",
+      "evidence": "Observed headless MissingBlock at 0x00153B3C. Thirty-four authenticated original instructions save two working registers, load a mask and prepare the first source row once. The loop combines neighboring guest rows into two four-word output rows, advances both pointers and decrements the row count by two. Its first control exit conditionally repeats at recorded interior suffix 0x00153B5C, excluding the one-time setup. Existing fast, shifted arithmetic and memory handlers cover the interval. Preserve guarded accesses, partial effects, flags and ordinary target validation. End is exclusive at unobserved 0x00153BC4; no successor body is included."
+    },
+    {
+      "entry": "0x00153BC4",
+      "end": "0x00153BCC",
+      "evidence": "Observed headless MissingBlock at 0x00153BC4 after the restored paired-row loop completed. Two authenticated original instructions restore r5 and r6 from the guest stack, then return through the original live LR. Existing memory and fast handlers accept this interval. Preserve guarded stack reads, partial effects, stack writeback and ordinary target validation. The future stack values and execution at the LR destination remain unobserved. End is exclusive at 0x00153BCC; no successor body is included."
+    },
+    {
+      "entry": "0x0014FB9C",
+      "end": "0x0014FBA4",
+      "evidence": "Observed headless MissingBlock at 0x0014FB9C after the restored paired-row helper and return. Two authenticated original instructions save LR on the guest stack using pre-decrement writeback and call the still-unrecorded routine at 0x0014FF08. Existing guarded memory and branch handlers accept this interval. Preserve the original stack-write ordering, flags, link assignment and normal target validation. The future call execution and assigned continuation at 0x0014FBA4 remain unobserved; no successor body is included. End is exclusive."
     }
   ]
 }

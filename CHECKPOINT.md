@@ -4,30 +4,30 @@ Updated October 31, 2026 (Eastern). Resume from `main`.
 
 ## Plain-English status
 
-Five new startup gaps are filled. A sixteen-row neighboring-byte processing loop and an eight-row copying loop now complete, their missing return steps are restored, and a setup step connects to existing code. All five fresh runs passed their preceding stops. Startup reaches another missing helper; menus and gameplay remain unverified.
+Three more startup gaps are filled. The paired-row processing routine now completes all sixteen rows and returns to startup, and a missing call setup reaches the next routine. All three fresh game runs passed their preceding stopping points. The next routine needs additional verified instruction support; menus and gameplay remain unverified.
 
-The eleven previously pending fixes were published first as `461a306`. This continuation starts from that exact execution source and adds 5 newly observed sections. Menus and gameplay remain unverified.
-
-The final post-stop captures are black and remain private diagnostics. No fresh windowed run was performed. Speaker playback and Windows execution remain unverified.
+Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh windowed run was performed. No fresh screen capture was taken in this batch; earlier black captures remain private diagnostics.
 
 ## Verified state
 
-Base: `461a306`. All 134 prior reviewed sections and all 599 original AOT pages / 603 files remain unchanged. Runtime, generator, tests and build configuration are unchanged in this continuation.
+Base: `7fb60ad`. Runtime, generator, tests and build configuration are unchanged. All 139 earlier reviewed sections and all 599 original AOT pages / 603 files are preserved.
 
-Totals: **139 reviewed sections / 140 page-local blocks / 2795 supplemental words**; **111,183 runtime blocks / 547,906 verified words**.
+Totals: **142 reviewed sections / 143 page-local blocks / 2833 supplemental words**; **111,186 runtime blocks / 547,944 verified words**.
 
-Final stop: **MissingBlock `0x00153b3c`**. Advance beyond the same-mode baseline: **13,742 executed instructions / 51,255 diagnostic ns**. These are diagnostic counts, not a gameplay percentage or performance measurement.
+Final stop: **MissingBlock `0x0014ff08`**. Advance from the same-mode baseline: **2,717 executed instructions / 10,133 diagnostic ns**. These are not gameplay percentages or performance measurements.
 
-All 5 new builds passed **89/89 enabled tests once**, with zero failures, errors or skips. Exact tested natives were preserved privately before fresh finite runs. No run timed out or wrote stderr. State and saves match the preceding checkpoint. Its full audio capture remains an exact prefix, with 4 additional diagnostic records. These results do not establish playable gameplay.
+All 3 final candidate builds passed **89/89 enabled tests once**, with zero failures, errors or skips. Every exact tested native was saved privately before its fresh finite game run. No game run timed out or wrote stderr. State and saves match the preceding checkpoint. Complete captured audio is unchanged.
+
+The paired-row helper also passed 256 controlled-data cases covering 2,304 output rows, with an independent scalar reference and input, output and stack guards. A separate return check passed 64 normal-stack cases and 64 unmapped-stack cases. These do not verify real-game pixels or gameplay.
 
 ## Next exact task
 
-**`[0x153b3c, 0x153bc4)`**. Add the reviewed 34-instruction section. It saves two working registers, loads a mask and prepares the first source row once, then combines neighboring guest rows into pairs of four-word output rows. It advances both pointers and decrements the row count by two. The first control exit conditionally repeats at interior suffix 0x00153B5C, excluding the one-time setup. Existing handlers accept the interval. Future memory values, loop completion and fallthrough at 0x00153BC4 remain unobserved; do not add that successor or invent a return target. The private review in rounds/05/next-review/review.json is bound to the actual final stop and has no overlaps with original or supplemental code.
+Observed missing entry: **`0x14ff08`**. This section is **not ready for generation**: the existing supplement policy rejects a register-controlled shift at `0x0014FF1C`. The instruction takes its shift amount from another register rather than a fixed constant. The next task is to verify the existing runtime behavior and add narrowly checked support for this form in the rebuild tool, with controlled tests for shift-count boundaries, conditions, flags and overlapping operands. Offline inspection finds the first conditional call at 0x0014FF28, giving a provisional nine-word interval [0x0014FF08, 0x0014FF2C); it is not admitted or claimed executed. Keep the subsequent table lookup, table bytes and unobserved return continuation outside that first addition.
 
-Preserve all 139 reviewed sections. Authenticate inputs, verify original words and prior sections, build/test, save the exact native, and use fresh owned storage for a finite run. No runtime decoding, forced returns, fabricated GPU completion, guessed targets or unobserved successor bodies.
+Preserve all 142 reviewed sections (143 page-local blocks). Add independently authored policy and runtime tests before admitting the new form; retain every existing guard. Then reauthenticate and review the complete first-exit interval. Do not append partial code, add unobserved successors, invent returns, decode at runtime or fabricate GPU completion.
 
-## Permissions
+## Continuation rules
 
-Ordinary source/metadata publication to `main` and ongoing private builds/backups are authorized. Never force-push. Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Keep original inputs, generated instructions, executables, captures, audio, saves and private recovery identifiers out of public Git. Keep summaries short and plain; omit black screenshots.
+Use ordinary chat/cloud tools, not Codex services, Dot or the user's computer. Source/metadata publication to main and ongoing private builds/backups are authorized; never force-push. Keep original inputs, generated game code, executables, captures, audio, saves and private recovery identifiers out of public Git. Keep summaries plain and omit completely black captures.
 
 Details: [current recovery record](docs/recovery/CURRENT-REBUILD.md).

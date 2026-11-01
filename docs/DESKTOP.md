@@ -2,11 +2,11 @@
 
 ## Current verified status
 
-The previously pending fixes were published first as `461a306`; this continuation preserves all of them. Resume from [CHECKPOINT.md](../CHECKPOINT.md).
+Resume from [CHECKPOINT.md](../CHECKPOINT.md). This continuation starts from `7fb60ad`.
 
-Five new startup gaps are filled. A sixteen-row neighboring-byte processing loop and an eight-row copying loop now complete, their missing return steps are restored, and a setup step connects to existing code. All five fresh runs passed their preceding stops. Startup reaches another missing helper; menus and gameplay remain unverified. All 5 new builds passed 89/89 enabled tests. The final headless stop is MissingBlock `0x00153b3c`.
+Three more startup gaps are filled. The paired-row processing routine now completes all sixteen rows and returns to startup, and a missing call setup reaches the next routine. All three fresh game runs passed their preceding stopping points. The next routine needs additional verified instruction support; menus and gameplay remain unverified. All 3 final candidate builds passed 89/89 enabled tests. The final headless stop is MissingBlock `0x0014ff08`.
 
-The final post-stop captures are black and remain private diagnostics. No fresh windowed run or paired capture-on/off comparison was performed. Menus, gameplay, speaker playback and Windows execution remain unverified.
+Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh windowed run was performed. No fresh screen capture or capture-on/off comparison was performed. The earlier black captures remain private diagnostics, not a new visible milestone.
 
 ## Capture current screen pixels without SDL
 
@@ -30,7 +30,7 @@ This is not the SDL window, not a first-nonblack capture, and not a boot-success
 signal. Existing files/directories are refused; invalid frames or write failures
 report an error and retain partial output. The capture does not synthesize a
 frame, attach an input producer, advance a guest event or issue a render command.
-Both current stopped screens are black. The earlier loading picture was captured
+The most recent saved stopped-screen captures (checkpoint `7fb60ad`) are black. The earlier loading picture was captured
 at a different time, so comparing those two capture points does not demonstrate a
 regression. No fresh windowed game execution is claimed.
 

@@ -4,13 +4,13 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 ## Current rebuilt state
 
-**Resume from [CHECKPOINT.md](CHECKPOINT.md).** All eleven formerly pending startup fixes were published as `461a306` before this continuation.
+**Resume from [CHECKPOINT.md](CHECKPOINT.md).**
 
-**What improved:** Five new startup gaps are filled. A sixteen-row neighboring-byte processing loop and an eight-row copying loop now complete, their missing return steps are restored, and a setup step connects to existing code. All five fresh runs passed their preceding stops. Startup reaches another missing helper; menus and gameplay remain unverified.
+**What improved:** Three more startup gaps are filled. The paired-row processing routine now completes all sixteen rows and returns to startup, and a missing call setup reaches the next routine. All three fresh game runs passed their preceding stopping points. The next routine needs additional verified instruction support; menus and gameplay remain unverified.
 
-**Checks:** Every one of the 5 new builds passed 89/89 enabled tests. Each fresh startup run passed its previous stopping point. State and saves match the preceding checkpoint. Its full audio capture remains an exact prefix, with 4 additional diagnostic records.
+**Checks:** Every final candidate build passed 89/89 enabled tests. The paired-row helper also passed 256 controlled-data cases. State and saves are unchanged. Complete captured audio is unchanged.
 
-**Still unfinished:** Startup stops at another missing section. Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh windowed run was performed.
+**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh windowed run was performed. Startup stops at another missing original section.
 
 The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). Completely black diagnostic captures stay private.
 
