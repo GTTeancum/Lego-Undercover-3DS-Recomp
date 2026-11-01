@@ -2,9 +2,11 @@
 
 ## Current verified status
 
-Resume from [CHECKPOINT.md](../CHECKPOINT.md). This continuation starts from `f18fb67`.
+Resume from [CHECKPOINT.md](../CHECKPOINT.md). This continuation starts from `c0383c3`.
 
-Six more missing startup sections now run, including the unfinished caller step recovered from the preceding session. Startup proceeds through a table lookup, bit processing, its table dispatch, a processing path that returns through existing code, and the following call. It now reaches another missing setup entry. Five newly built candidates passed 90/90 enabled tests; the recovered candidate's historical passing report is retained separately. The final headless stop is MissingBlock `0x0014FFA8`.
+Eight more missing startup sections now execute. A four-row copy loop, its nested stack returns, and a larger row-processing loop complete through the original control flow. Restoring the final return advances execution by 28,863 instructions before the next missing row-copy entry. All eight newly built candidates passed 90/90 enabled tests. The final headless stop is MissingBlock `0x001543F0`.
+
+The first seven captures exactly match the baseline: 285,842 records / 4,573,504 bytes. The final capture contains 285,846 records / 4,573,568 bytes: the entire prior capture is an exact prefix, followed by four valid records whose two samples are zero. This is complete diagnostic capture evidence; it does not establish speaker playback or audible content.
 
 Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. No new capture-on/off comparison was performed. Earlier black captures remain private historical evidence; no fresh visible milestone is claimed.
 

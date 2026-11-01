@@ -6,11 +6,11 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 **Resume from [CHECKPOINT.md](CHECKPOINT.md).**
 
-**What improved:** Six more missing startup sections now run, including the unfinished caller step recovered from the preceding session. Startup proceeds through a table lookup, bit processing, its table dispatch, a processing path that returns through existing code, and the following call. It now reaches another missing setup entry.
+**What improved:** Eight more missing startup sections now execute. A four-row copy loop, its nested stack returns, and a larger row-processing loop complete through the original control flow. Restoring the final return advances execution by 28,863 instructions before the next missing row-copy entry.
 
-**Checks:** The final headless Release build passes all 90 enabled tests. Six accepted fresh startup runs retain complete audio captures, state and saves identical to the baseline. Independent expected-state checks passed for the table processing and dispatch.
+**Checks:** Eight fresh headless Release builds each passed all 90 enabled tests. Eight accepted startup runs retain complete captures and unchanged state/save contents. The final capture adds four valid zero-sample records while preserving the complete baseline prefix. Independent loop and return-state predictions matched.
 
-**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. Startup still stops at missing original game code.
+**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. Startup stops at MissingBlock `0x001543F0`.
 
 The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). Black diagnostic captures remain private.
 

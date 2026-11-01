@@ -764,6 +764,46 @@
       "entry": "0x0014FEE0",
       "end": "0x0014FEE8",
       "evidence": "Observed headless MissingBlock at 0x0014FEE0 after the restored processing path returned through existing recorded code. Two authenticated original instructions advance r11 by 2048 and call the now-recorded routine at 0x0015003C. Existing immediate arithmetic and branch handlers accept the interval. Preserve flags, other registers, the saved guest-stack context and original link assignment. End is exclusive at 0x0014FEE8; the assigned continuation and any unobserved callees remain excluded."
+    },
+    {
+      "entry": "0x0014FFA8",
+      "end": "0x0014FFB8",
+      "evidence": "Observed MissingBlock at 0x0014FFA8 after the 152-section native re-entered the recorded table-processing routine. Review the complete four-word setup through its first direct call: preserve the guarded stack store and writeback ordering, both dimension assignments, incoming flags, and the link assignment. The call target is the existing exact-entry routine at 0x0014F444. Keep the assigned continuation at 0x0014FFB8 unrecorded until observed. Original words and generated operations authenticate against the supported input; no return or branch outcome is forced."
+    },
+    {
+      "entry": "0x00154A70",
+      "end": "0x00154A9C",
+      "evidence": "Observed headless MissingBlock at 0x00154A70 after the restored setup called the recorded processing routine. Eleven authenticated original instructions assemble two words from a halfword-aligned source, store the pair, advance source and destination by the original row stride, decrement the row count and conditionally repeat the same entry. Existing guarded memory, immediate-shift arithmetic, flag and branch handlers accept the loop. Preserve original load/store and writeback order, the count-derived condition flags and ordinary target checks. End is exclusive at 0x00154A9C; the not-yet-observed loop-exit continuation remains excluded."
+    },
+    {
+      "entry": "0x00154A9C",
+      "end": "0x00154AA0",
+      "evidence": "Observed headless MissingBlock at 0x00154A9C after the four-row copy loop completed with its predicted pointer advances, zero count and condition flags. One authenticated original instruction returns through the live link register using the existing register-to-PC handler. Preserve flags and ordinary PC target validation; do not replace the original return with a chosen destination. End is exclusive at 0x00154AA0. No unobserved continuation or adjacent routine is included."
+    },
+    {
+      "entry": "0x0014FFB8",
+      "end": "0x0014FFBC",
+      "evidence": "Observed headless MissingBlock at 0x0014FFB8 after the recorded processing call returned, matching its predicted instruction count, stack pointer and flags. One authenticated original instruction loads the return PC from the guest stack and performs the original post-indexed stack-pointer update. Preserve the guarded memory read, writeback ordering, flags and normal loaded-target validation. The saved stack return must not be replaced with the distinct live link register. End is exclusive at 0x0014FFBC; no unobserved destination body or adjacent code is included."
+    },
+    {
+      "entry": "0x0014FEE8",
+      "end": "0x0014FEF0",
+      "evidence": "Observed headless MissingBlock at 0x0014FEE8 after the restored inner stack return matched its complete reported-state prediction. Two authenticated original instructions subtract the original working offset without changing flags, then load the outer return PC from the guest stack with post-indexed SP update. Preserve arithmetic wrap behavior, guarded read/writeback ordering and ordinary loaded-PC validation. Use the actual saved stack word rather than the live link register. End is exclusive at 0x0014FEF0; no unobserved caller continuation or adjacent routine is included."
+    },
+    {
+      "entry": "0x0014FBAC",
+      "end": "0x0014FBB4",
+      "evidence": "Observed headless MissingBlock at 0x0014FBAC after the preceding offset restoration and outer stack return matched the complete reported-state prediction. Two authenticated original instructions restore the next working offset without updating flags, then return through the saved guest-stack word with post-indexed SP update. Preserve the preceding arithmetic effect if the guarded read fails, normal stack writeback order and loaded-target validation. Do not substitute live LR or pre-admit a guessed return target. End is exclusive at 0x0014FBB4; the adjacent existing original block remains unchanged."
+    },
+    {
+      "entry": "0x00153C24",
+      "end": "0x00153D54",
+      "evidence": "Observed headless MissingBlock at 0x00153C24 after the restored caller return advanced through existing recorded code. Seventy-six authenticated original instructions save the original three-register context, load an immutable mask, combine neighboring byte values using the existing guarded row loads/stores and non-flag-setting shift/mask/add handlers, then decrement the row count and conditionally branch to the suffix inside this same interval. Preserve arithmetic order and truncation, partial memory effects, original pointer strides, final condition flags and ordinary target validation. The suffix must skip the one-time stack push and initial-row setup. End is exclusive at 0x00153D54; mask data and the unobserved loop-exit continuation are not emitted as additional code."
+    },
+    {
+      "entry": "0x00153D54",
+      "end": "0x00153D58",
+      "evidence": "Observed headless MissingBlock at 0x00153D54 after the row-processing interval matched its predicted instruction count, suffix-loop pointer advances, single stack push and flags. One authenticated original instruction restores two working registers and returns through the saved guest-stack PC using the existing multi-register memory handler. Preserve ordered guarded loads, partial register effects on a later fault, delayed SP writeback and normal loaded-PC validation; do not use the live LR, which the processing body repurposes as data. End is exclusive at 0x00153D58; the adjacent previously recorded entry remains unchanged and no unobserved successor is added."
     }
   ]
 }
