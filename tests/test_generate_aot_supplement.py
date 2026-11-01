@@ -93,14 +93,17 @@ class AluAdmissionTests(unittest.TestCase):
             with self.subTest(rn=rn):
                 self.assertIsNone(mod.verified_alu_candidate(shifted(13, rn=rn)))
 
-    def test_register_specified_shifts_and_extra_encoding_space_rejected(self):
+    def test_register_shifts_reject_everything_except_verified_mov_lsl(self):
         for opcode in (0, 2, 4, 12, 13):
             raw = shifted(opcode, rn=0 if opcode == 13 else 1, amount=0)
             for rs in (0, 8, 14, 15):
                 for bit7 in (0, 0x80):
                     with self.subTest(opcode=opcode, rs=rs, bit7=bit7):
-                        self.assertIsNone(mod.verified_alu_candidate(
-                            raw | (rs << 8) | bit7 | 0x10))
+                        actual = mod.verified_alu_candidate(raw | (rs << 8) | bit7 | 0x10)
+                        if opcode == 13 and rs != 15 and bit7 == 0:
+                            self.assertEqual(actual, "mov_register_controlled_lsl")
+                        else:
+                            self.assertIsNone(actual)
 
     def test_immediate_operand_and_other_primary_classes_rejected(self):
         for opcode in (0, 2, 4, 12, 13):
@@ -432,7 +435,7 @@ class SupplementRenderTests(unittest.TestCase):
     def test_pc_and_register_shift_candidates_fail_before_emission(self):
         for raw in (shifted(13, rn=0, rd=15, flags=True),
                     shifted(4, rn=15), shifted(12, rm=15),
-                    shifted(13, rn=0, amount=0) | (4 << 8) | 0x10,
+                    shifted(13, rn=0, amount=0) | (15 << 8) | 0x10,
                     shifted(0, rd=15, flags=True), shifted(2, rn=15),
                     shifted(0, amount=0) | (6 << 8) | 0x10,
                     shifted(2, amount=0) | (6 << 8) | 0x10):
@@ -658,6 +661,87 @@ class SupplementCountTests(unittest.TestCase):
                 struct.pack_into("<I", altered_code, pc - mod.frontend.BASE, authored_eor)
                 with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
                     mod.render(bytes(altered_code), unsupported, checked)
+
+
+
+class RegisterControlledLslTests(unittest.TestCase):
+    """Authored A32 fields only; no game word or address grants admission."""
+    @staticmethod
+    def word(*, cond=14, flags=False, rn=0, rd=5, rm=7, rs=9,
+             opcode=13, primary=0, shift=0, bit7=0):
+        return ((cond << 28) | (primary << 25) | (opcode << 21) |
+                (int(flags) << 20) | (rn << 16) | (rd << 12) |
+                (rs << 8) | (bit7 << 7) | (shift << 5) | 0x10 | rm)
+
+    def test_all_conditions_flags_and_register_combinations(self):
+        for cond in range(15):
+            for flags in (False, True):
+                for rd in range(15):
+                    for rm in range(15):
+                        for rs in range(15):
+                            raw = self.word(cond=cond, flags=flags, rd=rd, rm=rm, rs=rs)
+                            self.assertEqual(mod.verified_alu_candidate(raw),
+                                             "mov_register_controlled_lsl", hex(raw))
+
+    def test_reject_pc_operands_and_noncanonical_unused_field(self):
+        for flags in (False, True):
+            for field in ("rd", "rm", "rs"):
+                self.assertIsNone(mod.verified_alu_candidate(
+                    self.word(flags=flags, **{field: 15})))
+            for rn in range(1, 16):
+                self.assertIsNone(mod.verified_alu_candidate(self.word(flags=flags, rn=rn)))
+
+    def test_neighbor_shifts_opcodes_and_primary_classes_stay_closed(self):
+        for flags in (False, True):
+            for shift in (1, 2, 3):
+                self.assertIsNone(mod.verified_alu_candidate(self.word(flags=flags, shift=shift)))
+            for opcode in range(16):
+                if opcode != 13:
+                    self.assertIsNone(mod.verified_alu_candidate(self.word(flags=flags, opcode=opcode)))
+            for primary in range(1, 8):
+                self.assertIsNone(mod.verified_alu_candidate(self.word(flags=flags, primary=primary)))
+            self.assertIsNone(mod.verified_alu_candidate(self.word(flags=flags, bit7=1)))
+        for raw in (self.word(cond=15), self.word() + (1 << 32), self.word() - (1 << 32)):
+            self.assertIsNone(mod.verified_alu_candidate(raw))
+
+    def test_render_binds_raw_registers_condition_and_s_bit(self):
+        for cond, name in ((0, "Eq"), (1, "Ne"), (14, "Al")):
+            for flags in (False, True):
+                raw = self.word(cond=cond, flags=flags)
+                base = mod.frontend.BASE
+                words = [(raw, "lsl", "r5, r7, r9"), (0xE12FFF1E, "bx", "lr")]
+                data = b"".join(struct.pack("<I", w[0]) for w in words)
+                source, receipt = mod.render(data, {base+4*i:w for i,w in enumerate(words)},
+                                             [(base, base+len(data))])
+                row = receipt["blocks"][0]["instructions"][0]
+                self.assertEqual((row["raw"], row["opcode"], row["condition"], row["flags"], row["category"]),
+                                 (raw, "CoreAlu", name, 0, "mov_register_controlled_lsl"))
+                self.assertIn(f"0x{raw:08X}U", source)
+
+    def test_render_rejects_misleading_alias_and_unknown_decode(self):
+        base = mod.frontend.BASE
+        for raw, mnemonic in ((self.word(shift=1), "lsl"),
+                               (self.word(rs=15), "lsl"),
+                               (self.word(bit7=1), "lsl"),
+                               (self.word(), "<unknown>")):
+            data = struct.pack("<II", raw, 0xE12FFF1E)
+            with self.assertRaisesRegex(ValueError, "unverified supplemental opcode class"):
+                mod.render(data, {base:(raw,mnemonic,"r5, r7, r9"),
+                                  base+4:(0xE12FFF1E,"bx","lr")}, [(base,base+8)])
+
+    def test_existing_immediate_shift_has_no_changed_category(self):
+        for kind in range(4):
+            for amount in range(32):
+                raw = shifted(13, rn=0, shift=kind, amount=amount)
+                self.assertEqual(mod.verified_alu_candidate(raw), "mov_register_immediate_shift")
+
+    def test_no_new_terminal_or_word_binding_exception(self):
+        base = mod.frontend.BASE
+        raw = self.word()
+        with self.assertRaisesRegex(ValueError, "must end at a decoded branch/return"):
+            mod.render(struct.pack("<I",raw), {base:(raw,"lsl","r5, r7, r9")},[(base,base+4)])
+        with self.assertRaisesRegex(ValueError, "disassembly/input disagreement"):
+            mod.render(struct.pack("<I",raw), {base:(self.word(rs=8),"lsl","r5, r7, r8")},[(base,base+4)])
 
 
 if __name__ == "__main__":

@@ -714,6 +714,26 @@
       "entry": "0x0014FB9C",
       "end": "0x0014FBA4",
       "evidence": "Observed headless MissingBlock at 0x0014FB9C after the restored paired-row helper and return. Two authenticated original instructions save LR on the guest stack using pre-decrement writeback and call the still-unrecorded routine at 0x0014FF08. Existing guarded memory and branch handlers accept this interval. Preserve the original stack-write ordering, flags, link assignment and normal target validation. The future call execution and assigned continuation at 0x0014FBA4 remain unobserved; no successor body is included. End is exclusive."
+    },
+    {
+      "entry": "0x0014FF08",
+      "end": "0x0014FF2C",
+      "evidence": "Observed headless MissingBlock at 0x0014FF08. Nine authenticated original instructions read two immutable byte tables, perform a canonical register-controlled LSL through the existing arithmetic evaluator, update the bit count, save the link and conditionally call recorded 0x00151168. Register-controlled MOV LSL admission is narrowly tested; memory checks, conditions and flags remain unchanged. End is exclusive; continuation 0x0014FF2C and later table data remain excluded until observed."
+    },
+    {
+      "entry": "0x0014FF2C",
+      "end": "0x0014FF3C",
+      "evidence": "Observed headless MissingBlock at 0x0014FF2C. Four authenticated original instructions locate an immutable relative-offset table, load its selected offset, restore LR from the working register and dispatch through a computed PC. Existing fast and memory handlers accept the section. End is exclusive; table words remain data and normal memory and target checks remain strict. Future targets and later execution are not admitted without an observed stop."
+    },
+    {
+      "entry": "0x0014FE74",
+      "end": "0x0014FE84",
+      "evidence": "Observed headless MissingBlock at 0x0014FE74 after the original table dispatch. Four authenticated original instructions save LR on the guest stack, set two working registers and call already supplemented 0x0014F444. Existing fast and memory handlers accept the section. End is exclusive; preserve guarded stack writes and normal call validation. The assigned continuation 0x0014FE84 remains unobserved and is not included."
+    },
+    {
+      "entry": "0x0014FE84",
+      "end": "0x0014FE88",
+      "evidence": "Observed headless MissingBlock at 0x0014FE84 after the restored call completed through existing code. One authenticated original instruction loads PC from the guest stack and advances SP by four bytes. Existing guarded memory handling covers the form. Preserve read faults, writeback ordering, flags and ordinary execution-state and target validation. End is exclusive; the future loaded return target is not inferred from live LR and no unobserved successor is included."
     }
   ]
 }

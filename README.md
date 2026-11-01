@@ -6,15 +6,15 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 **Resume from [CHECKPOINT.md](CHECKPOINT.md).**
 
-**What improved:** Three more startup gaps are filled. The paired-row processing routine now completes all sixteen rows and returns to startup, and a missing call setup reaches the next routine. All three fresh game runs passed their preceding stopping points. The next routine needs additional verified instruction support; menus and gameplay remain unverified.
+**What improved:** The instruction-support blocker is cleared, and four more missing startup sections now run. The formerly blocked bit-processing step, its table dispatch, the selected call and its return all execute. Startup reaches another small missing caller step.
 
-**Checks:** Every final candidate build passed 89/89 enabled tests. The paired-row helper also passed 256 controlled-data cases. State and saves are unchanged. Complete captured audio is unchanged.
+**Checks:** Every new build passed 90/90 enabled tests. The new instruction suite checked 87,682 authored cases, and focused memory-safety tests passed. Complete captured audio, state and saves are byte-for-byte unchanged from the baseline.
 
-**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh windowed run was performed. Startup stops at another missing original section.
+**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No fresh screen capture or windowed run was performed. Startup still stops at missing original game code.
 
-The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). Completely black diagnostic captures stay private.
+The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). Black diagnostic captures remain private.
 
-Public Git contains source and metadata only; exact tested binaries, generated operations and complete recovery evidence remain private.
+Public Git contains source and metadata; original inputs, tested natives, generated instructions and full runtime evidence remain private.
 
 ## Historical recovery records
 

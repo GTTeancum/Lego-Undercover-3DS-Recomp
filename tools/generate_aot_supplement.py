@@ -24,8 +24,9 @@ def verified_alu_candidate(raw: int) -> str | None:
     destination. The shifted register forms use the existing immediate
     shifter (including RRX), condition and raw S bit. Logical operations use
     shifter carry while SUB uses arithmetic carry/overflow when S is set.
-    Exclude PC reads/writes, exception returns, register-specified shifts
-    and neighboring encoding spaces.
+    Register-controlled shifts admit only canonical MOV with LSL; the amount
+    comes from the low byte of Rs. Exclude PC reads/writes, exception returns,
+    other register-controlled shifts and neighboring encoding spaces.
     MOV's unused Rn field must be zero. No address or mnemonic is a permit.
     """
     if not 0 <= raw <= 0xFFFFFFFF or raw >> 28 == 15:
@@ -45,6 +46,13 @@ def verified_alu_candidate(raw: int) -> str | None:
         return 'rsb_immediate' if rn != 15 and rd != 15 else None
     if (raw & 0x0FF0F000) == 0x03100000 and ((raw >> 16) & 15) != 15:
         return 'tst_immediate'
+    # A32 MOV with a register-controlled LSL: class 000, opcode 1101,
+    # unused Rn=0, bit 7=0, shift type 00 and bit 4=1. Either S bit is valid.
+    # Do not admit the other shift kinds or neighboring data-processing forms.
+    # CoreAlu reads the incoming Rm/Rs before Rd is written and uses Rs[7:0].
+    if (raw & 0x0FEF00F0) == 0x01A00010:
+        rd, rs, rm = (raw >> 12) & 15, (raw >> 8) & 15, raw & 15
+        return 'mov_register_controlled_lsl' if 15 not in (rd, rs, rm) else None
     if raw & 0x0E000010:  # bits 27..25=000 and bit 4=0: immediate register shift
         return None
     opcode = (raw >> 21) & 15
