@@ -2,11 +2,13 @@
 
 ## Current verified status
 
-Resume from [CHECKPOINT.md](../CHECKPOINT.md). This continuation starts from `7ddc51e`.
+Resume from [CHECKPOINT.md](../CHECKPOINT.md). This continuation starts from `7f3f4c7`.
 
-Six more missing startup sections now execute. An eight-row copy loop, an alternating row-processing loop and their returns complete through the original control flow. A one-instruction mask-load prefix rejoins unchanged original AOT coverage and advances startup by another 24,040 instructions before the next missing row-processing entry. All six accepted candidates passed 90/90 enabled tests; the first required recovery from two preserved verification failures. The final headless stop is MissingBlock `0x00154B44`.
+Eight more observed startup sections now execute. Additional row-processing loops, their register and stack returns, and a caller entry resume original control flow. All eight accepted headless Release candidates passed 90/90 enabled tests, with complete passing JUnit reports and explicit build/test exit 0. Startup advances 147,594 instructions / 550,494 diagnostic ns to MissingBlock `0x0014F608`; those counters are not host-performance measurements or gameplay percentages.
 
-The first five captures exactly match the baseline: 285,846 records / 4,573,568 bytes. The final capture contains 285,850 records / 4,573,632 bytes: the entire prior capture is an exact prefix, followed by four valid records whose two samples are zero. This is complete diagnostic capture evidence; it does not establish speaker playback or audible content.
+The final capture contains 285,866 records / 4,573,888 bytes. The entire baseline of 285,850 records / 4,573,632 bytes is an exact prefix, followed by 16 valid records whose two samples are zero. State and save contents remain unchanged. This is complete diagnostic capture evidence and does not establish speaker playback or audible content.
+
+One round-27 attempt could not start a game process because the unchanged frozen native lacked execute permission. Its rejected evidence was preserved; restoring permission and using fresh storage produced the accepted run. There were no failed build/test gates. Rounds 23 and 24 retain text logs ending after test 88, while their complete JUnit reports and explicit successful CTest exits support the accepted gates. A separate integrity check rejected the original round-28 backup archive. The failed archive was preserved and a fully verified replacement saved; the tested native and successful run remain intact. Hosted checks are pending at source-preparation time; actual results are recorded separately against the published commit.
 
 Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. No new capture-on/off comparison was performed. Earlier black captures remain private historical evidence; no fresh visible milestone is claimed.
 

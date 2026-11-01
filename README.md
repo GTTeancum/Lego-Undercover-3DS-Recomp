@@ -6,11 +6,11 @@ Recovery repository for an AI-assisted native recompilation effort targeting **L
 
 **Resume from [CHECKPOINT.md](CHECKPOINT.md).**
 
-**What improved:** Six more missing startup sections now execute. An eight-row copy loop, an alternating row-processing loop and their returns complete through the original control flow. A one-instruction mask-load prefix rejoins unchanged original AOT coverage and advances startup by another 24,040 instructions before the next missing row-processing entry.
+**What improved:** Eight more observed startup sections now execute. Additional row-processing loops, their register and stack returns, and a caller entry resume original control flow. Startup advances another 147,594 instructions from `7f3f4c7` to MissingBlock `0x0014F608`.
 
-**Checks:** Six accepted headless Release candidates each passed all 90 enabled tests. Six accepted startup runs retain complete captures and unchanged state/save contents. The final capture adds four valid zero-sample records while preserving the complete baseline prefix. Three independent loop-state predictions matched; the checkpoint also records two recovered verification failures.
+**Checks:** Eight accepted headless Release candidates each passed all 90 enabled tests, with explicit successful build/test exits and complete passing JUnit reports. Four partial-state predictions matched. All accepted startup runs retain complete captures and unchanged state/save contents; the final capture preserves the entire baseline prefix and adds 16 valid zero-sample records. The checkpoint records a recovered launch-permission failure and a separate backup-integrity failure, while preserving incomplete diagnostic text logs. Published-commit hosted results are recorded separately.
 
-**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. Startup stops at MissingBlock `0x00154B44`.
+**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. The next reviewed two-instruction stack-save/call interval remains unadmitted.
 
 The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). Black diagnostic captures remain private.
 

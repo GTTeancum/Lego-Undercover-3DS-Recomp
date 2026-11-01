@@ -837,6 +837,46 @@
       "recorded_fallthrough": {
         "page_sha256": "a2cde5d397077d05b7045e7636c0626904e3ef4f307792d5560a9a6163a3d34e"
       }
+    },
+    {
+      "entry": "0x00154B44",
+      "end": "0x00154B90",
+      "evidence": "Observed headless MissingBlock at 0x00154B44 after the restored mask-load prefix rejoins original row-processing coverage and startup continues through its recorded callers. Nineteen authenticated original instructions load the mask and advance the source by two once, then read a preceding halfword and aligned multi-register group, retain the staged shifts and wrapping additions, store two output words, advance both row pointers and decrement the count. The conditional backedge enters the suffix at 0x00154B4C and must skip both setup instructions. Preserve all guarded reads including the trailing source byte discarded from output, individual input truncation, ordered partial memory effects, pointer updates and count-derived flags. End is exclusive at 0x00154B90; the unobserved loop-exit successor remains excluded."
+    },
+    {
+      "entry": "0x00154B90",
+      "end": "0x00154B94",
+      "evidence": "Observed headless MissingBlock at 0x00154B90 after the preceding four-row loop completes its independently predicted 70 instructions with zero count and matching pointer and flag state. The single authenticated original unconditional register move returns through the live link register without modifying other registers, flags or memory. Preserve the existing register-to-PC semantics and let the already recorded caller resume normally; do not infer later memory-dependent control flow. End is exclusive at 0x00154B94, the start of a previously reviewed separate interval; the return does not fall through into that interval and no unobserved successor is added."
+    },
+    {
+      "entry": "0x00154430",
+      "end": "0x0015451C",
+      "evidence": "Observed headless MissingBlock at 0x00154430 after the preceding restored return continues through recorded startup paths. Fifty-nine authenticated original instructions save caller registers once, load the mask, adjust the source once and prepare the first source row, then process paired output rows through guarded byte and multi-register reads, staged shifts and additions, masking and multi-register stores. The counted suffix at 0x00154474 decrements by two and must not repeat the prologue or initial row setup. Preserve every guarded source word including discarded trailing bytes, ordered partial transfer effects, the saved caller values despite reuse of the live link register as row data, pointer updates and count-derived flags. End is exclusive at 0x0015451C; the unobserved exit successor remains excluded."
+    },
+    {
+      "entry": "0x0015451C",
+      "end": "0x00154520",
+      "evidence": "Observed headless MissingBlock at 0x0015451C after the paired-row loop completes its independently predicted 353 instructions with the single prologue frame still active. The one authenticated original multi-register return reloads the saved caller registers and program counter from that frame, then restores the stack pointer through the existing guarded transfer semantics. Preserve ordered reads and partial register effects, delayed stack writeback, return-target validation and unchanged flags. The live link register contains row data and must not be substituted for the saved return value. End is exclusive at 0x00154520; no unobserved successor is added."
+    },
+    {
+      "entry": "0x0014FE5C",
+      "end": "0x0014FE74",
+      "evidence": "Observed headless MissingBlock at 0x0014FE5C after the preceding saved-stack return resumes recorded startup execution. Six authenticated original instructions set two caller constants, save the caller frame, form a source-object address, load two parameter words and branch without link to the already reviewed suffix at 0x0014F464. Preserve the constants captured by the push before the live registers are replaced by guest-memory values, guarded partial transfer effects, stack writeback, unchanged flags and link register. Enter the existing suffix without replaying its four-word prefix or duplicating frame setup. End is exclusive at 0x0014FE74, a separately reviewed interval; no unobserved successor is added."
+    },
+    {
+      "entry": "0x00154EE4",
+      "end": "0x00154F38",
+      "evidence": "Observed headless MissingBlock at 0x00154EE4 after the restored caller section resumes existing row-processing paths. Twenty-one authenticated original instructions load the mask once, read and process two strided source rows using guarded word and byte loads, retain the staged masked shifts and wrapping additions, store one output word with destination writeback, decrement the row count and conditionally return through the live link register. Preserve complete source reads, intermediate rounding, ordered pointer changes and partial memory effects. The observed count of four becomes three, so the conditional return is not taken. End is exclusive at 0x00154F38; the unobserved sequential successor remains excluded."
+    },
+    {
+      "entry": "0x00154F38",
+      "end": "0x00154F68",
+      "evidence": "Observed headless MissingBlock at 0x00154F38 after the preceding row-processing interval completes its independently predicted 21 instructions, stores the first output row and leaves count three. Twelve authenticated original instructions read the next strided source row, preserve the staged masked shifts and wrapping additions, combine its processed values with the carried row, store an output word with destination writeback and decrement the count. The conditional branch enters the already reviewed suffix at 0x00154F08, skipping the one-time mask load and initial row preparation. Preserve all guarded word and byte reads, alternating carried values, partial memory effects, pointer order and count-derived flags. End is exclusive at 0x00154F68; the unobserved loop-exit successor remains excluded."
+    },
+    {
+      "entry": "0x00154F68",
+      "end": "0x00154F6C",
+      "evidence": "Observed headless MissingBlock at 0x00154F68 after the alternating row-processing suffix completes its independently predicted 36 instructions with zero count and matching pointer and flag state. The single authenticated original unconditional register move returns through the live link register, preserving flags, all other registers and memory. Retain existing register-to-PC semantics and allow the recorded caller to resume without predicting later guest-memory-dependent control flow. End is exclusive at 0x00154F6C, the start of a separately reviewed row-copy interval; the return does not fall through into that interval and no unobserved successor is added."
     }
   ]
 }
