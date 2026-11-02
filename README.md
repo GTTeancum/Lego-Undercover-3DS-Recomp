@@ -60,6 +60,7 @@ or after `work/3dsrecomp/target/release/3dsrecomp build game/<rom>.cci work/reco
   - `zakuro/0001` headless screenshots and scripted input,
   - `zakuro/0002` picture-in-picture layout (default),
   - `zakuro/0004` started without a ROM (double-click), the program finds its game: the one used last time, then a matching `.cci`/`.3ds`/`.cxi` next to it, in the folder it runs in or a folder inside either, else a file picker; the choice is remembered,
+  - `zakuro/0005` a port keeps its saves in `saves/` beside the program (copying earlier saves from the shared data folder once; falling back to it when the folder isn't writable), and controllers use XInput on Windows instead of Windows.Gaming.Input,
   - `zakuro/0003` Auto resolution (default): the 3D is drawn tall enough to fill the monitor (1080p → 5×, 1440p → 6×, 4K → 8×) instead of a fixed 3×,
   - `3dsrecomp/0001` `port` writes a Zakuro path that works on Windows,
   - `3dsrecomp/0002` the port is a Windows GUI program, no console window.
@@ -81,7 +82,9 @@ powershell -ExecutionPolicy Bypass -File scripts\windows\build-port.ps1 -Rom "C:
 Then put `work\port\target\release\lego-city-undercover.exe` next to the ROM
 (or in the folder above it) and double-click it. If it doesn't find the game
 it asks for the file once and remembers it. A path on the command line still
-works too.
+works too. Saves go in `saves\` next to the exe. Controllers go through
+XInput (Xbox and compatible pads; PlayStation/Switch pads need Steam Input or
+DS4Windows).
 
 With rustup's GNU toolchain (`rustup default stable-x86_64-pc-windows-gnu`)
 it needs MinGW-w64 gcc on PATH; with the default MSVC toolchain it needs

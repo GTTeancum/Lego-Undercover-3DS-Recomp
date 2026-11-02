@@ -1,0 +1,141 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 3ffb7e4..9987ebf 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1541,12 +1541,13 @@ dependencies = [
+  "nix",
+  "objc2-core-foundation",
+  "objc2-io-kit",
++ "rusty-xinput",
+  "serde",
+  "uuid",
+  "vec_map",
+  "wasm-bindgen",
+  "web-sys",
+- "windows 0.62.2",
++ "winapi",
+ ]
+ 
+ [[package]]
+@@ -3267,6 +3268,17 @@ version = "1.0.23"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+ 
++[[package]]
++name = "rusty-xinput"
++version = "1.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c3335c2b62e1e48dd927f6c8941705386e3697fa944aabcb10431bea7ee47ef3"
++dependencies = [
++ "lazy_static",
++ "log",
++ "winapi",
++]
++
+ [[package]]
+ name = "safe_arch"
+ version = "1.2.0"
+@@ -4195,6 +4207,22 @@ dependencies = [
+  "safe_arch",
+ ]
+ 
++[[package]]
++name = "winapi"
++version = "0.3.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5c839a674fcd7a98952e593242ea400abe93992746761e38641405d28b00f419"
++dependencies = [
++ "winapi-i686-pc-windows-gnu",
++ "winapi-x86_64-pc-windows-gnu",
++]
++
++[[package]]
++name = "winapi-i686-pc-windows-gnu"
++version = "0.4.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
++
+ [[package]]
+ name = "winapi-util"
+ version = "0.1.11"
+@@ -4204,6 +4232,12 @@ dependencies = [
+  "windows-sys 0.61.2",
+ ]
+ 
++[[package]]
++name = "winapi-x86_64-pc-windows-gnu"
++version = "0.4.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
++
+ [[package]]
+ name = "windows"
+ version = "0.54.0"
+diff --git a/crates/zakuro/Cargo.toml b/crates/zakuro/Cargo.toml
+index 797b370..656db5e 100644
+--- a/crates/zakuro/Cargo.toml
++++ b/crates/zakuro/Cargo.toml
+@@ -33,7 +33,9 @@ rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"]
+ image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp", "bmp"] }
+ recomp3ds = { git = "https://github.com/fearkov/3dsrecomp" }
+ sha2 = "0.10"
+-gilrs = { version = "0.11.2", features = ["serde-serialize"] }
++# XInput on Windows rather than Windows.Gaming.Input: Xbox-style pads,
++# read whether or not the window has focus
++gilrs = { version = "0.11.2", default-features = false, features = ["serde-serialize", "xinput"] }
+ 
+ [dev-dependencies]
+ zakuro-fs = { workspace = true, features = ["testing"] }
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 3650d3a..677ab55 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -88,7 +88,10 @@ pub fn run_with(linked: Option<Linked>, overlay: Option<Box<dyn GameOverlay>>) {
+         settings.save();
+     }
+ 
+-    let data_dir = options.data.clone().map(PathBuf::from).or_else(default_data_dir);
++    // a game made into a program of its own keeps its saves beside it, in
++    // saves/ in its folder, when that folder can be written to
++    let beside = (linked.is_some() && options.data.is_none()).then(saves_beside_program).flatten();
++    let data_dir = options.data.clone().map(PathBuf::from).or(beside).or_else(default_data_dir);
+     if let Some(dir) = &data_dir {
+         report::to_file(dir);
+         bring_saves(dir);
+@@ -218,6 +221,36 @@ fn ago(time: std::time::SystemTime) -> String {
+ 
+ /// saves Zakuro kept in the working directory before it had a place for
+ /// them, copied there the first time. the old ones stay as they were.
++/// the saves folder beside the program, made if need be, with the saves
++/// the shared data folder had brought over the first time. none when the
++/// program's folder cannot be written to, as under Program Files.
++fn saves_beside_program() -> Option<PathBuf> {
++    let dir = std::env::current_exe().ok()?.parent()?.join("saves");
++    if let Err(error) = std::fs::create_dir_all(&dir) {
++        log::warn!("could not make {}, {error}, keeping saves in the shared data folder", dir.display());
++        return None;
++    }
++    let probe = dir.join(".writable");
++    if let Err(error) = std::fs::write(&probe, b"") {
++        log::warn!("could not write in {}, {error}, keeping saves in the shared data folder", dir.display());
++        return None;
++    }
++    let _ = std::fs::remove_file(probe);
++    // saves made before they lived here
++    if let Some(shared) = default_data_dir().map(|shared| shared.join("user")) {
++        let new = dir.join("user");
++        if shared.is_dir() && !new.exists() {
++            let partial = dir.join("user.copying");
++            let _ = std::fs::remove_dir_all(&partial);
++            match copy_dir(&shared, &partial).and_then(|()| std::fs::rename(&partial, &new)) {
++                Ok(()) => log::info!("copied the saves in {} to {}, the old ones stay as they were", shared.display(), new.display()),
++                Err(error) => log::warn!("could not copy the saves in {} to {}, {error}", shared.display(), new.display()),
++            }
++        }
++    }
++    Some(dir)
++}
++
+ fn bring_saves(data: &Path) {
+     let (old, new) = (Path::new("user"), data.join("user"));
+     if new.exists() || !old.is_dir() {
