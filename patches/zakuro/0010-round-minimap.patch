@@ -52,11 +52,109 @@ index 8890079..83cf292 100644
  #endif
  }
 diff --git a/crates/zakuro-gpu/shaders/present.frag.spv b/crates/zakuro-gpu/shaders/present.frag.spv
-index dffe8fc..e8cde42 100644
-Binary files a/crates/zakuro-gpu/shaders/present.frag.spv and b/crates/zakuro-gpu/shaders/present.frag.spv differ
+index dffe8fc4c1181e0ea21b02f0cac7b1e8e8f5a08c..e8cde4281039d6e9f6bdc3f0cd3eefa54de00dce 100644
+GIT binary patch
+literal 6176
+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
+I=<_W6AKlkbnE(I)
+
+literal 5096
+zcmZ9PiFci45r@At=^nZOZ7pD%v`E1&lF|jJv?*AF5=aqfu|VU^y|*Qj+#7R~&;n{(
+zC}J1fwJK{-SzQp79cmR>^c+CN9sUdj&e7xZ+`Q9%C+|7G&dhJ-op<J4zMD3VTR1Vx
+z8nUU`3E4Z@=$M&}gUK@Ga^%!(Lf!7@yrOeiZK$+t#mcjdoR&2z>b~jO#H<Nj^cQ+7
+z@^ir(U<PsWEQHob)+{^90!`VJtfRBLqpPc<b3=D=V4%A;w6m|=-Pc<wcb9qx%f+GI
+zk+N}<a&f(tV&8BnA26PX{JP^=X(nsbuCLx$IkUFBZOzEG6?J5pvD5JN_7}F3x^7QL
+z76!`&MBSc&?5Pe{N;U1qY?l6^QQe+~M@Hl3qt|+GGEIHnB4n{TQXVXq>h}5AL**Ui
+zzT{tvylAjGfM7?*XWEWfJ2>|~)(_4->#vrMt<{cQOu6i76Lzgw=!>4V>MvJ@qLv=)
+zp1yLWgfxB+a;PvshogP%N7jb>@ik_5qVG)nA>@v_-jp3iR<~`dmFs)aR6pBdwXZrn
+zIGXcK{I%j>xy<Ri#vic<3WJ6IH2*I-y92*_IS)8GSl9iq&x><=vrs1^IQK@*GYZZ*
+zaxK8T-nrv>n=<Qa1rGh%3+h&uoy3aHZ)JUNv-)hb3CI>OH=A6)x7x0qA7P(L{3IOS
+z?-ue;PC;^Wu%{rM?;X`Y6=|%z{$`|p*Kb8T0V!u5V})@iA&s*}^PG${kG%E=kPXRR
+zlWg}`ZWeYcvL)GzlO6kD{?qXpV}9e8AX|XLc<rTiOTH;vhVJ^-6#h2!hGfgH1TVGh
+zT6Z#8SE0{KXKU}m^~|*nX}{h9Yu9cEa#8Dg^yvM<<a2)bH=s8p+qEwNjCK08H`mQw
+z$LvpIKfn6+l}o6}J=_B1M9jGX-C>Qpk@o98g?}%4mhEcSzYk5nXSakEl?Q-10>&N0
+zHm((DzmD|m-4A=$_72Nwy9eG`hw*<x${D|k+T9cHmcu#k!i+~ccPi3%=z3xM4z<@4
+zWv)MicCY|kz#Q|w1?1O~(fQgD|5x;O;C@H^-_YfaH^26Itl}R09n1vwU@rZav$kjQ
+z51`)>+&|If8gksf5@)X)$!m>o1LqsB-}7~S_fFq`$#5=kkF3KQ9KNsB#JPw57O1;V
+z{tkrh_r-lY5$V49*8Claebn~*pSKr{vHkw%{hP+vTgTWvIeRzyo}9f8eSgmO4*8vq
+z{Mv_dw)GuOcAU{{Y<uitmiK)QkP{B~+gN?4fVs(buTKT}xu+#g-ZSyu?PZ^x`$6D*
+zV|FLb@3HIY^Nid}IoI<$*#bO^61F`p1TA1Y^L=k00&)vLHPv`V;?3t-Xh;2LqPxbM
+zDfTRMx$u7&-8oV7VsvBV&F5LldFTDkeFVrY1?KSXo(<$9W;wbsZ6IRKL6>i)E9a~L
+z?z6QxU;lHgu?o2w=wAu`Lk;I49q+TAzH@<`_fkE2S%Yq`VSf}o-`fS)#>m^7_fpQf
+zFGOAh+Uxdcj#l)K0r^K#Z68mZZ{FH2MmnrbUkBI-tW7;?`2@P_HPgL!<CDPtCjosM
+z$uHjtE=h<xb1Am*`Xb+D==OF;n%9MHoP69Xx%a5U8m-5=qSwpO+w1o6UO$B`AH80I
+zF1H@o>s3gHz3RIX$eCL`YP%ZU^Y^Un=^7Act#1p6ey>H}oDjWShb`|sd)b7Pi~QZ_
+z?q%fo40`O@t!Y0BaK`B~hu;{v$WcU>i}NU<TjLa<FLIaB$L8J!XS}}1w;kO&;~ia(
+zZk&AN>P3%Sakig@Gge>3^`YO85L`cY>{Bzh#(k{-YhDb@<2>W+w+E>|>Z_vX`yIe`
+zuJ=!0tn)eau{93D8Luz$)zDod`WQktPCjCW(ern71lu_IxTA93(YQy-{GIjgn$J3K
+z1k;jj|2x2}WP5Hq!3+@J^_vnW@33EU8GAFx$KH}S`Ej5T#6Eu>J@(l(&1?K-?wYy2
+z0IbcpE-GzCei6tEhx5(*KmOI{oADbKdvz=N=$je+KHP@woXJ36oX_p(aSwv~65QT|
+zsQC`;sM%c3Gp<7arz5`%jPV@yBwKwy`hmpXiCh3YkFOxDS@~~rd=2?^;L!gKq<*D6
+zwIaU>%;7iZAo5$lwc0?$d^_=v6SE5aJHUDJerL453S7_p>ehJ(8MS>k`IOf7edJxh
+zVQqIKovVy>??E?5)OIhrwJik^b04~V)OJ6*^X>!Iru{wOdgfP;xeuV5-{0s7$R7Z?
+z@c$6qy$S!1(B<MxA4GSKd~gq;kA0gD!x^j3+@9?tz+U3-gGUn=-`B^mohKi;e~ccv
+z;~V-DIAish+c)=9un5F=?q}%6$w$oN=<`9W_j7dP<UPB?NIBytA)f%#lI<G50P(K1
+ze+iru-<n^c8zXNH-{6yA28g%+RN~|vzJ-W=8a*HT47QvY2O2@Vqi4~byBN5xd5w>^
+z{~WsY8y9c?d31T<aK3q6-*3YUU_Y=Q?H3d0ym*6h-d*ppcT4H~R^$=j-P*-`?O%f<
+zU;~J^A?JMGg!8?l+P+zBW#l`G?p=(0zd@IaeEQ^^AKwArWAyV|bo+_7^b-0Wkbg_R
+z!<LVjms3m|GU|8*UH-Pz*Q@BxlaF`u8oK;OUX^?IdmtC^&dL7)SeJgkx!V38=>L#n
+B%6|X=
+
 diff --git a/crates/zakuro-gpu/shaders/present_stereo.frag.spv b/crates/zakuro-gpu/shaders/present_stereo.frag.spv
-index 00c2bde..396a22a 100644
-Binary files a/crates/zakuro-gpu/shaders/present_stereo.frag.spv and b/crates/zakuro-gpu/shaders/present_stereo.frag.spv differ
+index 00c2bde054a9fb85e51b90b4b676f05d1521c953..396a22a293ff63f63465e30c62b648b3704eaddf 100644
+GIT binary patch
+delta 40
+vcmX?LdBAeR6z0hbm>01#GuSaOFfdK_Wf7n3!Xhxa1c*~u1U9#@*hl~X`kD&&
+
+delta 42
+xcmX?LdBAeR6lP9$24)631_lPE$rG8EP7Y!bn(V?NFu4SXQ&<Exx3Jhq008_P3p4-#
+
 diff --git a/crates/zakuro-gpu/src/backend/gl.rs b/crates/zakuro-gpu/src/backend/gl.rs
 index fe0bee2..89cad62 100644
 --- a/crates/zakuro-gpu/src/backend/gl.rs
