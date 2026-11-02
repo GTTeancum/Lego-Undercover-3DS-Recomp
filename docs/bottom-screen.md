@@ -81,6 +81,14 @@ crane minigame (`f_002D7570`, `f_002D7FD0`, vtable `0x00361C2C`) uses it.
 picture-in-picture bottom screen out while it is set
 (`crates/zakuro/src/title_hooks.rs`).
 
+**The map showing:** `f_001EE730` is the map's per-frame function (in
+traces: every map window, no pause/tips/wipe window).
+`overrides/map_frame_counter.c` counts its runs at `0x005A4F00` (unused end
+of the page holding the end of `.bss`); Zakuro counts the map as showing
+while that moved within the last 4 frames (the game logic skips frames),
+the map fade at +0x4A0 is 1.0 and the wipe is open, and then draws the
+picture-in-picture bottom screen round (patch 0010).
+
 **To change it:** override `f_00236104`'s use here, or `f_001EF45C`, or
 `f_002DDD64` itself (call the original, then adjust +485/+498).
 

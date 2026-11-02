@@ -1,0 +1,369 @@
+diff --git a/crates/zakuro-gpu/shaders/present.frag b/crates/zakuro-gpu/shaders/present.frag
+index 8890079..83cf292 100644
+--- a/crates/zakuro-gpu/shaders/present.frag
++++ b/crates/zakuro-gpu/shaders/present.frag
+@@ -18,6 +18,11 @@ layout(push_constant) uniform Crop {
+     vec4 area;
+     vec4 bounds;
+     int mode;
++#ifndef STEREO
++    // 0 the whole screen, 1 a circle as tall as it, centred, with a dark
++    // rim, for a minimap
++    int shape;
++#endif
+ #ifdef STEREO
+     // how the eyes are shown, 1 in red and cyan, 2 on alternate rows,
+     // whether they swap, then where the right eye's picture lies
+@@ -65,6 +70,24 @@ vec3 shown(sampler2D image, vec4 area, vec4 bounds) {
+     return sum / float(taps.x * taps.y);
+ }
+ 
++#ifndef STEREO
++// a circle as tall as the screen, its centre the screen's: what lies
++// outside it is not drawn, so the screen under it shows, and a dark rim
++// edges it
++const float ASPECT = 4.0 / 3.0;
++const float RIM = 0.03;
++const vec3 RIM_COLOUR = vec3(0.07, 0.09, 0.13);
++vec3 round_off(vec3 seen) {
++    float r = length((uv - 0.5) * vec2(ASPECT, 1.0));
++    float edge = fwidth(r);
++    if (r > 0.5) {
++        discard;
++    }
++    float rim = smoothstep(0.5 - RIM - edge, 0.5 - RIM, r);
++    return mix(seen, RIM_COLOUR, rim);
++}
++#endif
++
+ void main() {
+ #ifdef STEREO
+     vec3 left = shown(screen, crop.area, crop.bounds);
+@@ -85,6 +108,10 @@ void main() {
+         colour = vec4((int(gl_FragCoord.y) & 1) == 0 ? left : right, 1.0);
+     }
+ #else
+-    colour = vec4(shown(screen, crop.area, crop.bounds), 1.0);
++    vec3 seen = shown(screen, crop.area, crop.bounds);
++    if (crop.shape == 1) {
++        seen = round_off(seen);
++    }
++    colour = vec4(seen, 1.0);
+ #endif
+ }
+diff --git a/crates/zakuro-gpu/shaders/present.frag.spv b/crates/zakuro-gpu/shaders/present.frag.spv
+index dffe8fc..e8cde42 100644
+Binary files a/crates/zakuro-gpu/shaders/present.frag.spv and b/crates/zakuro-gpu/shaders/present.frag.spv differ
+diff --git a/crates/zakuro-gpu/shaders/present_stereo.frag.spv b/crates/zakuro-gpu/shaders/present_stereo.frag.spv
+index 00c2bde..396a22a 100644
+Binary files a/crates/zakuro-gpu/shaders/present_stereo.frag.spv and b/crates/zakuro-gpu/shaders/present_stereo.frag.spv differ
+diff --git a/crates/zakuro-gpu/src/backend/gl.rs b/crates/zakuro-gpu/src/backend/gl.rs
+index fe0bee2..89cad62 100644
+--- a/crates/zakuro-gpu/src/backend/gl.rs
++++ b/crates/zakuro-gpu/src/backend/gl.rs
+@@ -56,8 +56,21 @@ vec3 shown(sampler2D image) {
+ "#;
+ 
+ const SCREEN_MAIN: &str = r#"
++// 0 the whole screen, 1 a circle as tall as it, centred, with a dark rim,
++// as the Vulkan presenter's shader does it
++uniform int shape;
+ void main() {
+-    color = vec4(shown(screen), 1.0);
++    vec3 seen = shown(screen);
++    if (shape == 1) {
++        float r = length((uv - 0.5) * vec2(4.0 / 3.0, 1.0));
++        float edge = fwidth(r);
++        if (r > 0.5) {
++            discard;
++        }
++        float rim = smoothstep(0.5 - 0.03 - edge, 0.5 - 0.03, r);
++        seen = mix(seen, vec3(0.07, 0.09, 0.13), rim);
++    }
++    color = vec4(seen, 1.0);
+ }
+ "#;
+ 
+@@ -137,6 +150,8 @@ pub struct GlPresenter {
+     sizes: [(u32, u32); 3],
+     window: (u32, u32),
+     arrangement: ScreenLayout,
++    /// the bottom screen drawn round, for a minimap.
++    round_bottom: bool,
+     top_width: f32,
+     filter: ScreenFilter,
+     integer: bool,
+@@ -207,6 +222,7 @@ impl GlPresenter {
+             sizes: [(0, 0); 3],
+             window,
+             arrangement: ScreenLayout::default(),
++            round_bottom: false,
+             top_width: super::TOP_WIDTH,
+             filter: ScreenFilter::default(),
+             integer: false,
+@@ -272,6 +288,9 @@ impl GlPresenter {
+         self.use_program(self.program);
+         self.set_viewport(viewport);
+         unsafe {
++            if let Some(location) = gl.get_uniform_location(self.program, "shape") {
++                gl.uniform_1_i32(Some(&location), (index == 1 && self.round_bottom) as i32);
++            }
+             gl.active_texture(glow::TEXTURE0);
+             gl.bind_texture(glow::TEXTURE_2D, Some(self.textures[index]));
+             gl.draw_arrays(glow::TRIANGLES, 0, 3);
+@@ -357,6 +376,10 @@ impl Presenter for GlPresenter {
+         self.window = (width.max(1), height.max(1));
+     }
+ 
++    fn set_round_bottom(&mut self, round: bool) {
++        self.round_bottom = round;
++    }
++
+     fn set_layout(&mut self, arrangement: ScreenLayout) {
+         self.arrangement = arrangement;
+     }
+diff --git a/crates/zakuro-gpu/src/backend/mod.rs b/crates/zakuro-gpu/src/backend/mod.rs
+index f5acdab..0f41abe 100644
+--- a/crates/zakuro-gpu/src/backend/mod.rs
++++ b/crates/zakuro-gpu/src/backend/mod.rs
+@@ -342,6 +342,9 @@ pub trait Presenter {
+     /// how the screens are arranged from the next frame on.
+     fn set_layout(&mut self, arrangement: ScreenLayout);
+ 
++    /// whether the bottom screen is drawn as a circle, for a minimap.
++    fn set_round_bottom(&mut self, round: bool);
++
+     /// how wide the top screen shows, TOP_WIDTH for the console's shape.
+     fn set_top_width(&mut self, width: f32);
+ 
+diff --git a/crates/zakuro-gpu/src/backend/vulkan.rs b/crates/zakuro-gpu/src/backend/vulkan.rs
+index 041fe71..0b0bf22 100644
+--- a/crates/zakuro-gpu/src/backend/vulkan.rs
++++ b/crates/zakuro-gpu/src/backend/vulkan.rs
+@@ -19,7 +19,7 @@ const STEREO_FRAGMENT_SPIRV: &[u8] = include_bytes!("../../shaders/present_stere
+ /// the bytes of push constants the fragment shader reads: where the screen
+ /// lies in its image, the bounds its samples keep in and the filter, and
+ /// for 3D how the eyes show and the right eye's place in its image.
+-const CONSTANTS: u32 = 36;
++const CONSTANTS: u32 = 40;
+ const STEREO_CONSTANTS: u32 = 80;
+ 
+ /// how many frames may be recorded before waiting on the oldest.
+@@ -121,6 +121,8 @@ pub struct VulkanPresenter {
+     overlay: Option<OverlayPainter>,
+     window: (u32, u32),
+     arrangement: ScreenLayout,
++    /// the bottom screen drawn round, for a minimap.
++    round_bottom: bool,
+     top_width: f32,
+     filter: ScreenFilter,
+     integer: bool,
+@@ -406,6 +408,7 @@ impl VulkanPresenter {
+             overlay: Some(overlay),
+             window: size,
+             arrangement: ScreenLayout::default(),
++            round_bottom: false,
+             top_width: super::TOP_WIDTH,
+             filter: ScreenFilter::default(),
+             integer: false,
+@@ -796,6 +799,8 @@ impl VulkanPresenter {
+                     constants.extend(right.iter().flat_map(|c| c.to_le_bytes()));
+                     (self.stereo_pipeline, self.stereo_pipeline_layout, self.stereo_sets[self.frame])
+                 } else {
++                    let round = shown == Shown::Bottom && self.round_bottom;
++                    constants.extend_from_slice(&(round as i32).to_le_bytes());
+                     (self.pipeline, self.pipeline_layout, descriptor)
+                 };
+                 set_viewport(device, command_buffer, viewport, self.extent);
+@@ -956,6 +961,10 @@ impl Presenter for VulkanPresenter {
+         self.stale = true;
+     }
+ 
++    fn set_round_bottom(&mut self, round: bool) {
++        self.round_bottom = round;
++    }
++
+     fn set_layout(&mut self, arrangement: ScreenLayout) {
+         self.arrangement = arrangement;
+     }
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 50569c0..aa4aca2 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -346,6 +346,12 @@ fn shown_layout(layout: Screens, game: Option<&Running>, hide_idle: bool) -> zak
+     }
+ }
+ 
++/// whether the bottom screen is drawn round: in picture-in-picture, while it
++/// shows the game's map.
++fn round_bottom(layout: Screens, game: Option<&Running>, round_minimap: bool) -> bool {
++    layout == Screens::PictureInPicture && round_minimap && game.is_some_and(|game| game.bottom_map)
++}
++
+ /// the resolution that draws the top screen's 240 rows at least as tall as
+ /// a monitor of this height, 1 to 8.
+ fn auto_resolution(monitor_height: u32) -> u32 {
+@@ -399,6 +405,10 @@ struct Running {
+     /// the bottom screen is left out of the layout for now, the game showing
+     /// only its idle picture there (title_hooks).
+     bottom_idle: bool,
++    /// the bottom screen shows the map, drawn round in picture-in-picture
++    /// (title_hooks), and what that watches between frames.
++    bottom_map: bool,
++    map_watch: title_hooks::MapWatch,
+     path: PathBuf,
+     name: String,
+     /// the inputs written down, ZAKURO_RECORD=file, for playing the run
+@@ -418,6 +428,8 @@ impl Running {
+     fn new(system: System, path: PathBuf, name: String) -> Running {
+         Running {
+             bottom_idle: false,
++            bottom_map: false,
++            map_watch: Default::default(),
+             system,
+             path,
+             name,
+@@ -1036,6 +1048,7 @@ impl App {
+             backend.set_scaling(self.settings.filter.screens(), self.settings.integer_scale);
+             backend.set_stereo(self.settings.stereo());
+             backend.set_layout(shown_layout(self.layout, self.game.as_ref(), self.settings.hide_idle_bottom));
++            backend.set_round_bottom(round_bottom(self.layout, self.game.as_ref(), self.settings.round_minimap));
+         }
+         let scale = if self.options.scale.is_none() { self.settings.scale.max(1) } else { self.scale };
+         if scale != self.scale || self.settings.layout != self.layout || self.settings.top_shape != self.top_shape {
+@@ -1420,6 +1433,13 @@ impl App {
+                 backend.set_layout(shown_layout(self.layout, Some(game), self.settings.hide_idle_bottom));
+             }
+         }
++        let map = title_hooks::bottom_screen_map(&mut game.system, &mut game.map_watch);
++        if map != game.bottom_map {
++            game.bottom_map = map;
++            if let Some(backend) = &mut self.backend {
++                backend.set_round_bottom(round_bottom(self.layout, Some(game), self.settings.round_minimap));
++            }
++        }
+         // the overlay reads the game the program was built on, not another
+         // one its library opened
+         let ours = self.linked.as_ref().is_none_or(|linked| game.system.title.as_ref().is_some_and(|title| title.program_id() == linked.program_id()));
+diff --git a/crates/zakuro/src/menus.rs b/crates/zakuro/src/menus.rs
+index 2d13ea9..353c027 100644
+--- a/crates/zakuro/src/menus.rs
++++ b/crates/zakuro/src/menus.rs
+@@ -706,6 +706,11 @@ impl Menus {
+                     egui::Checkbox::new(&mut settings.hide_idle_bottom, "Hide the bottom screen when it is idle"),
+                 )
+                 .on_hover_text("The corner screen goes away while the game shows only its idle picture there, for games Zakuro knows how to tell.");
++                ui.add_enabled(
++                    settings.layout == Screens::PictureInPicture,
++                    egui::Checkbox::new(&mut settings.round_minimap, "Round minimap"),
++                )
++                .on_hover_text("The corner screen is drawn as a circle while it shows the game's map, for games Zakuro knows how to tell.");
+                 egui::ComboBox::from_label("Filter").selected_text(settings.filter.name()).show_ui(ui, |ui| {
+                     for filter in Filter::ALL {
+                         ui.selectable_value(&mut settings.filter, filter, filter.name());
+diff --git a/crates/zakuro/src/present.rs b/crates/zakuro/src/present.rs
+index 3e4fc4e..bc31802 100644
+--- a/crates/zakuro/src/present.rs
++++ b/crates/zakuro/src/present.rs
+@@ -118,6 +118,14 @@ impl Backend {
+         }
+     }
+ 
++    pub fn set_round_bottom(&mut self, round: bool) {
++        match self {
++            Backend::OpenGl { presenter, .. } => presenter.set_round_bottom(round),
++            Backend::Vulkan(presenter) => presenter.set_round_bottom(round),
++            Backend::None => {}
++        }
++    }
++
+     pub fn set_top_width(&mut self, width: f32) {
+         match self {
+             Backend::OpenGl { presenter, .. } => presenter.set_top_width(width),
+diff --git a/crates/zakuro/src/settings.rs b/crates/zakuro/src/settings.rs
+index 4fc0c8b..609b779 100644
+--- a/crates/zakuro/src/settings.rs
++++ b/crates/zakuro/src/settings.rs
+@@ -475,6 +475,9 @@ pub struct Settings {
+     /// with the bottom screen over the top one, leave it out while the game
+     /// shows only an idle picture there.
+     pub hide_idle_bottom: bool,
++    /// with the bottom screen over the top one, draw it round while it
++    /// shows a game's map, as a minimap.
++    pub round_minimap: bool,
+     /// how the screens' pixels look scaled up.
+     #[serde(deserialize_with = "or_default")]
+     pub filter: Filter,
+@@ -537,6 +540,7 @@ impl Default for Settings {
+             scale: 2,
+             layout: Screens::PictureInPicture,
+             hide_idle_bottom: true,
++            round_minimap: true,
+             filter: Filter::Smooth,
+             integer_scale: false,
+             top_shape: TopShape::Console,
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 086ad01..cd73b34 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -8,12 +8,20 @@
+ //! badge screen) while the countdown at +0x498 runs, which f_001EF45C and
+ //! the update itself set whenever a cutscene or scripted sequence has the
+ //! camera (f_00236104), and keeps whether the wipe is shut at +0x485.
++//!
++//! The map is showing when the map's per-frame function, f_001EE730, ran
++//! this frame (overrides/map_frame_counter.c counts its runs at
++//! MAP_FRAMES, past the end of the game's .bss), the map is fully faded
++//! in (+0x4A0, 1.0) and the wipe is open. Pause, tips and other screens
++//! over it stop that function.
+ 
+ use zakuro_core::System;
+ 
+ const LEGO_CITY_CHASE_BEGINS: u64 = 0x0004_0000_000A_D500;
+ const DRC_MANAGER: u32 = 0x0051_9D94;
+ const DRC_WIPE_SHUT: u32 = DRC_MANAGER + 0x485;
++const DRC_MAP_FADE: u32 = DRC_MANAGER + 0x4A0;
++const MAP_FRAMES: u32 = 0x005A_4F00;
+ 
+ /// whether the bottom screen shows nothing but a game's idle picture, which
+ /// a layout that overlays it can leave out.
+@@ -27,3 +35,39 @@ pub fn bottom_screen_idle(system: &mut System) -> bool {
+         _ => false,
+     }
+ }
++
++/// what bottom_screen_map remembers between frames.
++#[derive(Default)]
++pub struct MapWatch {
++    count: u32,
++    /// frames since the map last ran.
++    quiet: u32,
++}
++
++/// the game runs its logic at 30 frames a second or slower, so the map's
++/// function skips frames; it counts as showing while it ran within these.
++const MAP_GRACE: u32 = 4;
++
++/// whether the bottom screen shows the game's map and nothing over it, which
++/// a layout can draw as a round minimap.
++pub fn bottom_screen_map(system: &mut System, watch: &mut MapWatch) -> bool {
++    match system.title.as_ref().map(|title| title.program_id()) {
++        Some(LEGO_CITY_CHASE_BEGINS) => {
++            let mut word = [0u8; 4];
++            system.memory.read_bytes(MAP_FRAMES, &mut word);
++            let count = u32::from_le_bytes(word);
++            if count != watch.count {
++                watch.count = count;
++                watch.quiet = 0;
++            } else {
++                watch.quiet = watch.quiet.saturating_add(1);
++            }
++            system.memory.read_bytes(DRC_MAP_FADE, &mut word);
++            let faded_in = f32::from_le_bytes(word) > 0.99;
++            let mut shut = [0u8];
++            system.memory.read_bytes(DRC_WIPE_SHUT, &mut shut);
++            watch.quiet <= MAP_GRACE && faded_in && shut[0] == 0
++        }
++        _ => false,
++    }
++}
