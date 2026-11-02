@@ -1,0 +1,129 @@
+diff --git a/crates/zakuro-core/src/lib.rs b/crates/zakuro-core/src/lib.rs
+index abc584d..4921da0 100644
+--- a/crates/zakuro-core/src/lib.rs
++++ b/crates/zakuro-core/src/lib.rs
+@@ -908,6 +908,9 @@ impl System {
+     /// reports from the next frame on.
+     pub fn set_input(&mut self, input: InputState) {
+         self.services.hid.input = input;
++        // the right stick, which a 3DS game cannot read, for overrides that
++        // give it a use (memory::config::HOST_RIGHT_STICK)
++        memory::config::set_host_right_stick(self.memory.phys.shared_page_mut(), input.c_stick_x, input.c_stick_y);
+     }
+ 
+     // -- GPU plumbing -------------------------------------------------------
+diff --git a/crates/zakuro-core/src/memory/config.rs b/crates/zakuro-core/src/memory/config.rs
+index 53194f8..f861a93 100644
+--- a/crates/zakuro-core/src/memory/config.rs
++++ b/crates/zakuro-core/src/memory/config.rs
+@@ -79,6 +79,19 @@ pub fn init_shared_page(page: &mut [u8], model: ConsoleModel, slider_3d: f32, cl
+     page[0xC0] = 0; // no headset
+ }
+ 
++/// where in the shared page Zakuro leaves input the console has no place
++/// for, for game code written for Zakuro (overrides) to read: the magic
++/// "ZKRS", then the right stick's x and y, -1 to 1, up positive, as f32.
++/// The console leaves this end of the page unused.
++pub const HOST_RIGHT_STICK: usize = 0xF00;
++
++/// writes the right stick where HOST_RIGHT_STICK says.
++pub fn set_host_right_stick(page: &mut [u8], x: f32, y: f32) {
++    page[HOST_RIGHT_STICK..HOST_RIGHT_STICK + 4].copy_from_slice(b"ZKRS");
++    page[HOST_RIGHT_STICK + 4..HOST_RIGHT_STICK + 8].copy_from_slice(&x.to_le_bytes());
++    page[HOST_RIGHT_STICK + 8..HOST_RIGHT_STICK + 12].copy_from_slice(&y.to_le_bytes());
++}
++
+ /// the host's local time, in milliseconds since 1900.
+ pub fn host_clock() -> u64 {
+     let unix = std::time::SystemTime::now()
+diff --git a/crates/zakuro/src/headless_probe.rs b/crates/zakuro/src/headless_probe.rs
+index a4945b9..2bb2343 100644
+--- a/crates/zakuro/src/headless_probe.rs
++++ b/crates/zakuro/src/headless_probe.rs
+@@ -6,10 +6,12 @@
+ //! ZAKURO_INPUT       script file, one hold per line:
+ //!                    `<first frame> <last frame> <BUTTON>[+<BUTTON>...]`
+ //!                    buttons are PadState names (A, B, START, UP, ...),
+-//!                    `TOUCH:x,y` touches the bottom screen; `#` comments.
++//!                    `TOUCH:x,y` touches the bottom screen, `RSTICK:x,y`
++//!                    holds the right stick (-1 to 1, up positive); `#` comments.
+ //! ZAKURO_PEEK        guest memory to log with each dump, `addr:len[,addr:len]`
+ //!                    in hex, one line per dump to <dump dir>/peek.txt:
+-//!                    `<frame> <addr>=<bytes> ...`.
++//!                    `<frame> <addr>=<bytes> ...`. ZAKURO_PEEK_AT=f1,f2,...
++//!                    limits it to those frames.
+ //! ZAKURO_TRACE_LIB   (unix) a trace build of the recompiled library, the
+ //!                    one --recompiled names: its recomp_trace_dump(frame)
+ //!                    is called every ZAKURO_DUMP_EVERY frames, writing the
+@@ -25,6 +27,7 @@ struct Hold {
+     last: u64,
+     buttons: PadState,
+     touch: Option<(u16, u16)>,
++    stick: Option<(f32, f32)>,
+ }
+ 
+ pub struct Probe {
+@@ -33,6 +36,7 @@ pub struct Probe {
+     holds: Vec<Hold>,
+     trace: Option<extern "C" fn(u64)>,
+     peek: Vec<(u32, usize)>,
++    peek_at: Vec<u64>,
+ }
+ 
+ #[cfg(unix)]
+@@ -86,15 +90,19 @@ impl Probe {
+                 let last = parts[1].parse().unwrap_or_else(|_| bad());
+                 let mut buttons = PadState::empty();
+                 let mut touch = None;
++                let mut stick = None;
+                 for name in parts[2].split('+') {
+-                    if let Some(xy) = name.strip_prefix("TOUCH:") {
++                    if let Some(xy) = name.strip_prefix("RSTICK:") {
++                        let (x, y) = xy.split_once(',').unwrap_or_else(|| bad());
++                        stick = Some((x.parse().unwrap_or_else(|_| bad()), y.parse().unwrap_or_else(|_| bad())));
++                    } else if let Some(xy) = name.strip_prefix("TOUCH:") {
+                         let (x, y) = xy.split_once(',').unwrap_or_else(|| bad());
+                         touch = Some((x.parse().unwrap_or_else(|_| bad()), y.parse().unwrap_or_else(|_| bad())));
+                     } else if name != "NONE" {
+                         buttons |= PadState::from_name(name).unwrap_or_else(|| bad());
+                     }
+                 }
+-                holds.push(Hold { first, last, buttons, touch });
++                holds.push(Hold { first, last, buttons, touch, stick });
+             }
+         }
+         let peek = std::env::var("ZAKURO_PEEK")
+@@ -105,7 +113,12 @@ impl Probe {
+                 Some((u32::from_str_radix(addr.trim_start_matches("0x"), 16).ok()?, usize::from_str_radix(len, 16).ok()?))
+             })
+             .collect();
+-        Probe { dump_dir, every, holds, trace: trace_dump(), peek }
++        let peek_at = std::env::var("ZAKURO_PEEK_AT")
++            .unwrap_or_default()
++            .split(',')
++            .filter_map(|f| f.trim().parse().ok())
++            .collect();
++        Probe { dump_dir, every, holds, trace: trace_dump(), peek, peek_at }
+     }
+ 
+     pub fn before_frame(&self, system: &mut System, frame: u64) {
+@@ -118,6 +131,10 @@ impl Probe {
+             if hold.touch.is_some() {
+                 input.touch = hold.touch;
+             }
++            if let Some((x, y)) = hold.stick {
++                input.c_stick_x = x;
++                input.c_stick_y = y;
++            }
+         }
+         system.set_input(input);
+     }
+@@ -130,7 +147,7 @@ impl Probe {
+             dump(frame);
+         }
+         let Some(dir) = &self.dump_dir else { return };
+-        if !self.peek.is_empty() {
++        if !self.peek.is_empty() && (self.peek_at.is_empty() || self.peek_at.contains(&frame)) {
+             use std::io::Write;
+             let mut line = format!("{frame}");
+             for &(addr, len) in &self.peek {
