@@ -1,5 +1,5 @@
 diff --git a/crates/zakuro-gpu/src/backend/mod.rs b/crates/zakuro-gpu/src/backend/mod.rs
-index e2a2a79..5438a69 100644
+index e2a2a79..f5acdab 100644
 --- a/crates/zakuro-gpu/src/backend/mod.rs
 +++ b/crates/zakuro-gpu/src/backend/mod.rs
 @@ -103,6 +103,9 @@ pub enum ScreenLayout {
@@ -26,8 +26,8 @@ index e2a2a79..5438a69 100644
  
 +/// the bottom screen's height over the top one, as a share of the top
 +/// screen's, and its gap from the corner, in console pixels.
-+const PIP_SHARE: f32 = 0.28;
-+const PIP_MARGIN: f32 = 4.0;
++const PIP_SHARE: f32 = 0.22;
++const PIP_MARGIN: f32 = 10.0;
 +
  /// works out where the screens go inside a window, keeping the 3DS's
  /// aspect ratio, or the top screen top_w wide, and centring them, scaled by
@@ -61,8 +61,8 @@ index e2a2a79..5438a69 100644
 +        assert_eq!((top.x, top.y, top.width, top.height), (60.0, 0.0, 1800.0, 1080.0));
 +        // inside the top screen, at its lower right, the 3DS's 4:3 shape
 +        assert!(bottom.x > top.x && bottom.y > top.y);
-+        assert!((bottom.x + bottom.width - (top.x + top.width + 0.0)).abs() <= 4.0 * 4.5 + 0.01);
-+        assert!((bottom.y + bottom.height - (top.y + top.height)).abs() <= 4.0 * 4.5 + 0.01);
++        assert!((bottom.x + bottom.width - (top.x + top.width + 0.0)).abs() <= PIP_MARGIN * 4.5 + 0.01);
++        assert!((bottom.y + bottom.height - (top.y + top.height)).abs() <= PIP_MARGIN * 4.5 + 0.01);
 +        assert!((bottom.width / bottom.height - 4.0 / 3.0).abs() < 1e-4);
 +        assert!((bottom.height - 1080.0 * PIP_SHARE).abs() < 0.01);
 +    }
