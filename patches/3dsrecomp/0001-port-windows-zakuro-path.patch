@@ -1,0 +1,17 @@
+diff --git a/src/port.rs b/src/port.rs
+index d205dc1..f3f749b 100644
+--- a/src/port.rs
++++ b/src/port.rs
+@@ -104,7 +104,11 @@ pub fn write_project(dir: &Path, name: &str, title: &str, program_id: u64, zakur
+         Some(path) => {
+             let path = std::fs::canonicalize(path).map_err(|e| format!("could not find {}, {e}", path.display()))?;
+             let krate = if path.join("crates/zakuro/Cargo.toml").exists() { path.join("crates/zakuro") } else { path };
+-            format!("{{ path = \"{}\" }}", krate.display())
++            // a TOML literal string, so Windows' backslashes stay as they
++            // are, without the \\?\ prefix canonicalize gives there
++            let shown = krate.display().to_string();
++            let shown = shown.strip_prefix(r"\\?\").unwrap_or(&shown).to_owned();
++            format!("{{ path = '{shown}' }}")
+         }
+         None => format!("{{ git = \"{ZAKURO}\" }}"),
+     };
