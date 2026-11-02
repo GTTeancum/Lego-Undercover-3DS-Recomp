@@ -89,6 +89,14 @@ while that moved within the last 4 frames (the game logic skips frames),
 the map fade at +0x4A0 is 1.0 and the wipe is open, and then draws the
 picture-in-picture bottom screen round (patch 0010).
 
+**Notices** (postcard collected, tutorial tips, script `ShowTipTextOnce`/
+`ShowTipTextTimed`): `f_00235F30(text, colour, …, seconds)` shows one; the
+state is at `0x00517E68`, +0x10 non-zero while one is up (the game's own
+check is `f_001EE9A0`), +0x04 the notice object, +0x30 its text. The box
+sits at x 10–309, y 66–173 of the bottom screen, its "!" and badge reaching
+y 50–200. Zakuro patch 0011 draws just that part, centred on the top
+screen at 0.8× its pixel scale, in place of the corner screen.
+
 **To change it:** override `f_00236104`'s use here, or `f_001EF45C`, or
 `f_002DDD64` itself (call the original, then adjust +485/+498).
 

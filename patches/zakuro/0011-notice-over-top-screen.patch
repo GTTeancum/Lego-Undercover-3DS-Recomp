@@ -1,0 +1,369 @@
+diff --git a/crates/zakuro-gpu/src/backend/gl.rs b/crates/zakuro-gpu/src/backend/gl.rs
+index 89cad62..d63cb0c 100644
+--- a/crates/zakuro-gpu/src/backend/gl.rs
++++ b/crates/zakuro-gpu/src/backend/gl.rs
+@@ -4,7 +4,7 @@ use std::collections::HashMap;
+ 
+ use glow::HasContext;
+ 
+-use super::{place, Overlay, OverlayVertex, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
++use super::{apply_inset, place, Inset, Overlay, OverlayVertex, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
+ 
+ const VERTEX_SHADER: &str = r#"#version 330 core
+ // a single oversized triangle covers the viewport with no vertex buffer.
+@@ -27,7 +27,10 @@ uniform sampler2D screen;
+ // how a screen drawn bigger than its pixels is filtered: 0 smooth, 1
+ // pixels, 2 sharp, as in the Vulkan presenter's shader.
+ uniform int mode;
++// the part of the screen drawn, x, y, width, height, when width is above 0
++uniform vec4 crop;
+ vec3 shown(sampler2D image) {
++    vec2 uv = crop.z > 0.0 ? crop.xy + uv * crop.zw : uv;
+     vec2 size = vec2(textureSize(image, 0));
+     vec2 covered = fwidth(uv) * size;
+     if (max(covered.x, covered.y) <= 1.001) {
+@@ -152,6 +155,8 @@ pub struct GlPresenter {
+     arrangement: ScreenLayout,
+     /// the bottom screen drawn round, for a minimap.
+     round_bottom: bool,
++    /// a part of the bottom screen over the top one instead of it.
++    bottom_inset: Option<Inset>,
+     top_width: f32,
+     filter: ScreenFilter,
+     integer: bool,
+@@ -223,6 +228,7 @@ impl GlPresenter {
+             window,
+             arrangement: ScreenLayout::default(),
+             round_bottom: false,
++            bottom_inset: None,
+             top_width: super::TOP_WIDTH,
+             filter: ScreenFilter::default(),
+             integer: false,
+@@ -289,7 +295,11 @@ impl GlPresenter {
+         self.set_viewport(viewport);
+         unsafe {
+             if let Some(location) = gl.get_uniform_location(self.program, "shape") {
+-                gl.uniform_1_i32(Some(&location), (index == 1 && self.round_bottom) as i32);
++                gl.uniform_1_i32(Some(&location), (index == 1 && self.round_bottom && self.bottom_inset.is_none()) as i32);
++            }
++            if let Some(location) = gl.get_uniform_location(self.program, "crop") {
++                let crop = self.bottom_inset.filter(|_| index == 1).map_or([0.0; 4], |inset| inset.crop);
++                gl.uniform_4_f32(Some(&location), crop[0], crop[1], crop[2], crop[3]);
+             }
+             gl.active_texture(glow::TEXTURE0);
+             gl.bind_texture(glow::TEXTURE_2D, Some(self.textures[index]));
+@@ -355,7 +365,9 @@ impl Presenter for GlPresenter {
+             gl.bind_vertex_array(Some(self.vertex_array));
+         }
+ 
+-        for (viewport, shown) in place(self.window.0, self.window.1, self.arrangement, self.top_width, self.integer, self.stereo, has_right) {
++        let mut places = place(self.window.0, self.window.1, self.arrangement, self.top_width, self.integer, self.stereo, has_right);
++        apply_inset(&mut places, self.bottom_inset);
++        for (viewport, shown) in places {
+             match shown {
+                 Shown::Top if !top.is_empty() => self.draw_screen(0, viewport),
+                 Shown::Bottom if !bottom.is_empty() => self.draw_screen(1, viewport),
+@@ -380,6 +392,10 @@ impl Presenter for GlPresenter {
+         self.round_bottom = round;
+     }
+ 
++    fn set_bottom_inset(&mut self, inset: Option<Inset>) {
++        self.bottom_inset = inset;
++    }
++
+     fn set_layout(&mut self, arrangement: ScreenLayout) {
+         self.arrangement = arrangement;
+     }
+diff --git a/crates/zakuro-gpu/src/backend/mod.rs b/crates/zakuro-gpu/src/backend/mod.rs
+index 0f41abe..5313597 100644
+--- a/crates/zakuro-gpu/src/backend/mod.rs
++++ b/crates/zakuro-gpu/src/backend/mod.rs
+@@ -89,6 +89,39 @@ pub struct Viewport {
+     pub height: f32,
+ }
+ 
++/// a part of the bottom screen drawn on its own over the middle of the top
++/// screen, in place of the whole bottom screen: crop is the part, as a
++/// fraction of the screen (x, y, width, height from the top left), and
++/// scale its size against the top screen's pixels.
++#[derive(Debug, Clone, Copy, PartialEq)]
++pub struct Inset {
++    pub crop: [f32; 4],
++    pub scale: f32,
++}
++
++/// moves the bottom screen's place to where an inset puts it: centred on
++/// the top screen, crop's size at the top screen's scale times inset.scale.
++pub fn apply_inset(places: &mut [(Viewport, Shown)], inset: Option<Inset>) {
++    let Some(inset) = inset else { return };
++    let Some(top) = places.iter().find(|(_, shown)| matches!(shown, Shown::Top | Shown::Both)).map(|(v, _)| *v) else {
++        return;
++    };
++    // the top screen's pixels: 240 rows over its height
++    let pixel = top.height / 240.0;
++    let width = 320.0 * inset.crop[2] * pixel * inset.scale;
++    let height = 240.0 * inset.crop[3] * pixel * inset.scale;
++    for (viewport, shown) in places.iter_mut() {
++        if *shown == Shown::Bottom {
++            *viewport = Viewport {
++                x: top.x + (top.width - width) / 2.0,
++                y: top.y + (top.height - height) / 2.0,
++                width,
++                height,
++            };
++        }
++    }
++}
++
+ /// how the screens are arranged in the window.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+ pub enum ScreenLayout {
+@@ -345,6 +378,10 @@ pub trait Presenter {
+     /// whether the bottom screen is drawn as a circle, for a minimap.
+     fn set_round_bottom(&mut self, round: bool);
+ 
++    /// a part of the bottom screen drawn over the middle of the top one in
++    /// its place, or none.
++    fn set_bottom_inset(&mut self, inset: Option<Inset>);
++
+     /// how wide the top screen shows, TOP_WIDTH for the console's shape.
+     fn set_top_width(&mut self, width: f32);
+ 
+diff --git a/crates/zakuro-gpu/src/backend/vulkan.rs b/crates/zakuro-gpu/src/backend/vulkan.rs
+index 0b0bf22..66adfbd 100644
+--- a/crates/zakuro-gpu/src/backend/vulkan.rs
++++ b/crates/zakuro-gpu/src/backend/vulkan.rs
+@@ -8,7 +8,7 @@ use ash::vk;
+ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
+ 
+ use super::vulkan_overlay::OverlayPainter;
+-use super::{place, GpuScreen, Overlay, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
++use super::{apply_inset, place, GpuScreen, Inset, Overlay, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
+ use crate::raster::hardware::{can_render, render_device};
+ use crate::SharedDevice;
+ 
+@@ -123,6 +123,8 @@ pub struct VulkanPresenter {
+     arrangement: ScreenLayout,
+     /// the bottom screen drawn round, for a minimap.
+     round_bottom: bool,
++    /// a part of the bottom screen over the top one instead of it.
++    bottom_inset: Option<Inset>,
+     top_width: f32,
+     filter: ScreenFilter,
+     integer: bool,
+@@ -409,6 +411,7 @@ impl VulkanPresenter {
+             window: size,
+             arrangement: ScreenLayout::default(),
+             round_bottom: false,
++            bottom_inset: None,
+             top_width: super::TOP_WIDTH,
+             filter: ScreenFilter::default(),
+             integer: false,
+@@ -779,14 +782,22 @@ impl VulkanPresenter {
+                     Some((self.gpu_sets[self.frame][index], [x, y, width, height, left, top, right, bottom]))
+                 }
+             };
+-            let places = place(self.extent.width, self.extent.height, self.arrangement, self.top_width, self.integer, self.stereo, right);
++            let mut places = place(self.extent.width, self.extent.height, self.arrangement, self.top_width, self.integer, self.stereo, right);
++            apply_inset(&mut places, self.bottom_inset);
+             for (viewport, shown) in places {
+                 let index = match shown {
+                     Shown::Top | Shown::Both => 0,
+                     Shown::Bottom => 1,
+                     Shown::Right => 2,
+                 };
+-                let Some((descriptor, area)) = crop(index) else { continue };
++                let Some((descriptor, mut area)) = crop(index) else { continue };
++                if let (Shown::Bottom, Some(inset)) = (shown, self.bottom_inset) {
++                    // only the inset's part of the screen, kept within it
++                    let [x, y, width, height] = [area[0], area[1], area[2], area[3]];
++                    let [cx, cy, cw, ch] = inset.crop;
++                    let (nx, ny, nw, nh) = (x + cx * width, y + cy * height, cw * width, ch * height);
++                    area = [nx, ny, nw, nh, area[4].max(nx), area[5].max(ny), area[6].min(nx + nw), area[7].min(ny + nh)];
++                }
+                 let mut constants: Vec<u8> = area.iter().flat_map(|c| c.to_le_bytes()).collect();
+                 constants.extend_from_slice(&self.filter.mode().to_le_bytes());
+                 let (pipeline, layout, set) = if shown == Shown::Both {
+@@ -799,7 +810,7 @@ impl VulkanPresenter {
+                     constants.extend(right.iter().flat_map(|c| c.to_le_bytes()));
+                     (self.stereo_pipeline, self.stereo_pipeline_layout, self.stereo_sets[self.frame])
+                 } else {
+-                    let round = shown == Shown::Bottom && self.round_bottom;
++                    let round = shown == Shown::Bottom && self.round_bottom && self.bottom_inset.is_none();
+                     constants.extend_from_slice(&(round as i32).to_le_bytes());
+                     (self.pipeline, self.pipeline_layout, descriptor)
+                 };
+@@ -965,6 +976,10 @@ impl Presenter for VulkanPresenter {
+         self.round_bottom = round;
+     }
+ 
++    fn set_bottom_inset(&mut self, inset: Option<Inset>) {
++        self.bottom_inset = inset;
++    }
++
+     fn set_layout(&mut self, arrangement: ScreenLayout) {
+         self.arrangement = arrangement;
+     }
+diff --git a/crates/zakuro-gpu/src/lib.rs b/crates/zakuro-gpu/src/lib.rs
+index f294442..87873b8 100644
+--- a/crates/zakuro-gpu/src/lib.rs
++++ b/crates/zakuro-gpu/src/lib.rs
+@@ -22,7 +22,7 @@ pub mod texture;
+ use format::ColorFormat;
+ pub use interpolation::Matches;
+ use registers::*;
+-pub use backend::{layout, place, GpuScreen, Overlay, OverlayMesh, OverlayTexture, OverlayVertex, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
++pub use backend::{layout, place, GpuScreen, Inset, Overlay, OverlayMesh, OverlayTexture, OverlayVertex, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
+ pub use renderer::{DrawCall, Renderer, RendererKind, SoftwareRenderer};
+ #[cfg(feature = "vulkan")]
+ pub use device::SharedDevice;
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index aa4aca2..e0b68a3 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -346,6 +346,12 @@ fn shown_layout(layout: Screens, game: Option<&Running>, hide_idle: bool) -> zak
+     }
+ }
+ 
++/// the part of the bottom screen drawn by itself over the top one: in
++/// picture-in-picture, while it shows a notice.
++fn bottom_inset(layout: Screens, game: Option<&Running>, notice_over_top: bool) -> Option<zakuro_gpu::Inset> {
++    (layout == Screens::PictureInPicture && notice_over_top).then(|| game.and_then(|game| game.bottom_notice)).flatten()
++}
++
+ /// whether the bottom screen is drawn round: in picture-in-picture, while it
+ /// shows the game's map.
+ fn round_bottom(layout: Screens, game: Option<&Running>, round_minimap: bool) -> bool {
+@@ -409,6 +415,9 @@ struct Running {
+     /// (title_hooks), and what that watches between frames.
+     bottom_map: bool,
+     map_watch: title_hooks::MapWatch,
++    /// a notice on the bottom screen, drawn by itself over the top one in
++    /// picture-in-picture (title_hooks).
++    bottom_notice: Option<zakuro_gpu::Inset>,
+     path: PathBuf,
+     name: String,
+     /// the inputs written down, ZAKURO_RECORD=file, for playing the run
+@@ -430,6 +439,7 @@ impl Running {
+             bottom_idle: false,
+             bottom_map: false,
+             map_watch: Default::default(),
++            bottom_notice: None,
+             system,
+             path,
+             name,
+@@ -1049,6 +1059,7 @@ impl App {
+             backend.set_stereo(self.settings.stereo());
+             backend.set_layout(shown_layout(self.layout, self.game.as_ref(), self.settings.hide_idle_bottom));
+             backend.set_round_bottom(round_bottom(self.layout, self.game.as_ref(), self.settings.round_minimap));
++            backend.set_bottom_inset(bottom_inset(self.layout, self.game.as_ref(), self.settings.notice_over_top));
+         }
+         let scale = if self.options.scale.is_none() { self.settings.scale.max(1) } else { self.scale };
+         if scale != self.scale || self.settings.layout != self.layout || self.settings.top_shape != self.top_shape {
+@@ -1433,6 +1444,13 @@ impl App {
+                 backend.set_layout(shown_layout(self.layout, Some(game), self.settings.hide_idle_bottom));
+             }
+         }
++        let notice = title_hooks::bottom_screen_notice(&mut game.system);
++        if notice != game.bottom_notice {
++            game.bottom_notice = notice;
++            if let Some(backend) = &mut self.backend {
++                backend.set_bottom_inset(bottom_inset(self.layout, Some(game), self.settings.notice_over_top));
++            }
++        }
+         let map = title_hooks::bottom_screen_map(&mut game.system, &mut game.map_watch);
+         if map != game.bottom_map {
+             game.bottom_map = map;
+diff --git a/crates/zakuro/src/menus.rs b/crates/zakuro/src/menus.rs
+index 353c027..a584fa6 100644
+--- a/crates/zakuro/src/menus.rs
++++ b/crates/zakuro/src/menus.rs
+@@ -711,6 +711,11 @@ impl Menus {
+                     egui::Checkbox::new(&mut settings.round_minimap, "Round minimap"),
+                 )
+                 .on_hover_text("The corner screen is drawn as a circle while it shows the game's map, for games Zakuro knows how to tell.");
++                ui.add_enabled(
++                    settings.layout == Screens::PictureInPicture,
++                    egui::Checkbox::new(&mut settings.notice_over_top, "Notices over the top screen"),
++                )
++                .on_hover_text("A notice on the bottom screen, such as a collected postcard, shows by itself in the middle of the top screen instead of in the corner, for games Zakuro knows how to tell.");
+                 egui::ComboBox::from_label("Filter").selected_text(settings.filter.name()).show_ui(ui, |ui| {
+                     for filter in Filter::ALL {
+                         ui.selectable_value(&mut settings.filter, filter, filter.name());
+diff --git a/crates/zakuro/src/present.rs b/crates/zakuro/src/present.rs
+index bc31802..2c58eb3 100644
+--- a/crates/zakuro/src/present.rs
++++ b/crates/zakuro/src/present.rs
+@@ -118,6 +118,14 @@ impl Backend {
+         }
+     }
+ 
++    pub fn set_bottom_inset(&mut self, inset: Option<zakuro_gpu::Inset>) {
++        match self {
++            Backend::OpenGl { presenter, .. } => presenter.set_bottom_inset(inset),
++            Backend::Vulkan(presenter) => presenter.set_bottom_inset(inset),
++            Backend::None => {}
++        }
++    }
++
+     pub fn set_round_bottom(&mut self, round: bool) {
+         match self {
+             Backend::OpenGl { presenter, .. } => presenter.set_round_bottom(round),
+diff --git a/crates/zakuro/src/settings.rs b/crates/zakuro/src/settings.rs
+index 609b779..6b6343b 100644
+--- a/crates/zakuro/src/settings.rs
++++ b/crates/zakuro/src/settings.rs
+@@ -478,6 +478,9 @@ pub struct Settings {
+     /// with the bottom screen over the top one, draw it round while it
+     /// shows a game's map, as a minimap.
+     pub round_minimap: bool,
++    /// with the bottom screen over the top one, a notice on it is drawn by
++    /// itself in the middle of the top screen instead.
++    pub notice_over_top: bool,
+     /// how the screens' pixels look scaled up.
+     #[serde(deserialize_with = "or_default")]
+     pub filter: Filter,
+@@ -541,6 +544,7 @@ impl Default for Settings {
+             layout: Screens::PictureInPicture,
+             hide_idle_bottom: true,
+             round_minimap: true,
++            notice_over_top: true,
+             filter: Filter::Smooth,
+             integer_scale: false,
+             top_shape: TopShape::Console,
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index cd73b34..ba5da0d 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -22,6 +22,9 @@ const DRC_MANAGER: u32 = 0x0051_9D94;
+ const DRC_WIPE_SHUT: u32 = DRC_MANAGER + 0x485;
+ const DRC_MAP_FADE: u32 = DRC_MANAGER + 0x4A0;
+ const MAP_FRAMES: u32 = 0x005A_4F00;
++/// the notice box (postcards, tips): f_00235F30 shows one, and +0x10 of
++/// this is non-zero while it is up (f_001EE9A0 asks the same).
++const NOTICE_STATE: u32 = 0x0051_7E68 + 0x10;
+ 
+ /// whether the bottom screen shows nothing but a game's idle picture, which
+ /// a layout that overlays it can leave out.
+@@ -71,3 +74,21 @@ pub fn bottom_screen_map(system: &mut System, watch: &mut MapWatch) -> bool {
+         _ => false,
+     }
+ }
++
++/// the part of the bottom screen that shows a notice by itself, and how big
++/// to draw it over the top screen, while the game shows one there.
++pub fn bottom_screen_notice(system: &mut System) -> Option<zakuro_gpu::Inset> {
++    match system.title.as_ref().map(|title| title.program_id()) {
++        Some(LEGO_CITY_CHASE_BEGINS) => {
++            let mut word = [0u8; 4];
++            system.memory.read_bytes(NOTICE_STATE, &mut word);
++            // the box spans x 10-309, y 66-173 of 320x240, its "!" above
++            // and badge below it reaching y 50-200
++            (u32::from_le_bytes(word) != 0).then_some(zakuro_gpu::Inset {
++                crop: [6.0 / 320.0, 50.0 / 240.0, 308.0 / 320.0, 150.0 / 240.0],
++                scale: 0.8,
++            })
++        }
++        _ => None,
++    }
++}
