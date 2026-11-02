@@ -57,6 +57,7 @@ or after `work/3dsrecomp/target/release/3dsrecomp build game/<rom>.cci work/reco
 - `patches/` — local changes to 3dsrecomp or Zakuro:
   - `zakuro/0001` headless screenshots and scripted input,
   - `zakuro/0002` picture-in-picture layout (default),
+  - `zakuro/0003` Auto resolution (default): the 3D is drawn tall enough to fill the monitor (1080p → 5×, 1440p → 6×, 4K → 8×) instead of a fixed 3×,
   - `3dsrecomp/0001` `port` writes a Zakuro path that works on Windows.
 - `overrides/` — hand-written C replacements for game functions.
 - `game/` — your own decrypted ROM; ignored by Git.
@@ -106,6 +107,14 @@ reads as a minimap; it stays touchable. Size and inset are `PIP_SHARE` and `PIP_
 `crates/zakuro-gpu/src/backend/mod.rs` (patch 0002). Other layouts are still in
 Zakuro's layout menu, or set `layout = "stacked"` etc. in
 `~/.config/zakuro/settings.toml` (`%APPDATA%\zakuro\settings.toml` on Windows).
+
+## Resolution
+
+With "Draw the 3D on the GPU" on (the default), the 3D is rendered at a
+multiple of the 3DS's 400×240. Resolution defaults to Auto, which picks the
+multiple from the height of the monitor the window opens on when the game
+starts; set 1–8 in the menu (Graphics) or `resolution = N` in
+`settings.toml` to fix it.
 
 ## Game data
 

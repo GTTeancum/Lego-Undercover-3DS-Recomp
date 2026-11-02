@@ -1,0 +1,97 @@
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 36c84b4..93b4032 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -294,6 +294,24 @@ fn paint_test_pattern(config: Config) -> System {
+     system
+ }
+ 
++/// the resolution that draws the top screen's 240 rows at least as tall as
++/// a monitor of this height, 1 to 8.
++fn auto_resolution(monitor_height: u32) -> u32 {
++    monitor_height.div_ceil(240).clamp(1, 8)
++}
++
++#[cfg(test)]
++mod resolution_tests {
++    #[test]
++    fn auto_resolution_fills_the_monitor() {
++        assert_eq!(super::auto_resolution(720), 3);
++        assert_eq!(super::auto_resolution(1080), 5);
++        assert_eq!(super::auto_resolution(1440), 6);
++        assert_eq!(super::auto_resolution(2160), 8);
++        assert_eq!(super::auto_resolution(0), 1);
++    }
++}
++
+ fn run_headless(system: &mut System, frames: u64) {
+     let start = Instant::now();
+     let mut outcome = FrameOutcome::Completed;
+@@ -616,7 +634,7 @@ impl App {
+                 .iter()
+                 .filter_map(|(id, names)| Some((u64::from_str_radix(id, 16).ok()?, names.clone())))
+                 .collect(),
+-            resolution: self.settings.resolution,
++            resolution: self.resolution(),
+             device: self.backend.as_ref().and_then(Backend::shared_device),
+             username: self.nickname(),
+             console_id: self.settings.console_id,
+@@ -625,6 +643,17 @@ impl App {
+         }
+     }
+ 
++    /// how many times the console's resolution the 3D is drawn at: the
++    /// setting, or with it at 0 (auto) enough for the top screen to fill the
++    /// height of the monitor the window is on, 3 when there is no monitor.
++    fn resolution(&self) -> u32 {
++        if self.settings.resolution != 0 {
++            return self.settings.resolution;
++        }
++        let monitor = self.window.as_ref().and_then(|window| window.current_monitor());
++        monitor.map_or(3, |monitor| auto_resolution(monitor.size().height))
++    }
++
+     /// starts what the command line asks for, the test pattern or a game.
+     fn start(&mut self) {
+         if self.options.test_pattern {
+diff --git a/crates/zakuro/src/menus.rs b/crates/zakuro/src/menus.rs
+index 9372f02..13202d8 100644
+--- a/crates/zakuro/src/menus.rs
++++ b/crates/zakuro/src/menus.rs
+@@ -685,9 +685,11 @@ impl Menus {
+                 ui.checkbox(&mut settings.hardware_rasterizer, "Draw the 3D on the GPU");
+                 ui.add_enabled(
+                     settings.hardware_rasterizer,
+-                    egui::Slider::new(&mut settings.resolution, 1..=8).text("Resolution").suffix("x"),
++                    egui::Slider::new(&mut settings.resolution, 0..=8)
++                        .text("Resolution")
++                        .custom_formatter(|n, _| if n == 0.0 { "Auto".to_owned() } else { format!("{n}x") }),
+                 )
+-                .on_hover_text("How many times the console's resolution the 3D is drawn at. Past what the window shows, the extra pixels smooth the edges, at a cost to the GPU that grows fast.");
++                .on_hover_text("How many times the console's resolution the 3D is drawn at. Auto draws it as tall as the monitor, takes effect when a game starts. Past what the window shows, the extra pixels smooth the edges, at a cost to the GPU that grows fast.");
+                 ui.add_enabled(settings.hardware_rasterizer, egui::Checkbox::new(&mut settings.texture_packs, "Texture packs"))
+                     .on_hover_text("Draw a game's texture pack, made for Citra or Azahar, put in the textures folder of the game's mods folder.");
+                 let interpolates = settings.hardware_rasterizer && settings.renderer == Renderer::Vulkan;
+diff --git a/crates/zakuro/src/settings.rs b/crates/zakuro/src/settings.rs
+index 49377f8..d54b569 100644
+--- a/crates/zakuro/src/settings.rs
++++ b/crates/zakuro/src/settings.rs
+@@ -457,7 +457,8 @@ pub struct Settings {
+     pub renderer: Renderer,
+     /// draw the 3D on the GPU rather than in software.
+     pub hardware_rasterizer: bool,
+-    /// how many times the console's resolution the GPU draws the 3D at.
++    /// how many times the console's resolution the GPU draws the 3D at, 0
++    /// for enough to fill the monitor.
+     pub resolution: u32,
+     /// draw the texture packs put in games' mods folders.
+     pub texture_packs: bool,
+@@ -519,7 +520,7 @@ impl Default for Settings {
+             language: Language::English,
+             renderer: Renderer::Vulkan,
+             hardware_rasterizer: true,
+-            resolution: 3,
++            resolution: 0,
+             texture_packs: true,
+             frame_interpolation: false,
+             recompiled: true,

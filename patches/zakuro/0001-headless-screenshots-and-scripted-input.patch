@@ -1,9 +1,9 @@
 diff --git a/crates/zakuro/src/headless_probe.rs b/crates/zakuro/src/headless_probe.rs
 new file mode 100644
-index 0000000..07ac578
+index 0000000..c7897fa
 --- /dev/null
 +++ b/crates/zakuro/src/headless_probe.rs
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,104 @@
 +//! Screenshots and scripted input for --headless runs, set through the
 +//! environment so the command line stays as upstream has it.
 +//!
@@ -90,9 +90,14 @@ index 0000000..07ac578
 +            return;
 +        }
 +        for (name, screen) in [("top", zakuro_common::Screen::Top), ("bottom", zakuro_common::Screen::Bottom)] {
-+            let rgba = system.read_screen(screen);
++            // the GPU's picture at its resolution when it draws the 3D,
++            // else the console's framebuffer
++            let (rgba, width, height) = match Some(system.read_screen_scaled(screen)).filter(|(_, w, _)| *w > screen.width()) {
++                Some((image, width, height)) => (image.as_ref().clone(), width, height),
++                None => (system.read_screen(screen), screen.width(), screen.height()),
++            };
 +            let path = dir.join(format!("{name}_{frame:06}.png"));
-+            match image::RgbaImage::from_raw(screen.width(), screen.height(), rgba) {
++            match image::RgbaImage::from_raw(width, height, rgba) {
 +                Some(img) => {
 +                    if let Err(e) = img.save(&path) {
 +                        eprintln!("dump {}: {e}", path.display());
