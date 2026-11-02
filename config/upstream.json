@@ -1,0 +1,10 @@
+{
+  "3dsrecomp": {
+    "url": "https://github.com/fearkov/3dsrecomp",
+    "commit": "73b8f9caf3700991c290dd84bccffb92294d6b15"
+  },
+  "zakuro": {
+    "url": "https://github.com/fearkov/zakuro",
+    "commit": "781b4a816e1001977bb76221feab13c43185cbab"
+  }
+}

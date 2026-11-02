@@ -1,2 +1,0 @@
-utility=4 input_bytes=1 output_bytes=1
-input= 00

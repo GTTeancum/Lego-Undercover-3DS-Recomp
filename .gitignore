@@ -39,3 +39,6 @@ Thumbs.db
 
 # Python test/import caches
 __pycache__/
+
+# Upstream checkouts and build output (scripts/setup.sh)
+work/
