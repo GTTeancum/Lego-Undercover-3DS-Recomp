@@ -942,6 +942,290 @@
       "entry": "0x00154EB0",
       "end": "0x00154EB4",
       "evidence": "Statically established fallthrough of the reviewed conditional backedge at 0x00154EAC. The single authenticated original unconditional register move returns through live LR, which none of the sixteen reviewed instructions modifies. The captured target 0x0014F510 is already recorded; preserve ordinary execution-state and target validation and all prior loop register, flag and memory effects. End is exclusive at 0x00154EB4; no adjacent routine or new dynamic target is added, and this return is statically reviewed rather than claimed as previously executed."
+    },
+    {
+      "entry": "0x0014FEF0",
+      "end": "0x0014FEF8",
+      "evidence": "Observed headless MissingBlock at 0x0014FEF0 after candidate 39. Two authenticated original instructions save the incoming link through a guarded preindexed stack store, then call 0x0015027C and establish return 0x0014FEF8. Preserve successful-store writeback before the new link assignment and distinguish saved caller return from live LR. End is exclusive at 0x0014FEF8. Other packet intervals are separately reviewed static call-flow continuations, not previously observed missing stops."
+    },
+    {
+      "entry": "0x0014FEF8",
+      "end": "0x0014FF00",
+      "evidence": "Statically established return continuation of the call at 0x0014FEF4. Two authenticated original instructions add four to r11 without flags and call the same entry at 0x0015027C, establishing return 0x0014FF00 while retaining the outer saved caller frame. Preserve wrapping arithmetic, original link semantics and guarded callee behavior. End is exclusive; this continuation is statically reviewed and its future execution is not claimed."
+    },
+    {
+      "entry": "0x0014FF00",
+      "end": "0x0014FF08",
+      "evidence": "Statically established return continuation of the second call at 0x0014FEFC. Two authenticated original instructions subtract four from r11 without flags and restore PC from the actual guest-stack word with successful post-index stack writeback. Preserve the saved outer caller link rather than substituting live LR; a failed read must not update SP. End is exclusive at the separately existing entry 0x0014FF08. This static return is not a forced or observed future result."
+    },
+    {
+      "entry": "0x0015027C",
+      "end": "0x001502A0",
+      "evidence": "Authenticated direct call target shared by the two reviewed caller blocks. Nine original instructions derive a selector from the bit buffer, read original byte tables through guarded accesses, shift the bit buffer by the loaded count, update remaining-bit flags, preserve live LR in r8 and conditionally call the already recorded helper at 0x00151168. Preserve register-controlled shift and conditional link semantics; a skipped call must leave LR unchanged. End is exclusive at 0x001502A0; static table reasoning does not replace runtime reads or force the branch."
+    },
+    {
+      "entry": "0x001502A0",
+      "end": "0x001502B0",
+      "evidence": "Statically established conditional-call fallthrough and assigned return at 0x001502A0. Four authenticated original instructions form the original relative table base, read the selected word with its encoded scaled offset, restore live LR from r8 and branch through the original wrapping PC addition. Preserve guarded access and ordinary target validation. The captured first-call state conditionally selects the separately reviewed target 0x001501E8; other runtime selectors remain governed by strict registry coverage. Inline tables beginning at 0x001502B0 are excluded."
+    },
+    {
+      "entry": "0x001501E8",
+      "end": "0x001501F8",
+      "evidence": "Statically selected first-call destination of the reviewed original relative table under the captured bit-buffer state and successful original table reads. Four authenticated instructions save the live caller link through a guarded stack store, establish r5 and r6 as four and eight, and call 0x0014F68C with return 0x001501F8. Preserve nested frame order and distinct caller links. End is exclusive; no computed target is forced and this conditional static selection is not claimed as a prior runtime observation."
+    },
+    {
+      "entry": "0x001501F8",
+      "end": "0x001501FC",
+      "evidence": "Statically established return continuation of the call at 0x001501F4. One authenticated original guarded word load restores PC from the actual inner saved-link word and advances SP only after a successful access. Preserve stack-loaded target validation and never substitute the current live LR. End is exclusive at 0x001501FC, excluding the next unrelated wrapper. Future execution remains unobserved before the candidate run."
+    },
+    {
+      "entry": "0x0014F68C",
+      "end": "0x0014F694",
+      "evidence": "Authenticated direct target of the selected inner wrapper. Two original instructions push r4, r5, r6, r11, r12 and incoming LR in architectural register order, then call the already recorded entry at 0x0015117C. Preserve partial store effects, stack writeback after successful transfer and the saved incoming link before BL assigns return 0x0014F694. End is exclusive; the existing helper retains its original guest-memory-dependent behavior."
+    },
+    {
+      "entry": "0x0014F694",
+      "end": "0x0014F69C",
+      "evidence": "Statically established return continuation of the shared helper first call. Two original instructions copy r6 into r5 without flags and call the already recorded entry at 0x0015117C again, assigning return 0x0014F69C. Preserve the original saved outer frame and distinguish the new live link from the saved caller link. The decoder result and future return are not predicted; end is exclusive."
+    },
+    {
+      "entry": "0x0014F69C",
+      "end": "0x0014F6FC",
+      "evidence": "Statically established return continuation of the second recorded decoder call. Twenty-four authenticated instructions read the original object offsets, combine decoded components, write the two-word state, derive a bounded first table selector, save r0 through r3, and prepare first-plane pointers using the original shifts and guarded loads. An original ADD LR,PC establishes continuation 0x0014F6FC before the table-driven PC addition. Preserve all multiword partial effects, stack layout and unknown guest-memory values. End is exclusive; no callback target or output value is forced."
+    },
+    {
+      "entry": "0x0014F6FC",
+      "end": "0x0014F758",
+      "evidence": "Statically established original LR continuation at 0x0014F6FC. Twenty-three authenticated instructions reload the saved input state, prepare the next plane using original object offsets and arithmetic shifts, halve the original count, derive the original masked selector and establish LR 0x0014F758 before a guarded table-driven dispatch. Preserve every stack read, pointer operation, saved source register and condition flag. End is exclusive; downstream callback selection and memory effects remain runtime-dependent."
+    },
+    {
+      "entry": "0x0014F758",
+      "end": "0x0014F77C",
+      "evidence": "Statically established original LR continuation at 0x0014F758. Nine authenticated instructions reload and halve the saved count, derive the third-plane addresses, form the original relative table base and establish LR 0x0014F77C before the original guarded table load and computed PC addition. Preserve the live values returned by the prior callback rather than fabricating a selector or pointer. End is exclusive; ordinary memory and target validation remains strict."
+    },
+    {
+      "entry": "0x0014F77C",
+      "end": "0x0014F780",
+      "evidence": "Statically established original LR continuation at 0x0014F77C. One authenticated POP reloads r0 through r6, r11, r12 and PC from the two saved frames in ascending register order. Preserve completed partial loads if a later access faults, delayed SP writeback, actual stack-loaded return target and unchanged flags. End is exclusive at 0x0014F780; the following inline table data is excluded from executable coverage and live LR is not used as a replacement return."
+    },
+    {
+      "entry": "0x0015522C",
+      "end": "0x00155248",
+      "evidence": "Observed headless MissingBlock at 0x0015522C after candidate 40. Seven authenticated original instructions advance the source once, read a preceding byte and a full postindexed word, pack the original shifted value, store one word with destination stride, decrement the count and branch to 0x00155230. Preserve the full guarded word read even though its highest byte is discarded, ordered partial effects and successful writeback. The backedge skips the one-time source increment. End is exclusive at 0x00155248; the terminal return is a separate reviewed interval."
+    },
+    {
+      "entry": "0x00155248",
+      "end": "0x0015524C",
+      "evidence": "Statically established fallthrough of the reviewed loop branch at 0x00155244. One authenticated original unconditional MOV returns through unchanged live LR, captured as the already accepted entry 0x0014F6FC. Preserve the completed loop state and ordinary target validation. The loop and return preserve r5, r6 and r11, permitting a conditional static review of the existing caller selector without claiming the return was already observed. End is exclusive at 0x0015524C, an existing separate section."
+    },
+    {
+      "entry": "0x00155514",
+      "end": "0x00155548",
+      "evidence": "Statically selected target of the already accepted caller at 0x0014F6FC when the captured r5, r6 and r11 survive the first-plane callback and guarded caller accesses succeed. Original wrapping addition, arithmetic shifts and masks select index three in the authenticated table at 0x0014F66C, yielding 0x00155514. Thirteen original instructions load the mask once, read one byte and an adjacent halfword, retain staged masking and the explicit left-shift24 then right-shift16 truncation, store the halfword, advance row pointers, decrement the count and branch to 0x00155518. Preserve both guarded reads and separate pointer updates. The loop preserves r5 and r6, allowing the existing third-plane caller to reuse the same table target. End is exclusive; no guest output or future execution is asserted measured."
+    },
+    {
+      "entry": "0x00155548",
+      "end": "0x0015554C",
+      "evidence": "Statically established fallthrough of the reviewed branch at 0x00155544. One authenticated unconditional MOV returns through live LR while preserving r5, r6, stack state and completed row effects. Existing caller instructions assign 0x0014F758 and 0x0014F77C for the second and third planes respectively; retain ordinary target validation rather than forcing either return. End is exclusive at 0x0015554C, leaving that other missing routine untouched."
+    },
+    {
+      "entry": "0x001554B0",
+      "end": "0x001554EC",
+      "evidence": "Observed completed candidate41 MissingBlock at1554B0, authenticated to the captured original dispatch index6 and live LR14F758. One-time ADD source+1 executes before the guarded mask load. Each row uses LDRB[source-1] then LDRB[source] with post-increment512 only on successful second read. Pack bytes with LSL8, then mask after LSR1. Add carried adjacent rows, STRH the low16 bits, separately ADD destination512, SUBS count and MOVEQ PC,LR. The internal tail reads one additional row, updates carried r7 and branches to1554C8, skipping source adjustment, mask load and first-row preparation. A failed second byte read leaves the first loaded register and prior setup effects but does not apply that failed instruction's pointer writeback; failed STRH prevents destination ADD and decrement. This interval is bounded to001554B0..001554EC, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x001554EC",
+      "end": "0x00155510",
+      "evidence": "Static false-condition fallthrough after the separately reviewed conditional LR return in callback001554B0. The original internal tail consumes the next row and branches to its authenticated in-routine suffix, preserving carried values. One-time ADD source+1 executes before the guarded mask load. Each row uses LDRB[source-1] then LDRB[source] with post-increment512 only on successful second read. Pack bytes with LSL8, then mask after LSR1. Add carried adjacent rows, STRH the low16 bits, separately ADD destination512, SUBS count and MOVEQ PC,LR. The internal tail reads one additional row, updates carried r7 and branches to1554C8, skipping source adjustment, mask load and first-row preparation. A failed second byte read leaves the first loaded register and prior setup effects but does not apply that failed instruction's pointer writeback; failed STRH prevents destination ADD and decrement. This interval is bounded to001554EC..00155510, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x00155510",
+      "end": "0x00155514",
+      "evidence": "Static fallthrough from the separately reviewed loop tail of callback001554B0; one original MOV PC,LR returns through unchanged live LR with ordinary alignment, execution-state and coverage validation. One-time ADD source+1 executes before the guarded mask load. Each row uses LDRB[source-1] then LDRB[source] with post-increment512 only on successful second read. Pack bytes with LSL8, then mask after LSR1. Add carried adjacent rows, STRH the low16 bits, separately ADD destination512, SUBS count and MOVEQ PC,LR. The internal tail reads one additional row, updates carried r7 and branches to1554C8, skipping source adjustment, mask load and first-row preparation. A failed second byte read leaves the first loaded register and prior setup effects but does not apply that failed instruction's pointer writeback; failed STRH prevents destination ADD and decrement. This interval is bounded to00155510..00155514, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x00155358",
+      "end": "0x00155370",
+      "evidence": "Statically authenticated sibling callback at00155358, table14F66C index0. This sibling is not claimed executed by the current snapshot; the already accepted caller dispatches this table entry for the corresponding preserved selector. LDRH reads16 unsigned bits at source, then source ADD512 precedes STRH low16 at destination. Destination ADD512 and SUBS occur only after store succeeds. BNE returns to155358, with a separate MOV PC,LR fallthrough. A failed store retains the source advance and loaded scratch value, while destination and count remain as before the store. This interval is bounded to00155358..00155370, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x00155370",
+      "end": "0x00155374",
+      "evidence": "Static fallthrough from the separately reviewed loop tail of callback00155358; one original MOV PC,LR returns through unchanged live LR with ordinary alignment, execution-state and coverage validation. LDRH reads16 unsigned bits at source, then source ADD512 precedes STRH low16 at destination. Destination ADD512 and SUBS occur only after store succeeds. BNE returns to155358, with a separate MOV PC,LR fallthrough. A failed store retains the source advance and loaded scratch value, while destination and count remain as before the store. This interval is bounded to00155370..00155374, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x00155374",
+      "end": "0x001553A4",
+      "evidence": "Statically authenticated sibling callback at00155374, table14F66C index4. This sibling is not claimed executed by the current snapshot; the already accepted caller dispatches this table entry for the corresponding preserved selector. Load mask once, then LDRH first row, source ADD512 and LSR1/mask; similarly load and advance the second row. Sum masked rows, STRH low16, destination ADD512, SUBS and conditional LR return. The tail loads/advances/masks the next halfword row, adds it to carried r7, stores, advances destination and decrements; BNE targets155384, skipping setup/first row. Keep guard order and carried r3/r7 semantics across iterations; faults retain preceding successful reads and pointer updates. This interval is bounded to00155374..001553A4, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x001553A4",
+      "end": "0x001553C4",
+      "evidence": "Static false-condition fallthrough after the separately reviewed conditional LR return in callback00155374. The original internal tail consumes the next row and branches to its authenticated in-routine suffix, preserving carried values. Load mask once, then LDRH first row, source ADD512 and LSR1/mask; similarly load and advance the second row. Sum masked rows, STRH low16, destination ADD512, SUBS and conditional LR return. The tail loads/advances/masks the next halfword row, adds it to carried r7, stores, advances destination and decrements; BNE targets155384, skipping setup/first row. Keep guard order and carried r3/r7 semantics across iterations; faults retain preceding successful reads and pointer updates. This interval is bounded to001553A4..001553C4, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x001553C4",
+      "end": "0x001553C8",
+      "evidence": "Static fallthrough from the separately reviewed loop tail of callback00155374; one original MOV PC,LR returns through unchanged live LR with ordinary alignment, execution-state and coverage validation. Load mask once, then LDRH first row, source ADD512 and LSR1/mask; similarly load and advance the second row. Sum masked rows, STRH low16, destination ADD512, SUBS and conditional LR return. The tail loads/advances/masks the next halfword row, adds it to carried r7, stores, advances destination and decrements; BNE targets155384, skipping setup/first row. Keep guard order and carried r3/r7 semantics across iterations; faults retain preceding successful reads and pointer updates. This interval is bounded to001553C4..001553C8, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x001553C8",
+      "end": "0x001553F8",
+      "evidence": "Statically authenticated sibling callback at001553C8, table14F66C index1. This sibling is not claimed executed by the current snapshot; the already accepted caller dispatches this table entry for the corresponding preserved selector. Load mask once. Each iteration performs LDRH[source] and distinct LDRB[source+2], then source ADD512. Mask both after individual LSR1, add r3 to its own LSR8 and add shifted byte LSL8. STRH truncates low16 only after these original32-bit operations; destination ADD512, SUBS and BNE1553CC follow. A failing adjacent-byte read retains the prior halfword load but prevents the subsequent source ADD. This interval is bounded to001553C8..001553F8, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x001553F8",
+      "end": "0x001553FC",
+      "evidence": "Static fallthrough from the separately reviewed loop tail of callback001553C8; one original MOV PC,LR returns through unchanged live LR with ordinary alignment, execution-state and coverage validation. Load mask once. Each iteration performs LDRH[source] and distinct LDRB[source+2], then source ADD512. Mask both after individual LSR1, add r3 to its own LSR8 and add shifted byte LSL8. STRH truncates low16 only after these original32-bit operations; destination ADD512, SUBS and BNE1553CC follow. A failing adjacent-byte read retains the prior halfword load but prevents the subsequent source ADD. This interval is bounded to001553F8..001553FC, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x001553FC",
+      "end": "0x00155454",
+      "evidence": "Statically authenticated sibling callback at001553FC, table14F66C index5. This sibling is not claimed executed by the current snapshot; the already accepted caller dispatches this table entry for the corresponding preserved selector. The paired-row form of1553C8 retains each LDRH plus adjacent LDRB guard, source ADD, individual LSR1/masks, horizontal shifted additions and a second LSR1/mask before rows are combined. Prefix ends MOVEQ after successful STRH/destination ADD/SUBS. Tail consumes another independently guarded row and reuses carried r7; BNE155420 skips setup and first-row preparation. Do not algebraically merge the staged masks or loads; prior pointer/scratch effects persist when a later access fails. This interval is bounded to001553FC..00155454, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x00155454",
+      "end": "0x00155488",
+      "evidence": "Static false-condition fallthrough after the separately reviewed conditional LR return in callback001553FC. The original internal tail consumes the next row and branches to its authenticated in-routine suffix, preserving carried values. The paired-row form of1553C8 retains each LDRH plus adjacent LDRB guard, source ADD, individual LSR1/masks, horizontal shifted additions and a second LSR1/mask before rows are combined. Prefix ends MOVEQ after successful STRH/destination ADD/SUBS. Tail consumes another independently guarded row and reuses carried r7; BNE155420 skips setup and first-row preparation. Do not algebraically merge the staged masks or loads; prior pointer/scratch effects persist when a later access fails. This interval is bounded to00155454..00155488, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x00155488",
+      "end": "0x0015548C",
+      "evidence": "Static fallthrough from the separately reviewed loop tail of callback001553FC; one original MOV PC,LR returns through unchanged live LR with ordinary alignment, execution-state and coverage validation. The paired-row form of1553C8 retains each LDRH plus adjacent LDRB guard, source ADD, individual LSR1/masks, horizontal shifted additions and a second LSR1/mask before rows are combined. Prefix ends MOVEQ after successful STRH/destination ADD/SUBS. Tail consumes another independently guarded row and reuses carried r7; BNE155420 skips setup and first-row preparation. Do not algebraically merge the staged masks or loads; prior pointer/scratch effects persist when a later access fails. This interval is bounded to00155488..0015548C, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x0015548C",
+      "end": "0x001554AC",
+      "evidence": "Statically authenticated sibling callback at0015548C, table14F66C index2. This sibling is not claimed executed by the current snapshot; the already accepted caller dispatches this table entry for the corresponding preserved selector. One-time ADD source+1, then separate LDRB[source-1] and LDRB[source] with post-increment512. Combine bytes using LSL8 and store low16 through STRH; destination ADD512, SUBS and BNE155490 follow. Keep the post-index read byte-wide, rather than a wider equivalent-value read. A failure on the second read prevents its pointer update; a later store failure preserves completed source writeback. This interval is bounded to0015548C..001554AC, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x001554AC",
+      "end": "0x001554B0",
+      "evidence": "Static fallthrough from the separately reviewed loop tail of callback0015548C; one original MOV PC,LR returns through unchanged live LR with ordinary alignment, execution-state and coverage validation. One-time ADD source+1, then separate LDRB[source-1] and LDRB[source] with post-increment512. Combine bytes using LSL8 and store low16 through STRH; destination ADD512, SUBS and BNE155490 follow. Keep the post-index read byte-wide, rather than a wider equivalent-value read. A failure on the second read prevents its pointer update; a later store failure preserves completed source writeback. This interval is bounded to001554AC..001554B0, end exclusive; no table data or synthetic operation is admitted."
+    },
+    {
+      "entry": "0x0015554C",
+      "end": "0x00155554",
+      "evidence": "Statically authenticated sibling callback at0015554C, table14F66C index7. This sibling is not claimed executed by the current snapshot; the already accepted caller dispatches this table entry for the corresponding preserved selector. Only the missing LDR32 mask and LDRB[source] prefix is added. It falls through to exact original entry155554, pinned by the complete authenticated original page. Existing continuation retains LDRH[source+1], source ADD512, separate LSR1/masks, explicit32-bit LSL24 truncation followed by LSR16 and additions, a second mask, paired-row halfword store and its existing conditional/loop returns. Failure of the initial byte read retains the completed mask load; original continuation and all its guarded partial effects remain unchanged. This interval is bounded to0015554C..00155554, end exclusive; no table data or synthetic operation is admitted.",
+      "recorded_fallthrough": {
+        "page_sha256": "aed91d44097e0a9fddcbba3196aff9e845e6ad5873eaabaa2cce531c198ccada"
+      }
+    },
+    {
+      "entry": "0x0015516C",
+      "end": "0x0015519C",
+      "evidence": "Observed completed candidate42 MissingBlock at0015516C. Actual r3=0014F404, r5=5 and r8=00005D68 reproduce the original relative table target; captured live LR is0014F510, an accepted exact return entry. Guarded mask load precedes source+2. Each row reads halfword[source-2], then a full word[source] with post-increment512 only on read success. Preserve individual LSR1/masks and the three32-bit shifted additions through r10, then guarded STR word/post512, SUBS and BNE155174. The backedge skips both one-time setup instructions. Failed full-word read retains the halfword value without source writeback; failed store retains completed source/arithmetic effects without destination writeback or decrement. Interval0015516C..0015519C ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x0015519C",
+      "end": "0x001551A0",
+      "evidence": "Statically established loop fallthrough of callback0015516C. One original MOV PC,LR returns via unchanged live LR; no target is forced. The observed callback returns to accepted0014F510, while other caller invocations retain ordinary runtime validation. Guarded mask load precedes source+2. Each row reads halfword[source-2], then a full word[source] with post-increment512 only on read success. Preserve individual LSR1/masks and the three32-bit shifted additions through r10, then guarded STR word/post512, SUBS and BNE155174. The backedge skips both one-time setup instructions. Failed full-word read retains the halfword value without source writeback; failed store retains completed source/arithmetic effects without destination writeback or decrement. Interval0015519C..001551A0 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x00154EB4",
+      "end": "0x00154EE0",
+      "evidence": "Statically authenticated sibling target00154EB4 at index1 of the same original16-entry table0014F404. This target is a source-reviewed alternative of the accepted dispatch, not a measured visit in the current snapshot. Load mask once. Each row reads a full word and adjacent byte[source+4] separately, then explicitly advances source512. Preserve individual masks after LSR1, self-LSR8 addition and byte-LSL24 addition, full word store/post512, SUBS and BNE154EB8. An adjacent-byte fault retains the preceding word load but prevents source ADD; a store fault retains source advance and arithmetic while destination/count remain unadvanced by later instructions. Interval00154EB4..00154EE0 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x00154EE0",
+      "end": "0x00154EE4",
+      "evidence": "Statically established loop fallthrough of callback00154EB4. One original MOV PC,LR returns via unchanged live LR; no target is forced. The observed callback returns to accepted0014F510, while other caller invocations retain ordinary runtime validation. Load mask once. Each row reads a full word and adjacent byte[source+4] separately, then explicitly advances source512. Preserve individual masks after LSR1, self-LSR8 addition and byte-LSL24 addition, full word store/post512, SUBS and BNE154EB8. An adjacent-byte fault retains the preceding word load but prevents source ADD; a store fault retains source advance and arithmetic while destination/count remain unadvanced by later instructions. Interval00154EE0..00154EE4 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x00154F94",
+      "end": "0x00154FDC",
+      "evidence": "Statically authenticated sibling target00154F94 at index10 of the same original16-entry table0014F404. This target is a source-reviewed alternative of the accepted dispatch, not a measured visit in the current snapshot. Source-1 executes before the guarded mask load. Per-row full-word and adjacent-byte reads precede explicit source+512, LSR8, byte-LSL24 addition and LSR1/mask. Prefix combines first/second rows, stores a word/post512, SUBS and MOVEQ. Tail consumes the next row, combines carried r7, stores/post512 and SUBS before BNE154FB4. Preserve all full read guards and carried r3/r7 states. The logical tail154FDC..155004 crosses155000 under explicit page_fallthrough; original SUBS flags pass to the following BNE. Interval00154F94..00154FDC ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x00154FDC",
+      "end": "0x00155004",
+      "evidence": "Statically established false-condition fallthrough of callback00154F94's conditional LR return. The original internal tail preserves carried row values and its authenticated backedge; it is a separate bounded logical section. Source-1 executes before the guarded mask load. Per-row full-word and adjacent-byte reads precede explicit source+512, LSR8, byte-LSL24 addition and LSR1/mask. Prefix combines first/second rows, stores a word/post512, SUBS and MOVEQ. Tail consumes the next row, combines carried r7, stores/post512 and SUBS before BNE154FB4. Preserve all full read guards and carried r3/r7 states. The logical tail154FDC..155004 crosses155000 under explicit page_fallthrough; original SUBS flags pass to the following BNE. Interval00154FDC..00155004 ends exclusively; inline table words are excluded.",
+      "page_fallthrough": true
+    },
+    {
+      "entry": "0x00155004",
+      "end": "0x00155008",
+      "evidence": "Statically established loop fallthrough of callback00154F94. One original MOV PC,LR returns via unchanged live LR; no target is forced. The observed callback returns to accepted0014F510, while other caller invocations retain ordinary runtime validation. Source-1 executes before the guarded mask load. Per-row full-word and adjacent-byte reads precede explicit source+512, LSR8, byte-LSL24 addition and LSR1/mask. Prefix combines first/second rows, stores a word/post512, SUBS and MOVEQ. Tail consumes the next row, combines carried r7, stores/post512 and SUBS before BNE154FB4. Preserve all full read guards and carried r3/r7 states. The logical tail154FDC..155004 crosses155000 under explicit page_fallthrough; original SUBS flags pass to the following BNE. Interval00155004..00155008 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x00155108",
+      "end": "0x00155144",
+      "evidence": "Statically authenticated sibling target00155108 at index12 of the same original16-entry table0014F404. This target is a source-reviewed alternative of the accepted dispatch, not a measured visit in the current snapshot. Load mask once; each row performs two distinct LDRH transfers with success-only post-increments+2 and-2, then explicit source+512, high-half LSL16 combination and LSR1/mask. Failed second read retains the first halfword and+2 source state; do not combine into a word read. Prefix and tail preserve carried row sums, full word stores/post512, SUBS and conditional LR return or BNE155120. Store faults retain completed source effects without destination writeback or decrement. Interval00155108..00155144 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x00155144",
+      "end": "0x00155168",
+      "evidence": "Statically established false-condition fallthrough of callback00155108's conditional LR return. The original internal tail preserves carried row values and its authenticated backedge; it is a separate bounded logical section. Load mask once; each row performs two distinct LDRH transfers with success-only post-increments+2 and-2, then explicit source+512, high-half LSL16 combination and LSR1/mask. Failed second read retains the first halfword and+2 source state; do not combine into a word read. Prefix and tail preserve carried row sums, full word stores/post512, SUBS and conditional LR return or BNE155120. Store faults retain completed source effects without destination writeback or decrement. Interval00155144..00155168 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x00155168",
+      "end": "0x0015516C",
+      "evidence": "Statically established loop fallthrough of callback00155108. One original MOV PC,LR returns via unchanged live LR; no target is forced. The observed callback returns to accepted0014F510, while other caller invocations retain ordinary runtime validation. Load mask once; each row performs two distinct LDRH transfers with success-only post-increments+2 and-2, then explicit source+512, high-half LSL16 combination and LSR1/mask. Failed second read retains the first halfword and+2 source state; do not combine into a word read. Prefix and tail preserve carried row sums, full word stores/post512, SUBS and conditional LR return or BNE155120. Store faults retain completed source effects without destination writeback or decrement. Interval00155168..0015516C ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x001551A0",
+      "end": "0x001551F8",
+      "evidence": "Statically authenticated sibling target001551A0 at index13 of the same original16-entry table0014F404. This target is a source-reviewed alternative of the accepted dispatch, not a measured visit in the current snapshot. Load mask then source+2. Each row reads halfword[source-2] and a full post-increment word; apply separate LSR1/masks, original shifted additions through r10, then a second LSR1/mask. Prefix and tail combine adjacent carried rows with full word stores/post512, SUBS and conditional LR return or BNE1551C8. Keep all memory widths, success-only writeback, intermediate32-bit truncation and both masking stages in order; completed earlier row effects persist on later faults. Interval001551A0..001551F8 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x001551F8",
+      "end": "0x00155228",
+      "evidence": "Statically established false-condition fallthrough of callback001551A0's conditional LR return. The original internal tail preserves carried row values and its authenticated backedge; it is a separate bounded logical section. Load mask then source+2. Each row reads halfword[source-2] and a full post-increment word; apply separate LSR1/masks, original shifted additions through r10, then a second LSR1/mask. Prefix and tail combine adjacent carried rows with full word stores/post512, SUBS and conditional LR return or BNE1551C8. Keep all memory widths, success-only writeback, intermediate32-bit truncation and both masking stages in order; completed earlier row effects persist on later faults. Interval001551F8..00155228 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x00155228",
+      "end": "0x0015522C",
+      "evidence": "Statically established loop fallthrough of callback001551A0. One original MOV PC,LR returns via unchanged live LR; no target is forced. The observed callback returns to accepted0014F510, while other caller invocations retain ordinary runtime validation. Load mask then source+2. Each row reads halfword[source-2] and a full post-increment word; apply separate LSR1/masks, original shifted additions through r10, then a second LSR1/mask. Prefix and tail combine adjacent carried rows with full word stores/post512, SUBS and conditional LR return or BNE1551C8. Keep all memory widths, success-only writeback, intermediate32-bit truncation and both masking stages in order; completed earlier row effects persist on later faults. Interval00155228..0015522C ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x001552D8",
+      "end": "0x00155328",
+      "evidence": "Statically authenticated sibling target001552D8 at index15 of the same original16-entry table0014F404. This target is a source-reviewed alternative of the accepted dispatch, not a measured visit in the current snapshot. Load mask then source+1. Each row reads byte[source-1] and a full post-increment word, separately masks after LSR1, performs shifted and unshifted additions, then masks again. Prefix/tail preserve carried r3/r7 state, full word stores/post512, SUBS and conditional LR return or BNE1552FC. The second load remains four bytes despite discarded high bits; failed word read does not commit its base update, while later store faults retain already completed source changes. Interval001552D8..00155328 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x00155328",
+      "end": "0x00155354",
+      "evidence": "Statically established false-condition fallthrough of callback001552D8's conditional LR return. The original internal tail preserves carried row values and its authenticated backedge; it is a separate bounded logical section. Load mask then source+1. Each row reads byte[source-1] and a full post-increment word, separately masks after LSR1, performs shifted and unshifted additions, then masks again. Prefix/tail preserve carried r3/r7 state, full word stores/post512, SUBS and conditional LR return or BNE1552FC. The second load remains four bytes despite discarded high bits; failed word read does not commit its base update, while later store faults retain already completed source changes. Interval00155328..00155354 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x00155354",
+      "end": "0x00155358",
+      "evidence": "Statically established loop fallthrough of callback001552D8. One original MOV PC,LR returns via unchanged live LR; no target is forced. The observed callback returns to accepted0014F510, while other caller invocations retain ordinary runtime validation. Load mask then source+1. Each row reads byte[source-1] and a full post-increment word, separately masks after LSR1, performs shifted and unshifted additions, then masks again. Prefix/tail preserve carried r3/r7 state, full word stores/post512, SUBS and conditional LR return or BNE1552FC. The second load remains four bytes despite discarded high bits; failed word read does not commit its base update, while later store faults retain already completed source changes. Interval00155354..00155358 ends exclusively; inline table words are excluded."
+    },
+    {
+      "entry": "0x0014FB84",
+      "end": "0x0014FB8C",
+      "evidence": "Observed completed candidate43 MissingBlock. Original preindexed STR saves the incoming live LR to guest stack only after a successful32-bit write, then BL calls0014FCD8 and establishes0014FB8C. Captured incoming LR0014F3A0 is original covered code. Keep stack access/writeback and call-link effects separate. End is exclusive; execute only authenticated original operations."
+    },
+    {
+      "entry": "0x0014FB8C",
+      "end": "0x0014FB94",
+      "evidence": "Return continuation assigned by observed BL. Original ADD raises live r11 by2048, then calls the same selector0014FCD8 with distinct link0014FB94. The second selector depends on later guest bitstream state; no second target is forecast. End is exclusive; execute only authenticated original operations."
+    },
+    {
+      "entry": "0x0014FB94",
+      "end": "0x0014FB9C",
+      "evidence": "Return continuation assigned by the second outer BL. Original SUB lowers live r11 by2048, then LDR PC,[SP],4 obtains the actual saved stack target and applies SP writeback only after a successful read. It must not be replaced with the current live LR. The earlier arithmetic remains visible if the stack read faults. End is exclusive; execute only authenticated original operations."
+    },
+    {
+      "entry": "0x0014FCD8",
+      "end": "0x0014FCFC",
+      "evidence": "Direct callee of both outer calls. Nine original instructions derive a high-nibble byte-table selector, read its shift length, perform a register-controlled32-bit LSL, SUBS the available bit count, save caller LR in r8 and conditionally BL original151168 when signed LT holds. Captured first-call inputs select index1 and length2, yielding countFFFFFFFE and taking the refill. Guard both byte lookups; preserve live flags and conditional link semantics. End is exclusive; execute only authenticated original operations."
+    },
+    {
+      "entry": "0x0014FCFC",
+      "end": "0x0014FD0C",
+      "evidence": "Continuation of the conditional refill call or its false-condition fallthrough. Original PC-relative SUB establishes the relative-offset table, guarded LDR reads the selected word, MOV restores caller LR from r8, and ADD PC uses the original wrapping target. Covered refill151168 preserves r5 and r8, so first-call selector1 still resolves to0014FC44 if preceding accesses succeed. Inline table data is excluded. End is exclusive; execute only authenticated original operations."
+    },
+    {
+      "entry": "0x0014FC44",
+      "end": "0x0014FC54",
+      "evidence": "Conditionally selected original table target0014FC44, authenticated from captured first-call high nibble12, lookup selector1 and table word0000004C. STR saves its restored incoming LR on guest stack, two MOVs set r5=4 and r6=4, and BL calls already-original0014F190 with link0014FC54. The shared callee and its original saved-register return remain unchanged. End is exclusive; execute only authenticated original operations."
+    },
+    {
+      "entry": "0x0014FC54",
+      "end": "0x0014FC58",
+      "evidence": "Original selected-wrapper continuation assigned by BL0014F190. One guarded LDR PC,[SP],4 consumes its own saved stack word; this is independent of whatever live LR the nested shared routine last used. SP writeback occurs only after read success. Expected saved first-call target0014FB8C is a packet entry, but actual memory supplies the target and strict validation remains enabled. End is exclusive; execute only authenticated original operations."
     }
   ]
 }
