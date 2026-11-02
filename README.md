@@ -1,20 +1,14 @@
 # LEGO City Undercover: The Chase Begins — 3DS Recomp
 
-Recovery repository for an AI-assisted native recompilation effort targeting **LEGO City Undercover: The Chase Begins** (Nintendo 3DS).
-
 ## Current rebuilt state
 
-**Resume from [CHECKPOINT.md](CHECKPOINT.md).**
+The goal is a full playable native recompilation of LEGO City Undercover: The Chase Begins. This batch accepts three candidates and five sections, reaching **187 sections**. Actual startup execution advances **97,555 instructions** from the published 9122d64 checkpoint and stops at **MissingBlock `0x0014FEF0`**.
 
-**What improved:** Eight more observed startup sections now execute: a pair of calls, their stack return, two row-processing loops, and their returns. Startup advances another 14,539 instructions from `9cd3f9c` to MissingBlock `0x001550E8`.
+All three candidates passed 90/90 local tests and completed fresh native runs. Candidate 37 matched its 28-instruction, 17-field prediction; candidate 38 advanced 188 instructions. Candidate 39 groups one observed root with two statically reviewed continuations.
 
-**Checks:** Eight accepted headless Release candidates each passed all 90 enabled tests, with explicit successful build/test exits and complete passing JUnit reports. Three partial-state predictions matched. All startup runs preserve state/save contents; the final capture retains the entire baseline prefix and adds four valid zero-sample records. Five post-archive checks caught shortened local test logs; complete archived logs were restored with the rejected evidence preserved. Published-commit hosted results are recorded separately.
+The final diagnostic capture contains 285,878 records (4,574,080 bytes). Persisted state and saves stayed unchanged. Menus, gameplay, rendering, speaker playback and Windows execution remain unverified.
 
-**Still unfinished:** Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture or windowed run was performed. The next reviewed seven-instruction halfword-copy loop remains unadmitted.
-
-The optional desktop keeps the whole touchscreen at bottom right. See [desktop build and controls](docs/DESKTOP.md). Black diagnostic captures remain private.
-
-Public Git contains source and metadata; original inputs, tested natives, generated instructions and full runtime evidence remain private.
+Next, review the missing call wrapper and callee before choosing the next group of authenticated blocks; the current loop/return modes do not cover this call shape. At source preparation, hosted checks were awaiting publication. Actual results appear against the published commit in [project Actions](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/actions). See the [current checkpoint](CHECKPOINT.md) for the run table, remaining blocker and permissions, or the [complete previous version](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/blob/9122d64a91b11e7acbdaaefbe01dd093ae9920cf/README.md) for prior status.
 
 ## Historical recovery records
 

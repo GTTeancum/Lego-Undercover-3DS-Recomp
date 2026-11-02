@@ -917,6 +917,31 @@
       "entry": "0x001541E8",
       "end": "0x001541EC",
       "evidence": "Observed headless MissingBlock at 0x001541E8 after the preceding row-processing loop completes 370 additional instructions and matches its independent partial-state prediction. The single authenticated original instruction restores the two saved caller registers and return PC from the guest stack. Preserve ascending guarded reads, completed partial load effects, stack writeback after successful transfer, ordinary return-target validation and the saved caller link rather than the live link register reused for source data. End is exclusive at 0x001541EC; only this observed return instruction is added and other unobserved successors remain excluded."
+    },
+    {
+      "entry": "0x001550E8",
+      "end": "0x00155104",
+      "evidence": "Observed MissingBlock at 0x001550E8 after the preserved 182-section startup path. Authenticate the seven original words through the first conditional back-edge. Preserve two ordered guarded halfword reads and each separate post-index update, the original row stride, packed-word store with writeback only after success, count decrement and conditional loop. The observed count four supports a pre-run 28-instruction partial-state prediction; loaded halfword values and guest output bytes are not predicted. Do not admit the unobserved fallthrough return."
+    },
+    {
+      "entry": "0x00155104",
+      "end": "0x00155108",
+      "evidence": "Observed headless MissingBlock at 0x00155104 after the preceding halfword-copy loop executes 28 additional instructions and matches all 17 predicted or preserved reported fields. The single authenticated original unconditional register move returns through the live link register to the exact existing entry at 0x0014F510. Preserve all completed row-copy registers, flags and memory effects, retain ordinary execution-state and target validation, and allow the recorded caller to follow its original guest-memory-dependent control flow. End is exclusive at 0x00155108; only the observed return instruction is added and no unobserved successor is included."
+    },
+    {
+      "entry": "0x00154E74",
+      "end": "0x00154E98",
+      "evidence": "Observed headless MissingBlock at 0x00154E74 after the preceding return and recorded caller execute 188 additional instructions. Nine authenticated original instructions load the original mask once, read and mask two strided source words, combine their staged half-row values, store one output with the original destination stride, decrement the count and conditionally return through unchanged live LR. Preserve all guarded word accesses, ordered post-index writebacks, separate input rounding and subtraction flags. End is exclusive at 0x00154E98; the independently reviewed static tail and terminal return are separate intervals, and their execution is not claimed before the candidate run."
+    },
+    {
+      "entry": "0x00154E98",
+      "end": "0x00154EB0",
+      "evidence": "Statically established fallthrough of the observed conditional return at 0x00154E94, reviewed as part of the bounded sixteen-word row-processing routine. Six authenticated original instructions read and mask the next strided word, combine it with the retained half-row, store the next output with guarded writeback, decrement the count and conditionally branch to 0x00154E80 within the separately recorded observed prefix. That backedge skips the one-time mask load and first-row setup. Preserve full word reads, staged masking, ordered partial effects and count-derived flags. End is exclusive at 0x00154EB0; this static tail is not labeled as a previously observed missing block or an already executed path."
+    },
+    {
+      "entry": "0x00154EB0",
+      "end": "0x00154EB4",
+      "evidence": "Statically established fallthrough of the reviewed conditional backedge at 0x00154EAC. The single authenticated original unconditional register move returns through live LR, which none of the sixteen reviewed instructions modifies. The captured target 0x0014F510 is already recorded; preserve ordinary execution-state and target validation and all prior loop register, flag and memory effects. End is exclusive at 0x00154EB4; no adjacent routine or new dynamic target is added, and this return is statically reviewed rather than claimed as previously executed."
     }
   ]
 }

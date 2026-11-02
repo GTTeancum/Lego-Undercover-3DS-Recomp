@@ -2,15 +2,13 @@
 
 ## Current verified status
 
-Resume from [CHECKPOINT.md](../CHECKPOINT.md). This continuation starts from `9cd3f9c`.
+The goal is a full playable native recompilation of LEGO City Undercover: The Chase Begins. This batch accepts three candidates and five sections, reaching **187 sections**. Actual startup execution advances **97,555 instructions** from the published 9122d64 checkpoint and stops at **MissingBlock `0x0014FEF0`**.
 
-Eight more observed startup sections now execute: a pair of calls, their stack return, two row-processing loops, and their returns. All eight accepted headless Release candidates passed 90/90 enabled tests, with complete passing JUnit reports and explicit build/test exit 0. Three independent partial-state predictions matched. Startup advances 14,539 instructions / 54,228 diagnostic ns to MissingBlock `0x001550E8`; those counters are not host-performance measurements or gameplay percentages.
+All three candidates passed 90/90 local tests and completed fresh native runs. Candidate 37 matched its 28-instruction, 17-field prediction; candidate 38 advanced 188 instructions. Candidate 39 groups one observed root with two statically reviewed continuations.
 
-The final capture contains 285,870 records / 4,573,952 bytes. The entire round-28 baseline of 285,866 records / 4,573,888 bytes is an exact prefix, followed by four valid records whose two samples are zero. Rounds 29–35 have identical baseline captures. Persisted state and save files remain unchanged. This is diagnostic capture evidence and does not establish speaker playback or audible content.
+The final diagnostic capture contains 285,878 records (4,574,080 bytes). Persisted state and saves stayed unchanged. Menus, gameplay, rendering, speaker playback and Windows execution remain unverified.
 
-Five post-archive source checks caught shortened local CTest text logs after successful build/test exits. The complete archives, JUnit reports and exit receipts agree on 90 passing tests. Actual rejected logs, archives and helper failures were preserved; restoring the exact archived log bytes reconciled all source identities without changing the native or rerunning tests. The cause remains unknown. All eight current test logs contain complete summaries. Round 36 retains an empty next-review text log with complete authenticated JSON. No native launch failed in this batch.
-
-Hosted checks are pending at source-preparation time; actual results are recorded separately against the published commit. Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture, windowed run or capture-on/off comparison was performed. Earlier black captures remain private historical evidence; no fresh visible milestone is claimed.
+Next, review the missing call wrapper and callee before choosing the next group of authenticated blocks; the current loop/return modes do not cover this call shape. At source preparation, hosted checks were awaiting publication. Actual results appear against the published commit in [project Actions](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/actions). See the [current checkpoint](../CHECKPOINT.md) for the run table, remaining blocker and permissions, or the [complete previous version](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/blob/9122d64a91b11e7acbdaaefbe01dd093ae9920cf/docs/DESKTOP.md) for prior status.
 
 ## Capture current screen pixels without SDL
 
