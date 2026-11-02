@@ -70,6 +70,13 @@ def main() -> None:
                 targets.append((BASE + start, image[start:end].decode("latin-1")))
         for target, label in targets:
             refs = words.get(target, [])
+            # a printable byte just before a string (alignment, data) makes
+            # it look longer: try a byte or two in
+            for skip in (1, 2):
+                if refs or not label:
+                    break
+                if words.get(target + skip):
+                    target, label, refs = target + skip, label[skip:], words[target + skip]
             users = sorted({owner(starts, r) for r in refs if r < 0x00357000} - {None})
             data = [r for r in refs if r >= 0x00357000]
             names = " ".join(f"f_{u:08X}" for u in users) or "-"

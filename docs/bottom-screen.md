@@ -118,24 +118,87 @@ Not yet looked at: `f_00158580`, `f_001A2114`, `f_001F3FF0` (`weaponRight`),
 `f_00205FC4`, `f_00225790`, `f_00229B9C`, `f_0027B968`, `f_00285B40`,
 `f_00285B90`, `f_0029DDF4`.
 
-## Other bottom-screen content
+## Every UI scene and screen asset
 
-Found from the asset paths each loads (`tools/xrefs.py`):
+The game's files are in `lego_city3ds.fib` (TT "FUSE" archive) in the RomFS;
+`lego_city3ds.csv` beside it lists all 12,825 files with sizes and offsets
+(`tools/romfs.py game/<rom>.cci list`). UI scenes are `.bxaml` "blend"
+scenes under `sprites/blend/`, loaded by `f_00217430(path, …)`; sprites are
+`.btga/.bpng`. Loader = the function that names the asset
+(`tools/xrefs.py`). Screen = where it was seen or where its name places it;
+"?" = not yet confirmed at runtime.
 
-| Screen | Loaded in | Assets |
-|---|---|---|
-| Map textures | `f_001EE4E0` | `sprites/UI_Bottomscreen/Maps/%s.tga`, `lvl_01_cherrytreehills.tga` |
-| Scanner | `f_001BEB1C` | `Sprites/blend/DRC_Scanner/…` |
-| Pause menu | `f_00263BD0` | `Sprites/Blend/PauseTop/PauseTop` |
-| Safe crack minigame | `f_002FDEAC` | `Sprites/UI_Bottomscreen/Safe_Crack/…` |
-| Wiretap minigame | `f_0031D754` | `Sprites/UI_BottomScreen/Wiretap/UI_Wiretap_BG.tga` |
-| Boot splash (bottom) | `f_00302144` | `sprites/splashscreens/splash%ubottom…` |
-| Save slots | `f_0021FF38` | `Sprites/Blend/SaveGameFlow/Page_SelectSlot` |
-| Roundabout menu | `f_002206F0` | `Sprites/UI_RoundaboutMenu/Main` |
-| Portrait highlight | `f_00168110` | `Sprites/UI_BottomScreen/UI_PortraitHighlight.tga` |
+| Content | Files | Loaded in | Screen | Touch |
+|---|---|---|---|---|
+| **Map** (minimap scene, level map textures, player icon, mission and pulse icons) | `sprites/ui_bottomscreen/maps/` (70), `mapiconmission`, `mapiconpulse` | `f_002DC284` (DRC setup), `f_001EE4E0` (map textures) | bottom | yes: `f_002D9F84`/`f_001EE730` via `f_0020A620`; stylus drag = camera (TouchCameraSystem) |
+| **Map button bar**: Scan, Chars (character switch), Audio, Exit, Red Bricks, Free Play, Hint, fast travel, zoom in/out, portraits per character class | `sprites/blend/mapbuttons/` (37), `ui_bottomscreen/drc_*`, `character_*` | `f_002DC284`; shown/hidden by the functions in the API table | bottom | yes (buttons) |
+| **Hexagon wipe** (idle badge screen, map open/close transition) | `sprites/blend/drc_wipe/` (13) | `f_002DC284` (+488), `f_00194830` (`MainWindow`) | bottom | no |
+| **Dialogue box** (story/radio text on the bottom screen) | `sprites/ui_dialog/` (12), `ui_bottomscreena/b` | `f_002DC284` (+47C/+480), `f_001A0494`; drawn by vtable slot `f_002D93D0` | bottom | ? |
+| **Scanner** (visual scan, audio scan, conversation decrypt, distance meter, crosshair, scan meter, object icons) | `sprites/blend/drc_scanner/` (156) | `f_001BEB1C` | ? (Wii U: GamePad) | ? |
+| **Safe Crack minigame** | `sprites/ui_bottomscreen/safe_crack/` (14) | `f_002FDEAC`; class vtable `0x003633F8` | bottom | yes: `f_002FD52C` (vtable +0x48) |
+| **Wiretap minigame** | `ui_bottomscreen/wiretap` | `f_0031D754` | bottom | ? |
+| **Crane minigame** | (`CraneMiniGame_*` objects in levels) | vtable `0x00361C2C` (`f_002D7590`, `f_002D7570`, `f_002D7FD0`); calls `DRC_SetWipe` | top (bottom wiped) | no |
+| **Pause menu** | `sprites/blend/pausetop/` (27), status-screen icons | `f_00263BD0` | top + bottom (seen: "Paused / Pause Menu" on bottom) | yes: `f_00300378` |
+| **Retry / alert pages** | `sprites/blend/ui_retry/` (45) | `f_0026E9D8` | ? | ? |
+| **Save game flow** (select slot, alerts) | `sprites/blend/savegameflow/` (18) | `f_0021FF38`, `f_0026E9D8` | bottom (seen) | yes |
+| **Award viewer** | `sprites/blend/awardviewertop/` (17) | ? | top | ? |
+| **Break-and-build menu** (Super Build choice) | `sprites/blend/breakandbuildmenu/` (21) | `f_00290B1C` | ? | ? |
+| **Photo mode** | `sprites/blend/photomode/` (7) | `f_002EA1C0` (also `Photo_Meter`) | ? | ? |
+| **Race start** | `sprites/blend/racestart/` (5) | `f_0017C1A8` | top? | no |
+| **Frontend shortcuts / buttons** | `sprites/blend/ui_frontend/` (7), `ui_frontend/` (12) | `f_002203AC` | bottom | yes |
+| **Roundabout menu** (main menu, code entry A–Z) | `sprites/ui_roundaboutmenu/` (65) | `f_002206F0` (main), `f_002F3ED4` (code buttons; class vtable `0x00362D00`) | bottom | yes: `f_002F43EC` |
+| **Shop** (codes, gifts, postcards, story clips, red bricks, character classes) | `sprites/ui_shop/` (50) | `f_001A0BF4`, `f_001D2FC4`, `f_001B0F5C`, `f_002F4CC4`, `f_002FE724`, `f_00305390`, `f_00308FAC`, `f_00314DE8`, `f_00316E68`, `f_0031C004`, `f_0031EEC4`, `f_00321ED8`, `f_003207BC` | top banner + bottom | yes |
+| **Status screen** (options, languages, progress icons; resume/options/credits/exit) | `sprites/ui_statusscreen/` (22) | `f_00309A08`, `f_0031AE68`, `f_0031DB88` | ? | yes |
+| **Level select** | `sprites/ui_levelselect/` (11) | `f_00304E20` | ? | ? |
+| **Character select** | `sprites/ui_characterselect/` (13) | `f_00168110` (`Main`, portrait highlight), `f_00167FB8` | bottom? | ? |
+| **Customisation** | `sprites/ui_customisation/` (7) | `f_0030DC20`, `f_001E5868` | ? | ? |
+| **Help / hints** | `sprites/ui_help/` (8), `ui_hints/` | `f_002FC580` (hints) | ? | ? |
+| **HUD** (hearts, crosshair, button prompts, tallies) | `ui_hud/` (57), `ui_buttonprompt/` (9) | `f_0017BB14`, `f_002E83D8`, `f_001A1444`, `f_0031A918` | top | prompts touchable? (`f_00258850`) |
+| **Loading screens / tips** | `ui_loadingscreens/`, loading tip strings | `UI_LS_%s` | bottom (seen) | no |
+| **Boot splash** | `splashscreens/` | `f_00302144` | both | skip by touch: `f_003023B8` via `f_001E7F08` |
+| Touch gestures | none in the archive (`TouchGestures/%s.dat` missing) | `leSGOTouchGestureSystem` vtable `0x00364590` | — | unused in this port |
 
-Strings for screens not yet traced: `DRC_Buttonflash`, `breakAndBuildMenu`,
-`PhotoMode/photoMode`, `UI_Retry/Page_AlertText`, `UI_Shop_Topscreen`.
+## Touch input
+
+All stylus input comes from one table at `0x0052A448`, 32 bytes per entry
+(entry 0 used; 1 mirrors it): current x, y (f32, bottom-screen pixels),
+touch-down x, y, two more floats, phase byte at +0x1D (2 = held, 0 = none).
+Checked with a scripted drag (x 108 → 148 → 198 from a touch-down at 100,150).
+
+- `f_0025255C(out, entry)` copies an entry; `f_001EE970(phase)` asks if the
+  phase is that value. Direct readers of the table: `f_00108F30`,
+  `f_0010F7C0`, `f_002523CC` (likely the HID update).
+- Everything that reads touch (`tools/callers.py work/code.bin work/recomp
+  0x0025255C 3 --strings`):
+  - TouchCameraSystem update `f_002F77D4` (stylus camera, `docs/camera.md`)
+  - DRC map/HUD update `f_002D9F84` (map taps; ignores taps while the
+    stylus camera drags), and `f_001EE730`
+  - shared button helpers `f_0020A620` (users `f_001DAF9C`, `f_001F0AE4`,
+    `f_002AB394`), `f_0020ACFC` (users: splash skip `f_001E7F08`, code
+    entry `f_002F43EC`, `f_00322F28`), `f_00258850` (sprite hit tests used
+    by HUD prompts, hints, crosshair via `f_0025AFC4`, and menu pages
+    `f_001F1A78`, `f_0017CEAC`, `f_00314FA4`/`f_0031657C`)
+  - menu pages calling those: `f_002D5874`, `f_002D8984`, `f_002F26C8`,
+    `f_00300378` (pause), `f_00313BE8`, `f_003076D0`, `f_0030966C`,
+    `f_00312FC4`, `f_00313314`, `f_00319C64`, `f_0030DEEC`
+  - Safe Crack `f_002FD52C`; level manager `f_002E1BFC` and
+    `ScriptCheckExtras` `f_002E5158`; player/camera `f_001D92A4` (from
+    `f_00200444`)
+
+To take touch away from something, override its reader; to feed it
+virtual input, write the table (as Zakuro's HID does).
+
+## Which screen things draw on
+
+Each screen has a render camera by name: `camera_top` and `camera_bottom`
+(`f_00258744` finds one by name). The frontend keeps them in globals
+`0x003774B4` (top) and `0x003774B8` (bottom), set in `f_001820D0`; in
+gameplay `f_002D5430` keeps them at +0x40/+0x44 of its render state.
+`f_0015BB90(top, bottom, …, mode)` binds them (mode 4 in the frontend, 2 in
+gameplay). Moving a bottom-screen scene to the top screen means drawing it
+with the top camera instead; next step is to find where scenes pick their
+camera, which is the general switch for hiding, moving or re-skinning a
+screen.
 
 ## States seen in a run
 
@@ -155,6 +218,10 @@ python3 tools/extract_code.py game/<rom>.cci work/code.bin          # once
 python3 tools/xrefs.py work/code.bin work/recomp "Some/Asset" 0xADDR --sites
 python3 tools/disasm.py work/code.bin work/recomp 0x002DDD64         # needs capstone
 python3 tools/drc_api.py work/code.bin work/recomp                   # needs capstone
+python3 tools/callers.py work/code.bin work/recomp 0xADDR 3 --strings
+python3 tools/vtables.py work/code.bin [0xSLOT ...]                  # class names
+python3 tools/vtable_dump.py work/code.bin work/recomp 0xVTABLE
+python3 tools/romfs.py game/<rom>.cci list [substring]
 tools/trace/build.sh                                                 # trace library
 ZAKURO_PEEK=51A214:30 scripts/run_headless.sh ...                    # log memory
 ```
