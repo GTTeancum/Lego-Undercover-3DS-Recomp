@@ -1,72 +1,77 @@
-# Eight observed startup continuations from 7f3f4c7
+# Eight observed startup continuations from 9cd3f9c
 
-Read [CHECKPOINT.md](../../CHECKPOINT.md) first. Base: `7f3f4c7dc0d326e2c2a009d889228330ef8ca239`. Goal: a full playable recompilation; menus and gameplay are still unverified.
+Read [CHECKPOINT.md](../../CHECKPOINT.md) first. Base: `9cd3f9ca88ea4820abf66b6f6f8276c4ba2d4432`. Goal: a full playable recompilation; menus and gameplay are still unverified.
 
 ## What changed
 
-Eight more observed startup sections now execute. The continuation completes a four-row loop and a paired-row loop, restores their register and stack returns and a caller entry, then completes another alternating row-processing loop and its return. Execution follows the original control flow to a missing stack-save/call entry.
+Eight more observed startup sections now execute. The continuation restores a stack-save/call pair, a parameter-adjust/call pair and their stack return, then completes an alternating row-processing loop and its register return, followed by a wider paired-row loop and its stack return. Execution follows original control flow to a missing halfword-copy loop.
 
-The runtime, generator, tests and build configuration are unchanged. All 166 preceding reviewed sections and all 599 original AOT pages / 603 files are preserved. The public implementation change is eight appended observed ranges in `config/observed_aot_supplements.json`, totaling 120 original words. Four status documents were updated after the final run; every other source byte matches the final tested candidate.
+The public implementation change is eight appended observed ranges in `config/observed_aot_supplements.json`, totaling 92 original words. All 174 preceding reviewed sections and all 599 original AOT pages / 603 files are preserved. The runtime, generator, tests and build configuration are unchanged. Four status documents were updated after the final run; every other source byte matches the final tested candidate.
 
-The resident checkout, six original input files, accepted round-20 native and all 603 original AOT files were authenticated before extension. No checkout/input restoration or reconfiguration was repeated. The existing configure log was copied as a historical configuration record. The accepted round-20 capture remains the comparison baseline; no unchanged baseline game run was repeated. New private helper copies preserve the preceding helpers and evidence and save explicit build/test exit receipts.
+The resident checkout, six original input files, accepted round-28 native and all 603 original AOT files were authenticated before extension. No restoration or new configuration was performed. The existing configure log was copied as a historical configuration record. The accepted round-28 capture remains the comparison baseline; no unchanged baseline game run was repeated.
+
+New private helper copies preserve earlier helpers and evidence. Each candidate archive contains exactly 12 regular files and is verified through complete gzip EOF/CRC, exact member names, sizes, modes and hashes, source rechecks and compressed hashes before and after verification. Launch requires a successful private save receipt and matching archive identity. The native's hash and execute permission are checked immediately before launch; archive identity is checked again after execution.
 
 ## Accepted fresh runs
 
 | Round | Added interval, exclusive end | Actual MissingBlock stop | Extra executed instructions |
 | --- | --- | --- | ---: |
-| 21 | `[0x00154B44, 0x00154B90)` | `0x00154B90` | 70 |
-| 22 | `[0x00154B90, 0x00154B94)` | `0x00154430` | 79,487 |
-| 23 | `[0x00154430, 0x0015451C)` | `0x0015451C` | 353 |
-| 24 | `[0x0015451C, 0x00154520)` | `0x0014FE5C` | 44,560 |
-| 25 | `[0x0014FE5C, 0x0014FE74)` | `0x00154EE4` | 441 |
-| 26 | `[0x00154EE4, 0x00154F38)` | `0x00154F38` | 21 |
-| 27 | `[0x00154F38, 0x00154F68)` | `0x00154F68` | 36 |
-| 28 | `[0x00154F68, 0x00154F6C)` | `0x0014F608` | 22,626 |
+| 29 | `[0x0014F608, 0x0014F610)` | `0x0014F610` | 307 |
+| 30 | `[0x0014F610, 0x0014F618)` | `0x0014F618` | 198 |
+| 31 | `[0x0014F618, 0x0014F620)` | `0x0015524C` | 351 |
+| 32 | `[0x0015524C, 0x00155284)` | `0x00155284` | 14 |
+| 33 | `[0x00155284, 0x001552A4)` | `0x001552A4` | 56 |
+| 34 | `[0x001552A4, 0x001552A8)` | `0x001540F0` | 4,186 |
+| 35 | `[0x001540F0, 0x001541E8)` | `0x001541E8` | 370 |
+| 36 | `[0x001541E8, 0x001541EC)` | `0x001550E8` | 9,057 |
 
-Each interval followed a recorded missing-code stop. No branch, return or completion was forced. Total advance from round 20 is **147,594 core-0 instructions and 550,494 diagnostic ns**; the displayed-period counter remains unchanged. These counters do not measure gameplay completeness or host performance. The larger advances after returns include subsequent execution through existing coverage; they are not instruction counts for the newly added intervals alone.
+Each interval followed a recorded missing-code stop. No branch, return or completion was forced. Total advance from round 28 is **14,539 core-0 instructions and 54,228 diagnostic ns**; the displayed-period counter remains unchanged. These counters do not measure gameplay completeness or host performance. Larger advances after calls and returns include execution through existing coverage, beyond the newly admitted words.
 
-Eight accepted headless Release candidates each passed **90/90 enabled tests**, with 90 unique passing JUnit cases and zero failures, errors or skips. Each build and CTest invocation has an explicit exit-0 receipt. Source inventories were checked across the build/test gates. All eight accepted startup runs ended at missing original code with native exit 3, no timeout and empty stderr. Original inputs, all 603 original AOT files and frozen executable contents remained unchanged around the runs.
+Eight headless Release candidates each passed **90/90 enabled tests**, with 90 unique passing JUnit cases and zero failures, errors or skips. Each build and CTest invocation has an explicit exit-0 receipt. Source inventories were checked across the build/test gates. All eight accepted startup runs ended at missing original code with native exit 3, no timeout and empty stderr. Original inputs, all 603 original AOT files, frozen executables and their saved archives remained unchanged around the runs.
 
-The final executable reports **111,218 runtime blocks / 548,285 verified instruction words**, including **174 logical sections / 175 page-local supplemental blocks / 3,174 supplemental words**. Its actual final stop is MissingBlock `0x0014F608`, thread 7, dispatch round 21846.
+The final executable reports **111,226 runtime blocks / 548,377 verified instruction words**, including **182 logical sections / 183 page-local supplemental blocks / 3,266 supplemental words**. Its actual final stop is MissingBlock `0x001550E8`, thread 7, dispatch round 21846.
 
 ## Complete captures and semantic checks
 
-The final capture contains **285,866 records / 4,573,888 bytes**. The entire round-20 baseline of 285,850 records / 4,573,632 bytes is an exact prefix, followed by 16 valid records whose two samples are zero. The first added eight records appear after round 22, another four after round 24 and the last four after round 28. Every accepted capture was checked against its actual length and reported record count. State and save contents remain byte-for-byte identical to the baseline.
+The final capture contains **285,870 records / 4,573,952 bytes**. The entire round-28 baseline of 285,866 records / 4,573,888 bytes is an exact prefix, followed by four valid records whose two samples are zero. Rounds 29–35 are byte-identical to the baseline; only round 36 extends it. Every accepted capture was checked against its actual length and reported record count. Persisted state and save files remain byte-for-byte identical to the baseline.
 
-Independent partial-state predictions matched four completed runs:
+Independent partial-state predictions matched three completed runs:
 
 | Round | Instructions predicted and measured | Predicted fields | Preserved fields | Explicitly unknown loaded fields |
 | --- | ---: | ---: | ---: | ---: |
-| 21 | 70 | 6 | 9 | 4 |
-| 23 | 353 | 7 | 3 | 9 |
-| 26 | 21 | 6 | 10 | 3 |
-| 27 | 36 | 5 | 11 | 3 |
+| 32 | 14 | 6 | 10 | 3 |
+| 33 | 56 | 6 | 10 | 3 |
+| 35 | 370 | 7 | 3 | 9 |
 
-- Round 21's counted suffix skips the one-time mask load and source adjustment. Guarded halfword and multi-register reads, intermediate truncation and pointer/flag updates remain the original operations.
-- Round 23 executes its prologue once, keeps the saved caller frame active and repeats only the paired-row suffix. The live link register is reused as row data; the later stack return must use the saved return value.
-- Round 26 reduces the observed count from four to three, leaving its conditional register return untaken. Round 27 alternates the new suffix and the previously covered suffix to reduce three to zero, without replaying setup.
-- The round-22 and round-28 register returns use live LR. The round-24 multi-register stack return uses saved caller values and retains ordered reads, partial effects, delayed stack writeback and target validation. These return reviews predict immediate boundaries only; later memory-dependent caller execution is outside their scope.
-- Round 25 saves its caller frame and loads two parameter words before branching to an existing suffix. The skipped four-word prefix performs coordinate-offset setup; the caller's stack save is a separate instruction. Replaying the skipped prefix would alter the caller-supplied parameter values. This review likewise does not predict the final run state, stop or instruction total.
+- Round 29 saves the incoming caller link before calling an existing nine-word section. Round 30 adjusts a parameter and calls the same entry. Round 31 restores that parameter and returns through the saved stack word. The saved caller link remains distinct from the live link overwritten by subsequent calls.
+- Round 32 reads two source rows and writes one output row. Its observed count decreases from eight to seven, so the conditional return is untaken. Each source row uses a preceding byte and a complete word: the final byte is discarded by packing, but the full guarded word read remains necessary.
+- Round 33 alternates four passes through the new suffix and three passes through the existing interior tail. It reduces seven to zero without replaying the one-time setup, then reaches the newly observed fallthrough. Round 34 returns through live LR into an existing section.
+- Round 35 executes an 18-word prefix once and a 44-word tail eight times. It reads 17 source rows and writes 16 output rows, preserving halfword packing, masked shifts, register-bank alternation and ordered multi-register transfers. The incoming link is saved before later halfword loads reuse live LR for row data.
+- Round 36 restores saved registers and PC through ascending stack reads. Earlier successful loads remain effective if a later read faults; stack writeback occurs only after all reads succeed. The saved return word has authenticated write lineage but no independent readback. Call and return reviews predict immediate boundaries only; their downstream memory-dependent execution is outside those forecasts.
 
-Partial reported-state checks do not independently verify guest output memory, rendered pixels or audible content. Unknown loaded values remain excluded. Guarded memory widths, discarded trailing source values, staged shifts and wrapping additions, partial transfer effects and individual writebacks are preserved. No approximate pixel formula, forced return, new instruction policy or runtime decoding was introduced.
+Partial reported-state checks do not independently verify guest output memory, rendered pixels or audible content. Unknown loaded values remain excluded. Guarded memory widths, discarded trailing source values, staged shifts, wrapping additions, partial transfer effects and individual writebacks are preserved. No approximate pixel formula, forced return, new instruction policy or runtime decoding was introduced.
 
 ## Attempt history and retained text limitations
 
-The only rejected native launch in this batch was a **round-27 prelaunch permission failure**. The frozen native had mode `0644`; the launch raised `EACCES` before a child game process started. No audio capture was produced. The rejected executable's bytes matched the verified native and the archived executable, which retained mode `0555`. The actual rejected bytes, modes and traceback were preserved privately. The cause remains unestablished.
+Five initial build-wrapper invocations failed their **post-archive source-consistency check** after their build and CTest processes had already returned 0. The affected rounds are **30, 32, 34, 35 and 36**. In each case the archive passed full gzip EOF/CRC and contained exactly 12 regular files; the other 11 source identities matched, while the resident CTest text log had become an exact shorter prefix of the archived log. The cause remains unknown.
 
-Execute permission was restored to `0555` on the unchanged verified bytes. A retry in fresh owned storage produced the accepted finite run and matched its partial-state prediction. No rebuild, instruction change or test relaxation was needed. The round-28 permission check found mode `0555` already present; its native succeeded on its first run. All other accepted candidates also succeeded on their first native launch. **There were no failed build or test gates in this batch.**
+| Round | Preserved shortened log | Complete archived log | Completed passes in shortened log |
+| --- | ---: | ---: | ---: |
+| 30 | 10,355 bytes | 10,645 bytes | 88 |
+| 32 | 10,355 bytes | 10,645 bytes | 88 |
+| 34 | 10,485 bytes | 10,645 bytes | 89 |
+| 35 | 10,485 bytes | 10,645 bytes | 89 |
+| 36 | 10,355 bytes | 10,645 bytes | 88 |
 
-The retained CTest text logs for rounds **23 and 24 end after completed test 88**, without final summaries. Each corresponding JUnit file contains 90 unique passing cases and matches its saved verification hash; each explicit CTest receipt records exit 0 and no timeout. Those short text logs remain unchanged and are a retained-text limitation. The other six current CTest text logs contain complete passing summaries.
+The complete archived text, complete 90-case JUnit and explicit successful CTest exit agree. Each actual shortened log, original complete archive, helper traceback and exit-1 record was preserved before restoration. The exact full log bytes were recovered from that archive, followed by all 12 source identity checks and another unchanged-archive check. Explicit recovery receipts distinguish those later reconciliations from the initial rejected checks. No native bytes changed, and no build, test or native run was repeated for these recoveries. All eight current CTest text logs now include 90 passing cases and complete summaries.
 
-Additional retained text logs are empty: the round-21 next-review log, round-22/24/27 next-coverage logs, and round-27 process stdout. Bound review, coverage, comparison and result JSON plus successful orchestration receipts remain available. Keep the empty text files unchanged; they do not replace or invalidate those complete structured records.
+The round-36 next-review text log is empty. Its bound review and coverage JSON remain complete and authenticated to the original code, generator and actual stdout. The other current review, coverage and process stdout logs are nonempty. Empty expected stderr files are not evidence failures.
 
-A separate backup verification found the original round-28 native archive shorter than its recorded size and truncated at gzip EOF. The actual tested native and successful run evidence remain intact. The rejected archive and its original receipt are preserved, and the cause remains unknown. A replacement archive was created from the intact verified candidate and saved after full gzip EOF/CRC checks and verification of all 13 member names, sizes, modes and hashes. The compressed hash and complete decompression were checked again before and after saving; the exact native hash is unchanged. This was a backup-integrity failure, separate from the eight successful build/test gates and accepted native runs.
-
-The preceding checkpoint preserves the two rejected round-15 verification attempts and the short round-18/19 text logs, with their successful recovery evidence. Older linked checkpoints preserve earlier failed environment checks and a rejected truncated capture. These remain historical records rather than fresh tests or failures in this batch. See the [preceding recovery record](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/blob/7f3f4c7dc0d326e2c2a009d889228330ef8ca239/docs/recovery/CURRENT-REBUILD.md).
+There were no failed build or CTest processes and no rejected native launches in this batch. Each accepted native ran once in fresh owned storage. The preceding checkpoint retains the round-27 permission rejection, round-28 truncated backup and verified replacement, short round-23/24 text logs and earlier linked failures as historical evidence. See the [preceding recovery record](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/blob/9cd3f9ca88ea4820abf66b6f6f8276c4ba2d4432/docs/recovery/CURRENT-REBUILD.md).
 
 ## Reproduce the build
 
-The current batch reused the resident configured Release build. For a fresh environment, use the exact supported original inputs and the preserved 599-page AOT archive, keeping generated content and build outputs private:
+The current batch reused the resident configured Release build. For a fresh environment, use the exact supported original inputs and preserved 599-page AOT archive, keeping generated content and build outputs private:
 
 ```sh
 cmake -S . -B /absolute/private/build -G Ninja \
@@ -77,20 +82,22 @@ cmake --build /absolute/private/build --parallel 6
 ctest --test-dir /absolute/private/build --output-on-failure --timeout 90
 ```
 
-The recorded toolchain is CMake 3.28.3, Ninja 1.11.1, GCC 13.3.0, Clang/LLVM 18.1.3 and Python 3.12.14. When tests run as root, their isolated permission-test children must be allowed to drop identity. Use the permitted execution context supporting those unchanged tests; retain explicit completion codes and the full JUnit reports.
+The recorded toolchain is CMake 3.28.3, Ninja 1.11.1, GCC 13.3.0, Clang/LLVM 18.1.3 and Python 3.12.14. When tests run as root, their isolated permission-test children must be allowed to drop identity. Use the permitted execution context supporting those unchanged tests; retain explicit completion codes and full JUnit reports.
 
-The private checkpoint retains the exact headless command and diagnostic profiles. Use fresh owned state/save/audio folders, the same authenticated inputs, the 100,000,000 block limit and a 600-second process limit. Check the frozen executable's content hash and execute permission immediately before launch. Compare complete audio records, state/save bytes and the actual stop; a reported record count alone is insufficient.
+The private checkpoint retains the exact headless command and diagnostic profiles. Use fresh owned state/save/audio folders, the same authenticated inputs, the 100,000,000 block limit and a 600-second process limit. Check the frozen executable's hash and execute permission immediately before launch. Require the saved, validated archive before running, and recheck its identity afterward. Compare complete audio records, state/save bytes and the actual stop; a reported record count alone is insufficient.
 
 ## Visible status and hosted checks
 
-Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture, windowed run or capture-on/off comparison was performed. Captured audio is diagnostic data; the 16 appended records have zero-valued samples. No fresh visible or audible-content milestone is claimed.
+Menus, gameplay, speaker playback and Windows execution remain unverified. No new screen capture, windowed run or capture-on/off comparison was performed. Captured audio is diagnostic data; the four appended records have zero-valued samples. No fresh visible or audible-content milestone is claimed.
 
 Hosted checks are **pending at source-preparation time**. Actual results are recorded separately against the published commit in the private publication receipt. Successful checks for a preceding commit remain historical. Hosted checks are ROM-free and do not execute the original game.
 
 ## Next exact task
 
-Actual stop: **MissingBlock `0x0014F608`**. The next reviewed interval is **`[0x0014F608, 0x0014F610)`**, two original words, and **has not been admitted or executed**. It saves the incoming link register at stack pointer minus four with guarded preindexed writeback, then branches with link to the exact existing nine-word entry at `0x0014FF08`. The call assigns link register `0x0014F610`; that address is currently missing and remains unobserved and excluded.
+Actual stop: **MissingBlock `0x001550E8`**. The next reviewed interval is **`[0x001550E8, 0x00155104)`**, seven original words, and **has not been admitted or executed**. It copies each row through two ordered halfword reads, packs a word, stores it, advances both pointers by 512, decrements the count and loops while nonzero. Preserve both halfword accesses and their separate post-index writebacks rather than substituting a word read.
 
-Preserve the incoming saved link separately from the newly assigned call link. A failed stack store must leave SP and LR unchanged and prevent the call; successful stack writeback occurs before the call changes LR. The review covers only the immediate two-instruction boundary, conditional on the original guarded store succeeding. It does not assert the callee's later behavior or the final native-run state, stop or instruction count.
+For the observed count four, the saved unexecuted forecast predicts **28 instructions** to MissingBlock `0x00155104`, with 17 predicted or preserved fields and two unknown loaded registers. It expects source `0x1451DF9E`, destination `0x1432D9A0`, count zero and CPSR `0x60000010`. This forecast assumes future admission and successful guarded accesses; it is not a completed result.
 
-Preserve all **174 reviewed sections** and every original page. Reauthenticate the exact words and generator, admit only this observed interval, generate/verify, incrementally build/test, preserve the exact native and check its permissions, then perform one finite isolated run with complete artifact checks. Use ordinary chat/cloud tools only. Publishing source/metadata and compiling through GitHub Actions are authorized for this project; keep original inputs, generated instructions, natives and full evidence private, and never force-push.
+If the second halfword read faults, the first loaded value and its pointer increment remain effective. A later store fault preserves the completed reads and source stride advance while preventing destination writeback and the count decrement. Keep these partial effects and normal fault reporting.
+
+Preserve all **182 reviewed sections** and every original page. Reauthenticate the exact words and generator, admit only this observed interval, generate/verify, incrementally build/test, save and validate the exact native archive, then perform one finite isolated run with complete artifact and prediction checks. Use ordinary chat/cloud tools only. Source/metadata publication and GitHub Actions compilation are authorized for this project; keep original inputs, generated instructions, natives and full evidence private, and never force-push.

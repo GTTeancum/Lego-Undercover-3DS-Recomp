@@ -877,6 +877,46 @@
       "entry": "0x00154F68",
       "end": "0x00154F6C",
       "evidence": "Observed headless MissingBlock at 0x00154F68 after the alternating row-processing suffix completes its independently predicted 36 instructions with zero count and matching pointer and flag state. The single authenticated original unconditional register move returns through the live link register, preserving flags, all other registers and memory. Retain existing register-to-PC semantics and allow the recorded caller to resume without predicting later guest-memory-dependent control flow. End is exclusive at 0x00154F6C, the start of a separately reviewed row-copy interval; the return does not fall through into that interval and no unobserved successor is added."
+    },
+    {
+      "entry": "0x0014F608",
+      "end": "0x0014F610",
+      "evidence": "Observed headless MissingBlock at 0x0014F608 after the preceding row-processing return resumes recorded startup execution. Two authenticated original instructions save the incoming link register through a guarded preindexed stack store, then branch with link to the exact existing nine-word entry at 0x0014FF08. Preserve the original stack write and successful-store writeback before the call assigns its new link; the saved incoming return and newly assigned call return are distinct. Keep flags and other registers unchanged at this immediate boundary, and allow the existing callee to follow its original memory-dependent control flow. End is exclusive at 0x0014F610; that unobserved assigned return address and other unobserved successors remain excluded."
+    },
+    {
+      "entry": "0x0014F610",
+      "end": "0x0014F618",
+      "evidence": "Observed headless MissingBlock at 0x0014F610 after the preceding stack-save/call interval and existing callee complete 307 additional instructions. Two authenticated original instructions add the encoded immediate to the caller parameter in r11, without updating flags, then branch with link to the exact existing nine-word entry at 0x0014FF08. Preserve the original wrapping register arithmetic and call-link assignment, leave the existing saved caller frame in place, and allow the callee to follow its original data-dependent control flow. End is exclusive at 0x0014F618; that newly assigned return address and other unobserved successors remain excluded."
+    },
+    {
+      "entry": "0x0014F618",
+      "end": "0x0014F620",
+      "evidence": "Observed headless MissingBlock at 0x0014F618 after the preceding parameter-adjust/call interval and existing callee complete 198 additional instructions. Two authenticated original instructions subtract the encoded immediate from r11 without updating flags, then load the return PC from the guest stack with the original four-byte post-index update. Preserve wrapping register arithmetic, the existing saved caller frame, and the memory-derived return rather than substituting the live link register. End is exclusive at 0x0014F620; the loaded target and other unobserved successors are not admitted by this section."
+    },
+    {
+      "entry": "0x0015524C",
+      "end": "0x00155284",
+      "evidence": "Observed headless MissingBlock at 0x0015524C after the preceding stack-return interval and existing original coverage execute 351 additional instructions. Fourteen authenticated original instructions load the original mask literal, read two byte/word source pairs with ordered pointer updates, combine their shifted and masked values, store one result with the original destination stride, decrement the row count, and conditionally return through the live link register. Preserve guest memory access order, guarded post-index writeback, wrapping arithmetic, subtraction flags and the original conditional return. End is exclusive at 0x00155284; the missing fallthrough and other unobserved successors remain excluded."
+    },
+    {
+      "entry": "0x00155284",
+      "end": "0x001552A4",
+      "evidence": "Observed headless MissingBlock at 0x00155284 after the preceding row-processing prefix executes 14 additional instructions and matches its independent partial-state prediction. Eight authenticated original instructions read the next byte/word source pair, pack and mask the shifted value, combine it with the retained half-row value, store with the original stride, decrement the row count, and conditionally branch to the existing covered tail at 0x00155264. Preserve full guarded reads, ordered post-index updates, wrapping arithmetic, subtraction flags and the original back edge. End is exclusive at 0x001552A4; the missing fallthrough and other unobserved successors remain excluded."
+    },
+    {
+      "entry": "0x001552A4",
+      "end": "0x001552A8",
+      "evidence": "Observed headless MissingBlock at 0x001552A4 after the preceding alternating row loop completes 56 additional instructions and matches its independent partial-state prediction. The single authenticated original instruction returns through the live link register, preserving the completed loop's registers, flags and memory effects. Keep ordinary target dispatch validation and original caller control flow. End is exclusive at 0x001552A8; only this observed four-byte interval is added, with existing adjacent coverage preserved and other unobserved successors excluded."
+    },
+    {
+      "entry": "0x001540F0",
+      "end": "0x001541E8",
+      "evidence": "Observed headless MissingBlock at 0x001540F0 after the preceding register return and existing coverage execute 4,186 additional instructions. Sixty-two authenticated original instructions save two registers and the incoming link, load the original mask literal, advance the source position by the original offset, and process overlapping source rows using halfword and ordered multiword reads. They pack and mask shifted values, combine adjacent half-row results, write two multiword output rows with the original strides, decrement the row count by two, and conditionally branch to the internal tail at 0x00154138. Preserve ordered partial memory effects, delayed stack writeback, wrapping arithmetic, original shifts, subtraction flags and the saved caller return. End is exclusive at 0x001541E8; the missing loop-exit successor and other unobserved successors remain excluded."
+    },
+    {
+      "entry": "0x001541E8",
+      "end": "0x001541EC",
+      "evidence": "Observed headless MissingBlock at 0x001541E8 after the preceding row-processing loop completes 370 additional instructions and matches its independent partial-state prediction. The single authenticated original instruction restores the two saved caller registers and return PC from the guest stack. Preserve ascending guarded reads, completed partial load effects, stack writeback after successful transfer, ordinary return-target validation and the saved caller link rather than the live link register reused for source data. End is exclusive at 0x001541EC; only this observed return instruction is added and other unobserved successors remain excluded."
     }
   ]
 }
