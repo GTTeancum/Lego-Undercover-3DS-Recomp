@@ -36,7 +36,9 @@ branch.
 | Recompiled build | ✅ 3dsrecomp finds 92.5% of the code (10,778 functions); 62 MB library in ~7 min; reaches Cherry Tree Hills gameplay with 0.02% of instructions interpreted |
 | Picture-in-picture layout | ✅ default layout: bottom screen over the top screen's lower right at 22% of its height, inset 10 console px from the corner (minimap-sized) (`patches/zakuro/0002`); checked in an Xvfb window with OpenGL |
 | `verify` | ✅ all 10,769 recompiled functions run against the interpreter from the same state: 0 mismatches |
-| Standalone port | ✅ `lego-city-undercover` (Linux, 94 MB): fresh save → New Game → intro → Cherry Tree Hills gameplay, headless |
+| Standalone port | ✅ `lego-city-undercover` (Linux, 94 MB): fresh save → New Game → intro → Cherry Tree Hills gameplay, headless and in a window (PiP default) |
+| Windows build | ✅ cross-compiled from Linux (`scripts/build_port.sh <rom> --target x86_64-pc-windows-gnu`, MinGW): 100 MB exe needing only system DLLs; not yet run on Windows. `build-port.ps1` not yet run on Windows |
+| Resolution | ✅ Auto by default (1080p → 5×); 5× rendering checked on Mesa's software Vulkan |
 
 Reproduce: `scripts/run_headless.sh 9000 inputs/boot_to_gameplay.txt --interpreter`,
 or after `work/3dsrecomp/target/release/3dsrecomp build game/<rom>.cci work/recomp`,
