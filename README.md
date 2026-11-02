@@ -29,7 +29,7 @@ branch.
 | Title screen / menus | ✅ title, New Game, save slot, autosave |
 | Gameplay | ✅ intro cutscenes, then in control in Cherry Tree Hills by ~frame 8100 (interpreter only, headless, software rasterizer) |
 | Recompiled build | ✅ 3dsrecomp finds 92.5% of the code (10,778 functions); 62 MB library in ~7 min; reaches Cherry Tree Hills gameplay with 0.02% of instructions interpreted |
-| Picture-in-picture layout | ✅ bottom screen over the top screen's lower right (`patches/zakuro/0002`), checked in an Xvfb window with OpenGL |
+| Picture-in-picture layout | ✅ default layout: bottom screen over the top screen's lower right at 28% of its height, minimap-sized (`patches/zakuro/0002`); checked in an Xvfb window with OpenGL |
 | Standalone port | — |
 
 Reproduce: `scripts/run_headless.sh 9000 inputs/boot_to_gameplay.txt --interpreter`,
@@ -63,9 +63,12 @@ work/zakuro/target/release/zakuro game/<rom>.cci
 
 ## Picture-in-picture
 
-Pick "Top screen, bottom one in its corner" in Zakuro's layout menu, or put
-`layout = "picture_in_picture"` in `~/.config/zakuro/settings.toml`
-(`%APPDATA%\zakuro\settings.toml` on Windows).
+The default layout. The bottom screen sits over the top screen's lower-right
+corner at 28% of the top screen's height (4:3), sized so the open-world map
+reads as a minimap; it stays touchable. The size is `PIP_SHARE` in
+`crates/zakuro-gpu/src/backend/mod.rs` (patch 0002). Other layouts are still in
+Zakuro's layout menu, or set `layout = "stacked"` etc. in
+`~/.config/zakuro/settings.toml` (`%APPDATA%\zakuro\settings.toml` on Windows).
 
 ## Game data
 

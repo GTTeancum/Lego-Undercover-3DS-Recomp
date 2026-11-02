@@ -1,5 +1,5 @@
 diff --git a/crates/zakuro-gpu/src/backend/mod.rs b/crates/zakuro-gpu/src/backend/mod.rs
-index e2a2a79..f005546 100644
+index e2a2a79..5438a69 100644
 --- a/crates/zakuro-gpu/src/backend/mod.rs
 +++ b/crates/zakuro-gpu/src/backend/mod.rs
 @@ -103,6 +103,9 @@ pub enum ScreenLayout {
@@ -26,7 +26,7 @@ index e2a2a79..f005546 100644
  
 +/// the bottom screen's height over the top one, as a share of the top
 +/// screen's, and its gap from the corner, in console pixels.
-+const PIP_SHARE: f32 = 0.35;
++const PIP_SHARE: f32 = 0.28;
 +const PIP_MARGIN: f32 = 4.0;
 +
  /// works out where the screens go inside a window, keeping the 3DS's
@@ -71,13 +71,20 @@ index e2a2a79..f005546 100644
      fn the_large_top_screen_takes_most_of_the_window() {
          // the bottom screen at half size sits at the top one's lower right
 diff --git a/crates/zakuro/src/settings.rs b/crates/zakuro/src/settings.rs
-index 1e9b15b..de05452 100644
+index 1e9b15b..49377f8 100644
 --- a/crates/zakuro/src/settings.rs
 +++ b/crates/zakuro/src/settings.rs
-@@ -27,10 +27,11 @@ pub enum Screens {
+@@ -21,16 +21,17 @@ pub enum Renderer {
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+ #[serde(rename_all = "snake_case")]
+ pub enum Screens {
+-    #[default]
+     Stacked,
+     SideBySide,
      TopOnly,
      BottomOnly,
      LargeTop,
++    #[default]
 +    PictureInPicture,
  }
  
@@ -103,3 +110,21 @@ index 1e9b15b..de05452 100644
          }
      }
  
+@@ -521,7 +524,7 @@ impl Default for Settings {
+             frame_interpolation: false,
+             recompiled: true,
+             scale: 2,
+-            layout: Screens::Stacked,
++            layout: Screens::PictureInPicture,
+             filter: Filter::Smooth,
+             integer_scale: false,
+             top_shape: TopShape::Console,
+@@ -650,7 +653,7 @@ mod tests {
+         assert_eq!(settings.keys.a, KeyCode::KeyK);
+         assert_eq!(settings.keys.b, Keys::default().b);
+         assert_eq!(settings.scale, 2);
+-        assert_eq!(settings.layout, Screens::Stacked);
++        assert_eq!(settings.layout, Screens::PictureInPicture);
+     }
+ 
+     #[test]
