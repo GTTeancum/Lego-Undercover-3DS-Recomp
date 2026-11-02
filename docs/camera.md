@@ -46,7 +46,12 @@ and pitch); the Wii U's right stick axes exist but are not wired.
    - pitch += y · 0.08 (full stick tilts like a firm stylus drag)
    with a 0.15 deadzone, rescaled. The game's own limits apply after.
 
-**Status: built, not yet tested in game.**
+**Status: works.** Headless test, stick held one second in gameplay: left
+and right orbit smoothly both ways, up raises the camera to look down on
+the player, down lowers it to look up; the angle holds after release and
+the game's limits stop pitch at its ends. Pitch direction (stick up = view
+from above) is the sign of `PITCH_PER_FRAME`; flip it for the other
+convention.
 
 Tuning: `YAW_PER_FRAME`, `PITCH_PER_FRAME`, `DEADZONE` at the top of the
 override; signs flip there too.

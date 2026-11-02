@@ -38,6 +38,7 @@ branch.
 | `verify` | ✅ all 10,769 recompiled functions run against the interpreter from the same state: 0 mismatches |
 | Standalone port | ✅ `lego-city-undercover` (Linux, 94 MB): fresh save → New Game → intro → Cherry Tree Hills gameplay, headless and in a window (PiP default) |
 | Windows build | ✅ cross-compiled from Linux (`scripts/build_port.sh <rom> --target x86_64-pc-windows-gnu`, MinGW): 100 MB exe needing only system DLLs; not yet run on Windows. `build-port.ps1` not yet run on Windows |
+| Right stick camera | ✅ analog orbit and tilt (`overrides/camera_right_stick.c`), checked headless |
 | Resolution | ✅ Auto by default (1080p → 5×); 5× rendering checked on Mesa's software Vulkan |
 
 Reproduce: `scripts/run_headless.sh 9000 inputs/boot_to_gameplay.txt --interpreter`,
@@ -66,11 +67,14 @@ or after `work/3dsrecomp/target/release/3dsrecomp build game/<rom>.cci work/reco
   - `zakuro/0005` a port keeps its saves in `saves/` beside the program (copying earlier saves from the shared data folder once; falling back to it when the folder isn't writable), and controllers use XInput on Windows instead of Windows.Gaming.Input,
   - `zakuro/0006` controller face buttons by letter (3DS A on Xbox A, B on B, X on X, Y on Y); saved settings with the old by-position defaults are moved over once,
   - `zakuro/0008` picture-in-picture hides the bottom screen while the game shows only its idle hexagon screen (cutscenes and scripted scenes), read from the game's bottom-screen manager (see `docs/bottom-screen.md`); a menu checkbox turns it off. Also `ZAKURO_PEEK` for logging guest memory in headless runs,
+  - `zakuro/0009` the right stick is published in the 3DS shared page for game code (overrides) to read; headless `RSTICK:x,y` and `ZAKURO_PEEK_AT`,
   - `zakuro/0007` headless trace hook (`ZAKURO_TRACE_LIB`) for `tools/trace`, analysis only,
   - `zakuro/0003` Auto resolution (default): the 3D is drawn tall enough to fill the monitor (1080p → 5×, 1440p → 6×, 4K → 8×) instead of a fixed 3×,
   - `3dsrecomp/0001` `port` writes a Zakuro path that works on Windows,
   - `3dsrecomp/0002` the port is a Windows GUI program, no console window.
-- `overrides/` — hand-written C replacements for game functions.
+- `overrides/` — hand-written C replacements for game functions:
+  - `camera_right_stick.c` — right stick orbits (yaw) and tilts (pitch) the camera, analog, through the game's own camera input (`docs/camera.md`),
+  - `debug_scene_log.c` — logs UI scene loads when `LEGO_SCENE_LOG` is set.
 - `game/` — your own decrypted ROM; ignored by Git.
 
 ## Building the standalone game
