@@ -1,0 +1,105 @@
+diff --git a/crates/zakuro-gpu/src/backend/mod.rs b/crates/zakuro-gpu/src/backend/mod.rs
+index e2a2a79..f005546 100644
+--- a/crates/zakuro-gpu/src/backend/mod.rs
++++ b/crates/zakuro-gpu/src/backend/mod.rs
+@@ -103,6 +103,9 @@ pub enum ScreenLayout {
+     BottomOnly,
+     /// the top screen big, the bottom one small at its lower right.
+     LargeTop,
++    /// the top screen filling the window, the bottom one small over its
++    /// lower right corner.
++    PictureInPicture,
+ }
+ 
+ /// how the screens' pixels are drawn when scaled to the window.
+@@ -144,6 +147,7 @@ impl ScreenLayout {
+             ScreenLayout::TopOnly => (top_width, 240.0),
+             ScreenLayout::BottomOnly => (320.0, 240.0),
+             ScreenLayout::LargeTop => (top_width + LARGE_TOP_BOTTOM.0 as f32, 240.0),
++            ScreenLayout::PictureInPicture => (top_width, 240.0),
+         }
+     }
+ }
+@@ -156,6 +160,11 @@ pub const TOP_WIDTH: f32 = 400.0;
+ /// the bottom screen's size next to the big top one, half the console's.
+ const LARGE_TOP_BOTTOM: (u32, u32) = (160, 120);
+ 
++/// the bottom screen's height over the top one, as a share of the top
++/// screen's, and its gap from the corner, in console pixels.
++const PIP_SHARE: f32 = 0.35;
++const PIP_MARGIN: f32 = 4.0;
++
+ /// works out where the screens go inside a window, keeping the 3DS's
+ /// aspect ratio, or the top screen top_w wide, and centring them, scaled by
+ /// a whole number when integer asks and the window has room. a screen that
+@@ -207,6 +216,17 @@ pub fn layout(window_width: u32, window_height: u32, arrangement: ScreenLayout,
+                 height: 240.0 * small,
+             })
+         }
++        ScreenLayout::PictureInPicture => {
++            let height = 240.0 * PIP_SHARE * scale;
++            let width = height * 4.0 / 3.0;
++            let margin = PIP_MARGIN * scale;
++            let (mut x, mut y) = (offset_x + top_w * scale - width - margin, offset_y + 240.0 * scale - height - margin);
++            if integer {
++                x = x.floor();
++                y = y.floor();
++            }
++            Some(Viewport { x, y, width, height })
++        }
+         ScreenLayout::TopOnly => None,
+         ScreenLayout::BottomOnly => Some(Viewport {
+             x: offset_x,
+@@ -382,6 +402,19 @@ mod tests {
+         assert_eq!((bottom.x, bottom.y, bottom.width, bottom.height), (80.0, 0.0, 640.0, 480.0));
+     }
+ 
++    #[test]
++    fn picture_in_picture_puts_the_bottom_screen_over_the_top_ones_corner() {
++        let (top, bottom) = layout(1920, 1080, ScreenLayout::PictureInPicture, TOP_WIDTH, false);
++        let (top, bottom) = (top.unwrap(), bottom.unwrap());
++        assert_eq!((top.x, top.y, top.width, top.height), (60.0, 0.0, 1800.0, 1080.0));
++        // inside the top screen, at its lower right, the 3DS's 4:3 shape
++        assert!(bottom.x > top.x && bottom.y > top.y);
++        assert!((bottom.x + bottom.width - (top.x + top.width + 0.0)).abs() <= 4.0 * 4.5 + 0.01);
++        assert!((bottom.y + bottom.height - (top.y + top.height)).abs() <= 4.0 * 4.5 + 0.01);
++        assert!((bottom.width / bottom.height - 4.0 / 3.0).abs() < 1e-4);
++        assert!((bottom.height - 1080.0 * PIP_SHARE).abs() < 0.01);
++    }
++
+     #[test]
+     fn the_large_top_screen_takes_most_of_the_window() {
+         // the bottom screen at half size sits at the top one's lower right
+diff --git a/crates/zakuro/src/settings.rs b/crates/zakuro/src/settings.rs
+index 1e9b15b..de05452 100644
+--- a/crates/zakuro/src/settings.rs
++++ b/crates/zakuro/src/settings.rs
+@@ -27,10 +27,11 @@ pub enum Screens {
+     TopOnly,
+     BottomOnly,
+     LargeTop,
++    PictureInPicture,
+ }
+ 
+ impl Screens {
+-    pub const ALL: [Screens; 5] = [Screens::Stacked, Screens::SideBySide, Screens::LargeTop, Screens::TopOnly, Screens::BottomOnly];
++    pub const ALL: [Screens; 6] = [Screens::Stacked, Screens::SideBySide, Screens::LargeTop, Screens::PictureInPicture, Screens::TopOnly, Screens::BottomOnly];
+ 
+     pub fn name(self) -> &'static str {
+         match self {
+@@ -39,6 +40,7 @@ impl Screens {
+             Screens::TopOnly => "Top screen only",
+             Screens::BottomOnly => "Bottom screen only",
+             Screens::LargeTop => "Big top screen, small bottom one",
++            Screens::PictureInPicture => "Top screen, bottom one in its corner",
+         }
+     }
+ 
+@@ -49,6 +51,7 @@ impl Screens {
+             Screens::TopOnly => ScreenLayout::TopOnly,
+             Screens::BottomOnly => ScreenLayout::BottomOnly,
+             Screens::LargeTop => ScreenLayout::LargeTop,
++            Screens::PictureInPicture => ScreenLayout::PictureInPicture,
+         }
+     }
+ 
