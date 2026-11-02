@@ -2,13 +2,15 @@
 
 ## Current rebuilt state
 
-The goal is a full playable native recompilation of LEGO City Undercover: The Chase Begins. This batch translates **56 reviewed sections** in **5 fresh candidates**, reaching **243 sections**. Actual native startup execution advances **573,982 instructions** from published 63c5aef and stops at **MissingBlock `0x00154520`**.
+The goal is a full playable native recompilation of LEGO City Undercover: The Chase Begins. This batch adds **12 reviewed logical sections containing 64 original instructions**, reaching **255 logical sections / 257 physical blocks / 3,744 supplemental instruction words**. Three fresh native startup runs advance **120,851 core0 instructions** beyond published `0e4737b` and stop at **MissingBlock `0x0014F620`**.
 
-Five fresh candidates passed 90/90 local tests each. The instruction totals and reported stops are measured; individual static-section coverage and intermediate forecasts remain separate. Four shortened-log wrapper failures were preserved and reconciled; builds and tests succeeded without reruns.
+The final build of each candidate passed **90/90 existing tests**. All three actual native runs completed with the recorded MissingBlock exit 3, no timeout or stderr, and unchanged original inputs and AOT files. Earlier test-environment, output and evidence-permission failures were preserved and reconciled; see the checkpoint for their exact scope.
 
-Menus, gameplay, rendering, speaker playback and Windows execution remain unverified. No new window or screenshot was captured. Diagnostic counters do not establish frame rate or gameplay completion.
+Menus, gameplay, game rendering, speaker playback and Windows execution remain unverified. No new window or screenshot was captured. Diagnostic counters and cloud elapsed times do not establish frame rate or gameplay completion.
 
-At source preparation, hosted checks were awaiting publication. Actual results appear against the published commit in [project Actions](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/actions). Review the next observed stop as a bounded group of connected calls or callbacks. See the [current checkpoint](CHECKPOINT.md) for the actual run table, limits and next action, or the [complete previous version](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/blob/63c5aefc07f9621538c7bc7f119e0bbd30984ca1/README.md).
+At source preparation, hosted checks for this change had not yet run. Their actual results are attached to the published commit in [project Actions](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/actions). Hosted ROM-free checks do not execute the original game.
+
+The next blocker is `0x0014F620`; one logical-section slot remains. A larger reviewed group needs a separately verified capacity change before admission. See the [current checkpoint](CHECKPOINT.md) and [complete previous status](https://github.com/GTTeancum/Lego-Undercover-3DS-Recomp/blob/0e4737b5eba2d09ed6002daffd44d2650b06bf6a/README.md).
 
 ## Historical recovery records
 

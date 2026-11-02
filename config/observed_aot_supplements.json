@@ -1226,6 +1226,66 @@
       "entry": "0x0014FC54",
       "end": "0x0014FC58",
       "evidence": "Original selected-wrapper continuation assigned by BL0014F190. One guarded LDR PC,[SP],4 consumes its own saved stack word; this is independent of whatever live LR the nested shared routine last used. SP writeback occurs only after read success. Expected saved first-call target0014FB8C is a packet entry, but actual memory supplies the target and strict validation remains enabled. End is exclusive; execute only authenticated original operations."
+    },
+    {
+      "entry": "0x00154520",
+      "end": "0x00154578",
+      "evidence": "Observed MissingBlock00154520 in byte-exact recovered original44 stdout and independently matched fresh recovery replay. Twenty-two authenticated instructions load the mask once, adjust source once, read a byte and four original words, retain ordered shifts/masks/additions, store four words, advance pointers explicitly, decrement count and branch to recorded suffix00154528. LDM and STM use no base writeback; preserve each guarded transfer and earlier partial effects on faults. End is exclusive at00154578; the return is separately reviewed."
+    },
+    {
+      "entry": "0x00154578",
+      "end": "0x0015457C",
+      "evidence": "Static fallthrough of the original BNE at00154574. One authenticated non-flag-setting MOV PC,LR returns through the captured live LR0014F200, an exact original covered entry. Preserve normal ARM/alignment/coverage validation and completed loop state. End is exclusive at0015457C, the start of an already covered neighboring routine; no neighboring code or inline table data is added."
+    },
+    {
+      "entry": "0x0014FB34",
+      "end": "0x0014FB44",
+      "evidence": "Observed actual candidate45 MissingBlock0014FB34, matching captured table base0014FAD4 plus relative word00000060. Four original instructions save incoming LR with guarded preindexed STR/SP writeback, set r5=8 and r6=8, then BL already-original0014F190 with assigned link0014FB44. Preserve flags, guarded stack partial effects and normal dynamic validation. The separate saved-stack return is reviewed at0014FB44; end is exclusive."
+    },
+    {
+      "entry": "0x0014FB44",
+      "end": "0x0014FB48",
+      "evidence": "Static return continuation assigned by the original BL at0014FB40. One guarded LDR PC,[SP],4 loads the wrapper's saved guest-stack return word and writes SP only after successful read. The loaded PC is not substituted from current live LR. The nested shared routine0014F190 and its original stack-PC epilogue remain unchanged; this interval ends exclusively at0014FB48."
+    },
+    {
+      "entry": "0x0014FB48",
+      "end": "0x0014FB58",
+      "evidence": "Statically authenticated sibling index3 of the same original table0014FAD4; reachable high-five-bit selector bytes are explicitly recorded. This sibling is not claimed executed. Four original instructions save incoming LR with guarded preindexed STR/SP writeback, set r5=12 and r6=8, then BL already-original0014F190 with assigned link0014FB58. Preserve flags, guarded stack partial effects and normal dynamic validation. The separate saved-stack return is reviewed at0014FB58; end is exclusive."
+    },
+    {
+      "entry": "0x0014FB58",
+      "end": "0x0014FB5C",
+      "evidence": "Static return continuation assigned by the original BL at0014FB54. One guarded LDR PC,[SP],4 loads the wrapper's saved guest-stack return word and writes SP only after successful read. The loaded PC is not substituted from current live LR. The nested shared routine0014F190 and its original stack-PC epilogue remain unchanged; this interval ends exclusively at0014FB5C."
+    },
+    {
+      "entry": "0x0014FB5C",
+      "end": "0x0014FB6C",
+      "evidence": "Statically authenticated sibling index4 of the same original table0014FAD4; reachable high-five-bit selector bytes are explicitly recorded. This sibling is not claimed executed. Four original instructions save incoming LR with guarded preindexed STR/SP writeback, set r5=16 and r6=8, then BL already-original0014F190 with assigned link0014FB6C. Preserve flags, guarded stack partial effects and normal dynamic validation. The separate saved-stack return is reviewed at0014FB6C; end is exclusive."
+    },
+    {
+      "entry": "0x0014FB6C",
+      "end": "0x0014FB70",
+      "evidence": "Static return continuation assigned by the original BL at0014FB68. One guarded LDR PC,[SP],4 loads the wrapper's saved guest-stack return word and writes SP only after successful read. The loaded PC is not substituted from current live LR. The nested shared routine0014F190 and its original stack-PC epilogue remain unchanged; this interval ends exclusively at0014FB70."
+    },
+    {
+      "entry": "0x0014FB70",
+      "end": "0x0014FB80",
+      "evidence": "Statically authenticated sibling index5 of the same original table0014FAD4; reachable high-five-bit selector bytes are explicitly recorded. This sibling is not claimed executed. Four original instructions save incoming LR with guarded preindexed STR/SP writeback, set r5=20 and r6=8, then BL already-original0014F190 with assigned link0014FB80. Preserve flags, guarded stack partial effects and normal dynamic validation. The separate saved-stack return is reviewed at0014FB80; end is exclusive."
+    },
+    {
+      "entry": "0x0014FB80",
+      "end": "0x0014FB84",
+      "evidence": "Static return continuation assigned by the original BL at0014FB7C. One guarded LDR PC,[SP],4 loads the wrapper's saved guest-stack return word and writes SP only after successful read. The loaded PC is not substituted from current live LR. The nested shared routine0014F190 and its original stack-PC epilogue remain unchanged; this interval ends exclusively at0014FB84."
+    },
+    {
+      "entry": "0x00154920",
+      "end": "0x00154970",
+      "evidence": "Observed actual candidate46 MissingBlock at00154920. Twenty authenticated original instructions load the mask from001546B4, subtract one from the source once, then load two words and an adjacent unsigned halfword, preserve staged shifts/masks/wrapping additions, store two output words, advance both row pointers by512 and decrement the row count. The first control exit is BNE00154928, an interior recorded suffix which skips the one-time prefix. Preserve ordered guarded accesses, partial effects and original count-derived flags. Exclusive end00154970 is a separately reviewed static terminal return."
+    },
+    {
+      "entry": "0x00154970",
+      "end": "0x00154974",
+      "evidence": "Static original fallthrough from the reviewed conditional branch at0015496C. The single MOV pc,lr returns through the unchanged live link register. This callback writes no LR, and completed46 captured LR0014F25C is an authenticated unchanged original entry. Preserve flags and normal target validation; do not force a chosen return. This return has not yet been observed executing in candidate47."
     }
   ]
 }
