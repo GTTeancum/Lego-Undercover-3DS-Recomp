@@ -1,0 +1,229 @@
+diff --git a/crates/zakuro/src/headless_probe.rs b/crates/zakuro/src/headless_probe.rs
+index ae532df..a4945b9 100644
+--- a/crates/zakuro/src/headless_probe.rs
++++ b/crates/zakuro/src/headless_probe.rs
+@@ -7,6 +7,9 @@
+ //!                    `<first frame> <last frame> <BUTTON>[+<BUTTON>...]`
+ //!                    buttons are PadState names (A, B, START, UP, ...),
+ //!                    `TOUCH:x,y` touches the bottom screen; `#` comments.
++//! ZAKURO_PEEK        guest memory to log with each dump, `addr:len[,addr:len]`
++//!                    in hex, one line per dump to <dump dir>/peek.txt:
++//!                    `<frame> <addr>=<bytes> ...`.
+ //! ZAKURO_TRACE_LIB   (unix) a trace build of the recompiled library, the
+ //!                    one --recompiled names: its recomp_trace_dump(frame)
+ //!                    is called every ZAKURO_DUMP_EVERY frames, writing the
+@@ -29,6 +32,7 @@ pub struct Probe {
+     every: u64,
+     holds: Vec<Hold>,
+     trace: Option<extern "C" fn(u64)>,
++    peek: Vec<(u32, usize)>,
+ }
+ 
+ #[cfg(unix)]
+@@ -93,7 +97,15 @@ impl Probe {
+                 holds.push(Hold { first, last, buttons, touch });
+             }
+         }
+-        Probe { dump_dir, every, holds, trace: trace_dump() }
++        let peek = std::env::var("ZAKURO_PEEK")
++            .unwrap_or_default()
++            .split(',')
++            .filter_map(|item| {
++                let (addr, len) = item.trim().split_once(':')?;
++                Some((u32::from_str_radix(addr.trim_start_matches("0x"), 16).ok()?, usize::from_str_radix(len, 16).ok()?))
++            })
++            .collect();
++        Probe { dump_dir, every, holds, trace: trace_dump(), peek }
+     }
+ 
+     pub fn before_frame(&self, system: &mut System, frame: u64) {
+@@ -118,6 +130,19 @@ impl Probe {
+             dump(frame);
+         }
+         let Some(dir) = &self.dump_dir else { return };
++        if !self.peek.is_empty() {
++            use std::io::Write;
++            let mut line = format!("{frame}");
++            for &(addr, len) in &self.peek {
++                let mut bytes = vec![0u8; len];
++                system.memory.read_bytes(addr, &mut bytes);
++                let hex: String = bytes.iter().map(|b| format!("{b:02X}")).collect();
++                line.push_str(&format!(" {addr:08X}={hex}"));
++            }
++            if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("peek.txt")) {
++                let _ = writeln!(file, "{line}");
++            }
++        }
+         for (name, screen) in [("top", zakuro_common::Screen::Top), ("bottom", zakuro_common::Screen::Bottom)] {
+             // the GPU's picture at its resolution when it draws the 3D,
+             // else the console's framebuffer
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 677ab55..50569c0 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -16,6 +16,7 @@ mod present;
+ mod recompile;
+ mod report;
+ mod settings;
++mod title_hooks;
+ mod zig;
+ 
+ use std::path::{Path, PathBuf};
+@@ -335,6 +336,16 @@ fn paint_test_pattern(config: Config) -> System {
+     system
+ }
+ 
++/// the layout as shown: picture-in-picture leaves the bottom screen out
++/// while the game shows only its idle picture there.
++fn shown_layout(layout: Screens, game: Option<&Running>, hide_idle: bool) -> zakuro_gpu::ScreenLayout {
++    if layout == Screens::PictureInPicture && hide_idle && game.is_some_and(|game| game.bottom_idle) {
++        zakuro_gpu::ScreenLayout::TopOnly
++    } else {
++        layout.screens()
++    }
++}
++
+ /// the resolution that draws the top screen's 240 rows at least as tall as
+ /// a monitor of this height, 1 to 8.
+ fn auto_resolution(monitor_height: u32) -> u32 {
+@@ -385,6 +396,9 @@ fn run_headless(system: &mut System, frames: u64) {
+ /// a game being played.
+ struct Running {
+     system: System,
++    /// the bottom screen is left out of the layout for now, the game showing
++    /// only its idle picture there (title_hooks).
++    bottom_idle: bool,
+     path: PathBuf,
+     name: String,
+     /// the inputs written down, ZAKURO_RECORD=file, for playing the run
+@@ -403,6 +417,7 @@ struct Running {
+ impl Running {
+     fn new(system: System, path: PathBuf, name: String) -> Running {
+         Running {
++            bottom_idle: false,
+             system,
+             path,
+             name,
+@@ -579,7 +594,7 @@ impl ApplicationHandler for App {
+         match backend {
+             Ok((window, mut backend)) => {
+                 log::info!("presenting with the {} backend", backend.name());
+-                backend.set_layout(self.layout.screens());
++                backend.set_layout(shown_layout(self.layout, self.game.as_ref(), self.settings.hide_idle_bottom));
+                 backend.set_top_width(self.settings.top_shape.width());
+                 backend.set_scaling(self.settings.filter.screens(), self.settings.integer_scale);
+                 backend.set_stereo(self.settings.stereo());
+@@ -910,7 +925,8 @@ impl App {
+     fn touch(&mut self) {
+         let Some(window) = &self.window else { return };
+         let size = window.inner_size();
+-        let (_, bottom) = layout(size.width, size.height, self.layout.screens(), self.top_shape.width(), self.settings.integer_scale);
++        let shown = shown_layout(self.layout, self.game.as_ref(), self.settings.hide_idle_bottom);
++        let (_, bottom) = layout(size.width, size.height, shown, self.top_shape.width(), self.settings.integer_scale);
+         // with the top screen alone there is nothing to touch
+         let Some(bottom) = bottom else {
+             self.keyboard.touch(None);
+@@ -1019,6 +1035,7 @@ impl App {
+             backend.set_top_width(self.settings.top_shape.width());
+             backend.set_scaling(self.settings.filter.screens(), self.settings.integer_scale);
+             backend.set_stereo(self.settings.stereo());
++            backend.set_layout(shown_layout(self.layout, self.game.as_ref(), self.settings.hide_idle_bottom));
+         }
+         let scale = if self.options.scale.is_none() { self.settings.scale.max(1) } else { self.scale };
+         if scale != self.scale || self.settings.layout != self.layout || self.settings.top_shape != self.top_shape {
+@@ -1026,7 +1043,7 @@ impl App {
+             self.layout = self.settings.layout;
+             self.top_shape = self.settings.top_shape;
+             if let Some(backend) = &mut self.backend {
+-                backend.set_layout(self.layout.screens());
++                backend.set_layout(shown_layout(self.layout, self.game.as_ref(), self.settings.hide_idle_bottom));
+             }
+             // a full screen or maximized window keeps its size, resizing
+             // it would take it out of that, full screen fits it on leaving
+@@ -1396,6 +1413,13 @@ impl App {
+         }
+         game.system.set_input(input);
+         let outcome = game.system.run_frame();
++        let idle = title_hooks::bottom_screen_idle(&mut game.system);
++        if idle != game.bottom_idle {
++            game.bottom_idle = idle;
++            if let Some(backend) = &mut self.backend {
++                backend.set_layout(shown_layout(self.layout, Some(game), self.settings.hide_idle_bottom));
++            }
++        }
+         // the overlay reads the game the program was built on, not another
+         // one its library opened
+         let ours = self.linked.as_ref().is_none_or(|linked| game.system.title.as_ref().is_some_and(|title| title.program_id() == linked.program_id()));
+diff --git a/crates/zakuro/src/menus.rs b/crates/zakuro/src/menus.rs
+index 13202d8..2d13ea9 100644
+--- a/crates/zakuro/src/menus.rs
++++ b/crates/zakuro/src/menus.rs
+@@ -701,6 +701,11 @@ impl Menus {
+                         ui.selectable_value(&mut settings.layout, layout, layout.name());
+                     }
+                 });
++                ui.add_enabled(
++                    settings.layout == Screens::PictureInPicture,
++                    egui::Checkbox::new(&mut settings.hide_idle_bottom, "Hide the bottom screen when it is idle"),
++                )
++                .on_hover_text("The corner screen goes away while the game shows only its idle picture there, for games Zakuro knows how to tell.");
+                 egui::ComboBox::from_label("Filter").selected_text(settings.filter.name()).show_ui(ui, |ui| {
+                     for filter in Filter::ALL {
+                         ui.selectable_value(&mut settings.filter, filter, filter.name());
+diff --git a/crates/zakuro/src/settings.rs b/crates/zakuro/src/settings.rs
+index aaa5a1b..4fc0c8b 100644
+--- a/crates/zakuro/src/settings.rs
++++ b/crates/zakuro/src/settings.rs
+@@ -472,6 +472,9 @@ pub struct Settings {
+     pub scale: u32,
+     #[serde(deserialize_with = "or_default")]
+     pub layout: Screens,
++    /// with the bottom screen over the top one, leave it out while the game
++    /// shows only an idle picture there.
++    pub hide_idle_bottom: bool,
+     /// how the screens' pixels look scaled up.
+     #[serde(deserialize_with = "or_default")]
+     pub filter: Filter,
+@@ -533,6 +536,7 @@ impl Default for Settings {
+             recompiled: true,
+             scale: 2,
+             layout: Screens::PictureInPicture,
++            hide_idle_bottom: true,
+             filter: Filter::Smooth,
+             integer_scale: false,
+             top_shape: TopShape::Console,
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+new file mode 100644
+index 0000000..086ad01
+--- /dev/null
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -0,0 +1,29 @@
++//! What particular games say about themselves, read from where their own
++//! code keeps it, for the frontend to follow.
++//!
++//! LEGO City Undercover: The Chase Begins (USA, 00040000000AD500): the
++//! bottom screen is run by one manager object, a global at 0x00519D94
++//! (the Wii U version's GamePad "DRC" screen). Its per-frame update,
++//! f_002DDD64, closes the hexagon wipe over the bottom screen (the idle
++//! badge screen) while the countdown at +0x498 runs, which f_001EF45C and
++//! the update itself set whenever a cutscene or scripted sequence has the
++//! camera (f_00236104), and keeps whether the wipe is shut at +0x485.
++
++use zakuro_core::System;
++
++const LEGO_CITY_CHASE_BEGINS: u64 = 0x0004_0000_000A_D500;
++const DRC_MANAGER: u32 = 0x0051_9D94;
++const DRC_WIPE_SHUT: u32 = DRC_MANAGER + 0x485;
++
++/// whether the bottom screen shows nothing but a game's idle picture, which
++/// a layout that overlays it can leave out.
++pub fn bottom_screen_idle(system: &mut System) -> bool {
++    match system.title.as_ref().map(|title| title.program_id()) {
++        Some(LEGO_CITY_CHASE_BEGINS) => {
++            let mut shut = [0u8];
++            system.memory.read_bytes(DRC_WIPE_SHUT, &mut shut);
++            shut[0] != 0
++        }
++        _ => false,
++    }
++}
