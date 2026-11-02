@@ -10,7 +10,8 @@
 #     llvm-ar (winget install LLVM.LLVM); this script sets CC/AR for that case.
 #
 # Output: work\port\target\release\lego-city-undercover.exe
-# Run it with the same ROM: lego-city-undercover.exe "C:\path\to\game.cci"
+# Put the exe next to the ROM (or in the folder above it) and double-click it;
+# it finds the game, or asks for it once.
 # The exe contains the game's code compiled: it is for your own copy, don't share it.
 
 param(
@@ -90,4 +91,4 @@ try { Run cargo @("build", "--release") } finally { Pop-Location }
 $exe = Join-Path $port "target\release\lego-city-undercover.exe"
 Write-Host ""
 Write-Host "Built: $exe"
-Write-Host "Run:   & `"$exe`" `"$Rom`""
+Write-Host "Put it next to your ROM and double-click it (or run it with the ROM path)."

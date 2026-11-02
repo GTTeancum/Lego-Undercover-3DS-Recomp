@@ -1,0 +1,179 @@
+diff --git a/crates/zakuro/src/find_rom.rs b/crates/zakuro/src/find_rom.rs
+new file mode 100644
+index 0000000..ba0f434
+--- /dev/null
++++ b/crates/zakuro/src/find_rom.rs
+@@ -0,0 +1,138 @@
++//! For a program with its game's code linked in, started without a ROM (a
++//! double click): find that game's ROM on its own. The one used last time,
++//! then one next to the program or in the folder it runs in (or a folder
++//! inside either), and failing those a file picker. The choice is kept for
++//! next time in the data folder.
++
++use std::fs::File;
++use std::io::{Read, Seek, SeekFrom};
++use std::path::{Path, PathBuf};
++
++const EXTENSIONS: [&str; 3] = ["cci", "3ds", "cxi"];
++
++pub fn find(program_id: u64, data_dir: Option<&Path>) -> Option<PathBuf> {
++    let memory = data_dir.map(|dir| dir.join(format!("rom-{program_id:016X}.txt")));
++    let remembered = memory
++        .as_ref()
++        .and_then(|file| std::fs::read_to_string(file).ok())
++        .map(|text| PathBuf::from(text.trim()))
++        .filter(|path| title_of(path) == Some(program_id));
++    let found = remembered
++        .or_else(|| search(program_id))
++        .or_else(|| pick(program_id));
++    if let (Some(path), Some(file)) = (&found, &memory) {
++        let _ = std::fs::create_dir_all(file.parent().unwrap_or(Path::new(".")));
++        let _ = std::fs::write(file, path.display().to_string());
++    }
++    found
++}
++
++/// the folders to look in: the program's and the current one, and the
++/// folders directly inside them.
++fn search(program_id: u64) -> Option<PathBuf> {
++    let mut roots = Vec::new();
++    if let Some(dir) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf)) {
++        roots.push(dir);
++    }
++    if let Ok(dir) = std::env::current_dir() {
++        if !roots.contains(&dir) {
++            roots.push(dir);
++        }
++    }
++    let mut folders = roots.clone();
++    for root in &roots {
++        if let Ok(entries) = std::fs::read_dir(root) {
++            folders.extend(entries.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.is_dir()));
++        }
++    }
++    for folder in folders {
++        let Ok(entries) = std::fs::read_dir(&folder) else { continue };
++        let mut files: Vec<PathBuf> = entries.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| is_rom_file(p)).collect();
++        files.sort();
++        if let Some(found) = files.into_iter().find(|path| title_of(path) == Some(program_id)) {
++            return Some(found);
++        }
++    }
++    None
++}
++
++fn pick(program_id: u64) -> Option<PathBuf> {
++    loop {
++        let picked = rfd::FileDialog::new()
++            .set_title("Find your copy of the game (.cci, .3ds or .cxi)")
++            .add_filter("3DS game", &EXTENSIONS)
++            .pick_file()?;
++        if title_of(&picked) == Some(program_id) {
++            return Some(picked);
++        }
++        let again = rfd::MessageDialog::new()
++            .set_title("Not this game")
++            .set_description(format!(
++                "{} is not the game this program was made for (title {program_id:016X}). Pick another file?",
++                picked.display()
++            ))
++            .set_buttons(rfd::MessageButtons::YesNo)
++            .show();
++        if again != rfd::MessageDialogResult::Yes {
++            return None;
++        }
++    }
++}
++
++fn is_rom_file(path: &Path) -> bool {
++    path.is_file()
++        && path
++            .extension()
++            .and_then(|x| x.to_str())
++            .is_some_and(|x| EXTENSIONS.iter().any(|e| e.eq_ignore_ascii_case(x)))
++}
++
++/// the title ID in a decrypted cartridge image (NCSD) or NCCH, from its
++/// header: NCSD keeps the media ID at 0x108, NCCH the program ID at 0x118.
++pub fn title_of(path: &Path) -> Option<u64> {
++    let mut file = File::open(path).ok()?;
++    let mut header = [0u8; 0x200];
++    file.seek(SeekFrom::Start(0)).ok()?;
++    file.read_exact(&mut header).ok()?;
++    let at = |offset: usize| u64::from_le_bytes(header[offset..offset + 8].try_into().unwrap());
++    match &header[0x100..0x104] {
++        b"NCSD" => Some(at(0x108)),
++        b"NCCH" => Some(at(0x118)),
++        _ => None,
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn image(tag: &str, magic: &[u8; 4], offset: usize, id: u64) -> PathBuf {
++        let mut header = vec![0u8; 0x200];
++        header[0x100..0x104].copy_from_slice(magic);
++        header[offset..offset + 8].copy_from_slice(&id.to_le_bytes());
++        let path = std::env::temp_dir().join(format!("zakuro-find-rom-{}-{tag}.cci", std::process::id()));
++        std::fs::write(&path, header).unwrap();
++        path
++    }
++
++    #[test]
++    fn reads_the_title_from_ncsd_and_ncch_headers() {
++        let ncsd = image("ncsd", b"NCSD", 0x108, 0x00040000000AD500);
++        let ncch = image("ncch", b"NCCH", 0x118, 0x0004000000055D00);
++        assert_eq!(title_of(&ncsd), Some(0x00040000000AD500));
++        assert_eq!(title_of(&ncch), Some(0x0004000000055D00));
++        let _ = std::fs::remove_file(ncsd);
++        let _ = std::fs::remove_file(ncch);
++    }
++
++    #[test]
++    fn remembers_the_rom_it_was_given() {
++        let rom = image("remembered", b"NCSD", 0x108, 0x00040000000AD500);
++        let data = std::env::temp_dir().join(format!("zakuro-find-rom-data-{}", std::process::id()));
++        std::fs::create_dir_all(&data).unwrap();
++        std::fs::write(data.join("rom-00040000000AD500.txt"), rom.display().to_string()).unwrap();
++        assert_eq!(find(0x00040000000AD500, Some(&data)), Some(rom.clone()));
++        let _ = std::fs::remove_dir_all(data);
++        let _ = std::fs::remove_file(rom);
++    }
++}
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 93b4032..3650d3a 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -6,6 +6,7 @@ mod audio;
+ mod camera;
+ mod cli;
+ mod gamepad;
++mod find_rom;
+ mod gui;
+ mod headless_probe;
+ mod input;
+@@ -69,7 +70,7 @@ pub fn run(linked: Option<Linked>) {
+ pub fn run_with(linked: Option<Linked>, overlay: Option<Box<dyn GameOverlay>>) {
+     report::init();
+ 
+-    let options = match cli::parse() {
++    let mut options = match cli::parse() {
+         Ok(options) => options,
+         Err(message) => {
+             eprintln!("zakuro: {message}");
+@@ -92,6 +93,13 @@ pub fn run_with(linked: Option<Linked>, overlay: Option<Box<dyn GameOverlay>>) {
+         report::to_file(dir);
+         bring_saves(dir);
+     }
++    // a program with its game's code in it, started without a ROM, as by a
++    // double click, finds that game on its own
++    if options.rom.is_none() && !options.test_pattern {
++        if let Some(code) = &linked {
++            options.rom = find_rom::find(code.program_id(), data_dir.as_deref()).map(|path| path.display().to_string());
++        }
++    }
+ 
+     let mut app = App {
+         keyboard: Keyboard::new(settings.keys.clone()),

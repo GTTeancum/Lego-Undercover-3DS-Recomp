@@ -1,0 +1,14 @@
+diff --git a/src/port.rs b/src/port.rs
+index f3f749b..c9a9589 100644
+--- a/src/port.rs
++++ b/src/port.rs
+@@ -55,6 +55,9 @@ const MAIN: &str = r#"//! {title}, recompiled ahead of time by 3dsrecomp and run
+ //! still reads the game for everything but the code, so it takes the path
+ //! to a copy of it the way Zakuro does.
+ 
++// a game, not a console program: on Windows no console window opens beside it
++#![cfg_attr(windows, windows_subsystem = "windows")]
++
+ use std::ffi::c_void;
+ use std::ptr::addr_of;
+ 
