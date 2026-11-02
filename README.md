@@ -56,11 +56,14 @@ or after `work/3dsrecomp/target/release/3dsrecomp build game/<rom>.cci work/reco
 - `inputs/` — scripted input (`<first frame> <last frame> <BUTTON>[+BUTTON]`, or `TOUCH:x,y`).
 - `scripts/build_port.sh`, `scripts/windows/build-port.ps1` — build the standalone program.
 - `hints/` — addresses Zakuro had to interpret during play, fed to the next build so 3dsrecomp recompiles them (addresses only, no game data).
+- `tools/trace/` — builds a function-entry-counting copy of the recompiled library to find which game functions run during given screens (`tools/trace/build.sh`).
 - `patches/` — local changes to 3dsrecomp or Zakuro:
   - `zakuro/0001` headless screenshots and scripted input,
   - `zakuro/0002` picture-in-picture layout (default),
   - `zakuro/0004` started without a ROM (double-click), the program finds its game: the one used last time, then a matching `.cci`/`.3ds`/`.cxi` next to it, in the folder it runs in or a folder inside either, else a file picker; the choice is remembered,
   - `zakuro/0005` a port keeps its saves in `saves/` beside the program (copying earlier saves from the shared data folder once; falling back to it when the folder isn't writable), and controllers use XInput on Windows instead of Windows.Gaming.Input,
+  - `zakuro/0006` controller face buttons by letter (3DS A on Xbox A, B on B, X on X, Y on Y); saved settings with the old by-position defaults are moved over once,
+  - `zakuro/0007` headless trace hook (`ZAKURO_TRACE_LIB`) for `tools/trace`, analysis only,
   - `zakuro/0003` Auto resolution (default): the 3D is drawn tall enough to fill the monitor (1080p → 5×, 1440p → 6×, 4K → 8×) instead of a fixed 3×,
   - `3dsrecomp/0001` `port` writes a Zakuro path that works on Windows,
   - `3dsrecomp/0002` the port is a Windows GUI program, no console window.

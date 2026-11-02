@@ -1,0 +1,74 @@
+diff --git a/crates/zakuro/src/headless_probe.rs b/crates/zakuro/src/headless_probe.rs
+index c7897fa..ae532df 100644
+--- a/crates/zakuro/src/headless_probe.rs
++++ b/crates/zakuro/src/headless_probe.rs
+@@ -7,6 +7,10 @@
+ //!                    `<first frame> <last frame> <BUTTON>[+<BUTTON>...]`
+ //!                    buttons are PadState names (A, B, START, UP, ...),
+ //!                    `TOUCH:x,y` touches the bottom screen; `#` comments.
++//! ZAKURO_TRACE_LIB   (unix) a trace build of the recompiled library, the
++//!                    one --recompiled names: its recomp_trace_dump(frame)
++//!                    is called every ZAKURO_DUMP_EVERY frames, writing the
++//!                    functions entered since to ZAKURO_TRACE_OUT.
+ 
+ use std::path::PathBuf;
+ 
+@@ -24,6 +28,34 @@ pub struct Probe {
+     dump_dir: Option<PathBuf>,
+     every: u64,
+     holds: Vec<Hold>,
++    trace: Option<extern "C" fn(u64)>,
++}
++
++#[cfg(unix)]
++fn trace_dump() -> Option<extern "C" fn(u64)> {
++    use std::ffi::{c_char, c_int, c_void, CString};
++    extern "C" {
++        fn dlopen(file: *const c_char, mode: c_int) -> *mut c_void;
++        fn dlsym(handle: *mut c_void, name: *const c_char) -> *mut c_void;
++    }
++    let path = CString::new(std::env::var("ZAKURO_TRACE_LIB").ok()?).ok()?;
++    let name = CString::new("recomp_trace_dump").unwrap();
++    // SAFETY: the library is the one Zakuro already loaded; opening it again
++    // hands back the same one, and the symbol is a fn(uint64_t)
++    unsafe {
++        let handle = dlopen(path.as_ptr(), 2 /* RTLD_NOW */);
++        let symbol = if handle.is_null() { std::ptr::null_mut() } else { dlsym(handle, name.as_ptr()) };
++        if symbol.is_null() {
++            eprintln!("ZAKURO_TRACE_LIB: no recomp_trace_dump in {}", path.to_string_lossy());
++            return None;
++        }
++        Some(std::mem::transmute::<*mut c_void, extern "C" fn(u64)>(symbol))
++    }
++}
++
++#[cfg(not(unix))]
++fn trace_dump() -> Option<extern "C" fn(u64)> {
++    None
+ }
+ 
+ impl Probe {
+@@ -61,7 +93,7 @@ impl Probe {
+                 holds.push(Hold { first, last, buttons, touch });
+             }
+         }
+-        Probe { dump_dir, every, holds }
++        Probe { dump_dir, every, holds, trace: trace_dump() }
+     }
+ 
+     pub fn before_frame(&self, system: &mut System, frame: u64) {
+@@ -79,10 +111,13 @@ impl Probe {
+     }
+ 
+     pub fn after_frame(&self, system: &mut System, frame: u64) {
+-        let Some(dir) = &self.dump_dir else { return };
+         if frame % self.every != 0 {
+             return;
+         }
++        if let Some(dump) = self.trace {
++            dump(frame);
++        }
++        let Some(dir) = &self.dump_dir else { return };
+         for (name, screen) in [("top", zakuro_common::Screen::Top), ("bottom", zakuro_common::Screen::Bottom)] {
+             // the GPU's picture at its resolution when it draws the 3D,
+             // else the console's framebuffer

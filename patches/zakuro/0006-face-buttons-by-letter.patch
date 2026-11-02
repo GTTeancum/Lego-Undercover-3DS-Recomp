@@ -1,0 +1,112 @@
+diff --git a/crates/zakuro/src/gamepad.rs b/crates/zakuro/src/gamepad.rs
+index 908b5c9..f1127ab 100644
+--- a/crates/zakuro/src/gamepad.rs
++++ b/crates/zakuro/src/gamepad.rs
+@@ -91,10 +91,10 @@ impl Gamepads {
+ /// a controller button as a person would call it.
+ pub fn button_name(button: Button) -> &'static str {
+     match button {
+-        Button::South => "Bottom face",
+-        Button::East => "Right face",
+-        Button::North => "Top face",
+-        Button::West => "Left face",
++        Button::South => "A (bottom face)",
++        Button::East => "B (right face)",
++        Button::North => "Y (top face)",
++        Button::West => "X (left face)",
+         Button::LeftTrigger => "LB / L1",
+         Button::RightTrigger => "RB / R1",
+         Button::LeftTrigger2 => "LT / L2",
+diff --git a/crates/zakuro/src/settings.rs b/crates/zakuro/src/settings.rs
+index d54b569..aaa5a1b 100644
+--- a/crates/zakuro/src/settings.rs
++++ b/crates/zakuro/src/settings.rs
+@@ -384,10 +384,11 @@ pub struct PadButtons {
+ impl Default for PadButtons {
+     fn default() -> Self {
+         PadButtons {
+-            a: Button::East,
+-            b: Button::South,
+-            x: Button::North,
+-            y: Button::West,
++            // each 3DS button on the Xbox-style button of the same letter
++            a: Button::South,
++            b: Button::East,
++            x: Button::West,
++            y: Button::North,
+             l: Button::LeftTrigger,
+             r: Button::RightTrigger,
+             start: Button::Start,
+@@ -496,6 +497,12 @@ pub struct Settings {
+     pub background_opacity: f32,
+     pub keys: Keys,
+     pub pad: PadButtons,
++    /// the controller's face buttons go by their letters, A on A. settings
++    /// saved before that had them by place, A on the right one, and get
++    /// moved over once if they still had those defaults. missing from a
++    /// saved file, it is false, whatever a new one starts with.
++    #[serde(default)]
++    pub pad_by_letter: bool,
+     /// the enhancements turned on, by name, for each game by its title id.
+     pub enhancements: std::collections::BTreeMap<String, Vec<String>>,
+     /// what the console's cameras see, and the picture when it is one.
+@@ -539,6 +546,7 @@ impl Default for Settings {
+             background_opacity: 0.35,
+             keys: Keys::default(),
+             pad: PadButtons::default(),
++            pad_by_letter: true,
+             enhancements: std::collections::BTreeMap::new(),
+             camera: CameraSource::Webcam,
+             camera_picture: None,
+@@ -583,7 +591,7 @@ impl Settings {
+     pub fn load() -> Settings {
+         let Some(path) = path() else { return Settings::default() };
+         match std::fs::read_to_string(&path) {
+-            Ok(text) => toml::from_str(&text).unwrap_or_else(|error| {
++            Ok(text) => toml::from_str(&text).map(Settings::by_letter).unwrap_or_else(|error| {
+                 // kept aside, the next save would write over it
+                 let aside = path.with_extension("toml.bad");
+                 let _ = std::fs::copy(&path, &aside);
+@@ -594,6 +602,21 @@ impl Settings {
+         }
+     }
+ 
++    /// face buttons by letter, for settings saved when they went by place
++    /// and still have those defaults.
++    fn by_letter(mut self) -> Settings {
++        if !self.pad_by_letter {
++            let pad = &self.pad;
++            let by_place = (pad.a, pad.b, pad.x, pad.y) == (Button::East, Button::South, Button::North, Button::West);
++            if by_place {
++                let letters = PadButtons::default();
++                (self.pad.a, self.pad.b, self.pad.x, self.pad.y) = (letters.a, letters.b, letters.x, letters.y);
++            }
++            self.pad_by_letter = true;
++        }
++        self
++    }
++
+     pub fn save(&self) {
+         let Some(path) = path() else { return };
+         let written = toml::to_string_pretty(self)
+@@ -629,6 +652,20 @@ fn path() -> Option<PathBuf> {
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn face_buttons_go_by_letter() {
++        let pad = Settings::default().pad;
++        assert_eq!((pad.a, pad.b, pad.x, pad.y), (Button::South, Button::East, Button::West, Button::North));
++        // saved with the old defaults: moved over once
++        let old: Settings = toml::from_str("[pad]\na = \"East\"\nb = \"South\"\nx = \"North\"\ny = \"West\"\n").unwrap();
++        let old = old.by_letter();
++        assert_eq!((old.pad.a, old.pad.b, old.pad.x, old.pad.y), (Button::South, Button::East, Button::West, Button::North));
++        assert!(old.pad_by_letter);
++        // chosen by place after that: kept
++        let chosen: Settings = toml::from_str("pad_by_letter = true\n[pad]\na = \"East\"\nb = \"South\"\nx = \"North\"\ny = \"West\"\n").unwrap();
++        assert_eq!(chosen.by_letter().pad.a, Button::East);
++    }
++
+     #[test]
+     fn settings_come_back_as_they_were_saved() {
+         let mut settings =
