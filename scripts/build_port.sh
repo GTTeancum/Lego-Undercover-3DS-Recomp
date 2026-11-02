@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the standalone port on Linux (Windows: scripts/windows/build-port.ps1).
 # Usage: scripts/build_port.sh <game.cci> [--target x86_64-pc-windows-gnu]
-# Output: work/port/target/[<target>/]release/lego-city-undercover[.exe]
+# Output: work/port (or $PORT_DIR)/target/[<target>/]release/lego-city-undercover[.exe]
 # The program contains the game's code compiled: for your own copy only.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -14,7 +14,7 @@ LIB="${XDG_DATA_HOME:-$HOME/.local/share}/3dsrecomp"
 mkdir -p "$LIB"
 cp "$ROOT/hints/00040000000AD500.hints" "$LIB/"
 
-PORT="$ROOT/work/port"
+PORT="${PORT_DIR:-$ROOT/work/port}"
 rm -rf "$PORT"
 if [ "${1:-}" = "--target" ] && [[ "$2" == *windows-gnu ]]; then
   # cross-compiling: the game's C has to be built by MinGW too
