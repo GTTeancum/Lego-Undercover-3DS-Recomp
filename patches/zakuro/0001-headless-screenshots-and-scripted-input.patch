@@ -1,0 +1,131 @@
+diff --git a/crates/zakuro/src/headless_probe.rs b/crates/zakuro/src/headless_probe.rs
+new file mode 100644
+index 0000000..07ac578
+--- /dev/null
++++ b/crates/zakuro/src/headless_probe.rs
+@@ -0,0 +1,99 @@
++//! Screenshots and scripted input for --headless runs, set through the
++//! environment so the command line stays as upstream has it.
++//!
++//! ZAKURO_DUMP_DIR    folder for top_<frame>.png / bottom_<frame>.png
++//! ZAKURO_DUMP_EVERY  frames between dumps (default 60)
++//! ZAKURO_INPUT       script file, one hold per line:
++//!                    `<first frame> <last frame> <BUTTON>[+<BUTTON>...]`
++//!                    buttons are PadState names (A, B, START, UP, ...),
++//!                    `TOUCH:x,y` touches the bottom screen; `#` comments.
++
++use std::path::PathBuf;
++
++use zakuro_core::services::hid::{InputState, PadState};
++use zakuro_core::System;
++
++struct Hold {
++    first: u64,
++    last: u64,
++    buttons: PadState,
++    touch: Option<(u16, u16)>,
++}
++
++pub struct Probe {
++    dump_dir: Option<PathBuf>,
++    every: u64,
++    holds: Vec<Hold>,
++}
++
++impl Probe {
++    pub fn from_env() -> Probe {
++        let dump_dir = std::env::var_os("ZAKURO_DUMP_DIR").map(PathBuf::from);
++        if let Some(dir) = &dump_dir {
++            let _ = std::fs::create_dir_all(dir);
++        }
++        let every = std::env::var("ZAKURO_DUMP_EVERY").ok().and_then(|v| v.parse().ok()).unwrap_or(60).max(1);
++        let mut holds = Vec::new();
++        if let Some(path) = std::env::var_os("ZAKURO_INPUT") {
++            let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("ZAKURO_INPUT: {e}"));
++            for (n, line) in text.lines().enumerate() {
++                let line = line.split('#').next().unwrap_or("").trim();
++                if line.is_empty() {
++                    continue;
++                }
++                let parts: Vec<&str> = line.split_whitespace().collect();
++                let bad = || -> ! { panic!("ZAKURO_INPUT line {}: `{line}`", n + 1) };
++                if parts.len() != 3 {
++                    bad();
++                }
++                let first = parts[0].parse().unwrap_or_else(|_| bad());
++                let last = parts[1].parse().unwrap_or_else(|_| bad());
++                let mut buttons = PadState::empty();
++                let mut touch = None;
++                for name in parts[2].split('+') {
++                    if let Some(xy) = name.strip_prefix("TOUCH:") {
++                        let (x, y) = xy.split_once(',').unwrap_or_else(|| bad());
++                        touch = Some((x.parse().unwrap_or_else(|_| bad()), y.parse().unwrap_or_else(|_| bad())));
++                    } else if name != "NONE" {
++                        buttons |= PadState::from_name(name).unwrap_or_else(|| bad());
++                    }
++                }
++                holds.push(Hold { first, last, buttons, touch });
++            }
++        }
++        Probe { dump_dir, every, holds }
++    }
++
++    pub fn before_frame(&self, system: &mut System, frame: u64) {
++        if self.holds.is_empty() {
++            return;
++        }
++        let mut input = InputState::default();
++        for hold in self.holds.iter().filter(|h| (h.first..=h.last).contains(&frame)) {
++            input.buttons |= hold.buttons;
++            if hold.touch.is_some() {
++                input.touch = hold.touch;
++            }
++        }
++        system.set_input(input);
++    }
++
++    pub fn after_frame(&self, system: &mut System, frame: u64) {
++        let Some(dir) = &self.dump_dir else { return };
++        if frame % self.every != 0 {
++            return;
++        }
++        for (name, screen) in [("top", zakuro_common::Screen::Top), ("bottom", zakuro_common::Screen::Bottom)] {
++            let rgba = system.read_screen(screen);
++            let path = dir.join(format!("{name}_{frame:06}.png"));
++            match image::RgbaImage::from_raw(screen.width(), screen.height(), rgba) {
++                Some(img) => {
++                    if let Err(e) = img.save(&path) {
++                        eprintln!("dump {}: {e}", path.display());
++                    }
++                }
++                None => eprintln!("dump {}: wrong buffer size", path.display()),
++            }
++        }
++    }
++}
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 89ce04c..36c84b4 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -7,6 +7,7 @@ mod camera;
+ mod cli;
+ mod gamepad;
+ mod gui;
++mod headless_probe;
+ mod input;
+ mod library;
+ mod menus;
+@@ -297,9 +298,12 @@ fn run_headless(system: &mut System, frames: u64) {
+     let start = Instant::now();
+     let mut outcome = FrameOutcome::Completed;
+     let mut ran = 0;
+-    for _ in 0..frames {
++    let probe = headless_probe::Probe::from_env();
++    for frame in 0..frames {
++        probe.before_frame(system, frame);
+         outcome = system.run_frame();
+         ran += 1;
++        probe.after_frame(system, frame + 1);
+         if outcome != FrameOutcome::Completed {
+             break;
+         }

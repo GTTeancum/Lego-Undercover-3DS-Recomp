@@ -25,11 +25,15 @@ branch.
 
 | Milestone | State |
 |---|---|
-| Boots in Zakuro's interpreter | not yet tested |
+| Boots in Zakuro's interpreter | ✅ logos, intro, language select (~frame 840) |
+| Title screen / menus | ✅ title, New Game, save slot, autosave |
+| Gameplay | ✅ intro cutscenes, then in control in Cherry Tree Hills by ~frame 8100 (interpreter only, headless, software rasterizer) |
 | Recompiled build | not yet tested |
-| Title screen / menus | — |
-| Gameplay | — |
 | Standalone port | — |
+
+Reproduce: `scripts/run_headless.sh 9000 inputs/boot_to_gameplay.txt --interpreter`
+(about 5 minutes on 4 cores). The only warnings logged were unimplemented
+`cecd:u` (StreetPass) commands.
 
 ## Layout
 
@@ -37,6 +41,8 @@ branch.
 - `config/upstream.json` — pinned 3dsrecomp and Zakuro commits.
 - `scripts/setup.sh` — fetch and build both at the pinned commits, applying `patches/`.
 - `scripts/verify_rom.sh` — check a ROM against the supported revision.
+- `scripts/run_headless.sh` — headless run with screenshots every N frames (`ZAKURO_DUMP_EVERY`) and an optional input script; writes `work/runs/<time>/sheet.png`.
+- `inputs/` — scripted input (`<first frame> <last frame> <BUTTON>[+BUTTON]`, or `TOUCH:x,y`).
 - `patches/` — local changes to 3dsrecomp or Zakuro.
 - `overrides/` — hand-written C replacements for game functions.
 - `game/` — your own decrypted ROM; ignored by Git.
