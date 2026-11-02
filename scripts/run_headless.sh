@@ -6,7 +6,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FRAMES="$1"; shift
 INPUT="${1:-}"; [ $# -gt 0 ] && shift
-ROM="$(ls "$ROOT"/game/*.cci "$ROOT"/game/*.3ds 2>/dev/null | head -1)"
+shopt -s nullglob; roms=("$ROOT"/game/*.cci "$ROOT"/game/*.3ds); shopt -u nullglob
+[ ${#roms[@]} -gt 0 ] || { echo "no ROM in $ROOT/game" >&2; exit 1; }
+ROM="${roms[0]}"
 OUT="$ROOT/work/runs/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$OUT" "$ROOT/work/data"
 export ZAKURO_DUMP_DIR="$OUT" ZAKURO_DUMP_EVERY="${ZAKURO_DUMP_EVERY:-180}"
