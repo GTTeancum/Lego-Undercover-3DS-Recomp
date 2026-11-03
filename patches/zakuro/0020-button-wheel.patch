@@ -1,0 +1,148 @@
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 7389641..196d96c 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -396,6 +396,7 @@ fn run_headless(system: &mut System, frames: u64) {
+             title_hooks::tap_input(system, &mut taps, input);
+             let open = taps.map_cursor().is_some();
+             title_hooks::map_mode(&view, &mut taps, input);
++            title_hooks::button_wheel(system, &mut taps, input);
+             if open != taps.map_cursor().is_some() {
+                 eprintln!("frame {frame}: map mode {}", if open { "closed" } else { "open" });
+             }
+@@ -1448,6 +1449,7 @@ impl App {
+         title_hooks::tap_input(&mut game.system, &mut game.taps, &mut input);
+         let was_open = game.taps.map_cursor().is_some();
+         title_hooks::map_mode(&game.bottom_view, &mut game.taps, &mut input);
++        title_hooks::button_wheel(&mut game.system, &mut game.taps, &mut input);
+         let map_changed = was_open != game.taps.map_cursor().is_some();
+         game.frame += 1;
+         if let Some(recorder) = &mut game.recorder {
+@@ -1721,6 +1723,7 @@ impl App {
+             let (_, bottom) = layout(size.width, size.height, shown, self.top_shape.width(), self.settings.integer_scale);
+             bottom.map(|b| ((b.x + x / 320.0 * b.width) / scale, (b.y + y / 240.0 * b.height) / scale, b.width / 320.0 / scale))
+         });
++        let wheel = self.game.as_ref().and_then(|game| game.taps.wheel_view());
+         let (menus, library, settings, jobs) = (&mut self.menus, &self.library, &mut self.settings, &self.jobs);
+         let mut actions = Vec::new();
+         let overlay = gui.frame(window, |ui| {
+@@ -1745,6 +1748,29 @@ impl App {
+             }
+             actions.extend(menus.compiler_offer(ui.ctx()));
+             menus.message(ui.ctx());
++            if let Some((names, selected)) = &wheel {
++                // the button wheel, in the middle of the window
++                let ctx = ui.ctx();
++                let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("button wheel")));
++                let centre = ctx.content_rect().center();
++                let radius = ctx.content_rect().height().min(ctx.content_rect().width()) * 0.22;
++                painter.circle_filled(centre, radius * 1.45, egui::Color32::from_black_alpha(140));
++                for (i, name) in names.iter().enumerate() {
++                    let angle = i as f32 / names.len() as f32 * std::f32::consts::TAU;
++                    let at = centre + egui::vec2(angle.sin(), -angle.cos()) * radius;
++                    let chosen = *selected == Some(i);
++                    if chosen {
++                        painter.circle_filled(at, radius * 0.36, egui::Color32::from_rgb(40, 120, 220));
++                    }
++                    painter.text(
++                        at,
++                        egui::Align2::CENTER_CENTER,
++                        *name,
++                        egui::FontId::proportional(radius * 0.16),
++                        if chosen { egui::Color32::WHITE } else { egui::Color32::from_gray(220) },
++                    );
++                }
++            }
+             if let Some((x, y, pixel)) = map_cursor {
+                 let painter = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("map cursor")));
+                 let centre = egui::pos2(x, y);
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index fbd8816..60fdd9b 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -230,9 +230,34 @@ pub struct Taps {
+     /// pixels) and its number.
+     point: Option<(f32, f32, u32)>,
+     point_serial: u32,
++    /// frames LB has been held, on foot.
++    lb_frames: u32,
++    /// the button wheel, while open: the buttons on it (wheel indices) and
++    /// the one the right stick points at.
++    wheel: Option<(Vec<usize>, Option<usize>)>,
++    wheel_serial: u32,
+ }
+ 
++/// the bottom screen's buttons by wheel index (overrides/map_buttons.c).
++pub const WHEEL_NAMES: [&str; 8] = ["Scan", "Exit", "Disguise", "Audio", "Red Bricks", "Free Play", "Hint", "Area exit"];
++/// the character switch's wheel index, LB's when tapped.
++const WHEEL_CHARS: usize = 2;
++/// frames LB is held before the wheel opens; a shorter press is a tap.
++const WHEEL_DELAY: u32 = 10;
++/// what overrides/map_buttons.c says is shown: "BTN!", a mask by index.
++const BUTTONS_SHOWN: u32 = 0x005A_4F90;
++/// the wheel's choice, for overrides/map_buttons.c: "WHL!", index, number.
++const WHEEL_REQUEST: u32 = 0x005A_4FA0;
++
+ impl Taps {
++    /// the wheel while it is open: each button's name, and which the right
++    /// stick points at.
++    pub fn wheel_view(&self) -> Option<(Vec<&'static str>, Option<usize>)> {
++        self.wheel.as_ref().map(|(choices, selected)| {
++            (choices.iter().map(|&i| WHEEL_NAMES[i]).collect(), selected.and_then(|s| choices.iter().position(|&c| c == s)))
++        })
++    }
++
+     /// where map mode's cursor is on the bottom screen (pixels), while it
+     /// is open.
+     pub fn map_cursor(&self) -> Option<(f32, f32)> {
+@@ -322,3 +347,50 @@ pub fn tap_input(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::
+         input.touch = Some(taps.at);
+     }
+ }
++
++/// LB on foot: tapped, the character switch; held, a wheel of the buttons
++/// the bottom screen shows, the right stick picking one (the camera holds
++/// still meanwhile) and letting go of LB pressing it.
++pub fn button_wheel(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
++    use zakuro_core::services::hid::HOST_L;
++    if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
++        return;
++    }
++    let shown = if read_u32(system, BUTTONS_SHOWN) == u32::from_le_bytes(*b"BTN!") { read_u32(system, BUTTONS_SHOWN + 4) } else { 0 };
++    let mut choose = None;
++    if input.host & HOST_L != 0 {
++        taps.lb_frames += 1;
++        if taps.lb_frames >= WHEEL_DELAY && taps.wheel.is_none() {
++            let choices: Vec<usize> = (0..WHEEL_NAMES.len()).filter(|&i| shown & (1 << i) != 0).collect();
++            if !choices.is_empty() {
++                taps.wheel = Some((choices, None));
++            }
++        }
++        if let Some((choices, selected)) = &mut taps.wheel {
++            let (x, y) = (input.c_stick_x, input.c_stick_y);
++            if x.hypot(y) > 0.5 {
++                // the choices around the wheel clockwise from the top
++                let angle = x.atan2(y).rem_euclid(std::f32::consts::TAU);
++                let slot = (angle / std::f32::consts::TAU * choices.len() as f32 + 0.5) as usize % choices.len();
++                *selected = Some(choices[slot]);
++            }
++            input.c_stick_x = 0.0;
++            input.c_stick_y = 0.0;
++        }
++    } else if taps.lb_frames > 0 {
++        choose = match taps.wheel.take() {
++            Some((_, selected)) => selected,
++            None if shown & (1 << WHEEL_CHARS) != 0 => Some(WHEEL_CHARS),
++            None => None,
++        };
++        taps.lb_frames = 0;
++    }
++    if let Some(index) = choose {
++        taps.wheel_serial = taps.wheel_serial.wrapping_add(1);
++        let mut block = Vec::with_capacity(12);
++        block.extend_from_slice(b"WHL!");
++        block.extend_from_slice(&(index as u32).to_le_bytes());
++        block.extend_from_slice(&taps.wheel_serial.to_le_bytes());
++        system.memory.write_bytes(WHEEL_REQUEST, &block);
++    }
++}
