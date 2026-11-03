@@ -1,7 +1,7 @@
-/* Tutorial tips as text on the top screen, bottom middle, drawn by the
- * game's own text printer in its font (button tags as button icons), in
- * place of the bottom screen's tip box; Zakuro hides the bottom screen while
- * one is up. See docs/bottom-screen.md.
+/* Tutorial tips and loading-screen tips as text on the top screen, bottom
+ * middle, drawn by the game's own text printer in its font (button tags as
+ * button icons), in place of the bottom screen's boxes; Zakuro hides the
+ * bottom screen while one is up. See docs/bottom-screen.md.
  *
  * Where: the gameplay renderer f_002E4858(this, phase) draws one screen a
  * frame (0x00529DA0 +0x3C8: 0 top, 1 bottom; it flips every frame in
@@ -133,50 +133,102 @@ static void whole_screen(Context *ctx) {
     for (int i = 0; i < 4; i++) mem_write32(ctx, TEXT_BOX + 4 * i, b[i]);
 }
 
-static void draw(Context *ctx, uint32_t font, uint32_t text, uint32_t stack) {
+/* prints text (a host string) on the screen being drawn, centred at
+ * (x, y), in the given font, the way the tip box prints */
+static void draw(Context *ctx, uint32_t font, const char *text, float x, float y, uint32_t stack) {
+    /* the text in a buffer below the stack, for its tags to become glyphs
+       in place, as the printf formats into its own */
+    uint32_t buffer = (stack - 0x800u) & ~7u;
+    uint32_t n = 0;
+    for (; n < 0x7FF && text[n]; n++) mem_write8(ctx, buffer + n, (uint8_t)text[n]);
+    mem_write8(ctx, buffer + n, 0);
+    ctx->r[13] = buffer - 8;
     mem_write32(ctx, DRAW_ALPHA, 0x80);
     mem_write32(ctx, DRAW_LAYER, 0x3D);
     GAME_CALL(00255244, font, 0, 0, 0);
     ctx->vfp[0] = bits(0.0f);
-    GAME_CALL(001A0FF8, text, 1, 0, 0);
+    GAME_CALL(001A0FF8, buffer, 1, 0, 0);
     GAME_CALL(002551CC, font, 4, 5, 0);
     GAME_CALL(00235CB0, font, (uint32_t)ALIGN, 0, 0);
     GAME_CALL(002551C4, font, COLOUR, 0, 0);
     GAME_CALL(00229120, font, 0xFF, 0, 0);
-    ctx->vfp[0] = bits(TIP_X);
-    ctx->vfp[1] = bits(TIP_Y);
+    ctx->vfp[0] = bits(x);
+    ctx->vfp[1] = bits(y);
     GAME_CALL(00254D80, 0, 0, 0, 0);
     whole_screen(ctx);
-    /* the text, copied to a buffer below the stack for its tags to become
-       glyphs, as the printf formats into its own */
-    uint32_t buffer = (stack - 0x800u) & ~7u;
-    uint32_t n = 0;
-    for (; n < 0x7FF; n++) {
-        uint8_t c = mem_read8(ctx, text + n);
-        mem_write8(ctx, buffer + n, c);
-        if (!c) break;
-    }
-    mem_write8(ctx, buffer + n, 0);
-    ctx->r[13] = buffer - 8;
     GAME_CALL(002244D8, buffer, 0, 0, 0);
     GAME_CALL(00195408, font, 0, buffer, 0);
 }
 
-static void print_tip(Context *ctx) {
-    uint32_t font = mem_read32(ctx, UI_FONT);
-    if (!font) return;
+/* prints text on the screen being drawn, leaving the game's state as it
+ * was */
+static void print_text(Context *ctx, uint32_t font, const char *text, float x, float y) {
+    if (!font || !text[0]) return;
     Saved k;
     save(ctx, &k, font);
     printing = 1;
-    draw(ctx, font, mem_read32(ctx, NOTICE_TEXT), k.r[13]);
+    draw(ctx, font, text, x, y, k.r[13]);
     printing = 0;
-    /* back to where the dispatcher was entered; a call that stopped early
-       (it should not, with the time slice lifted) leaves the print short */
+    /* back to where the caller was; a call that stopped early (it should
+       not, with the time slice lifted) leaves the print short */
     ctx->exit = 0;
     restore(ctx, &k);
 }
 
+static void read_string(Context *ctx, uint32_t from, char *to, unsigned size) {
+    unsigned i = 0;
+    for (; i + 1 < size; i++) {
+        uint8_t c = mem_read8(ctx, from + i);
+        if (!c) break;
+        to[i] = (char)c;
+    }
+    to[i] = 0;
+}
+
 RECOMP_OVERRIDE(0x00245F9C) {
-    if (!printing && mem_read32(ctx, SCREEN) == 0 && tip_up(ctx)) print_tip(ctx);
+    if (!printing && mem_read32(ctx, SCREEN) == 0 && tip_up(ctx)) {
+        char text[0x800];
+        read_string(ctx, mem_read32(ctx, NOTICE_TEXT), text, sizeof text);
+        print_text(ctx, mem_read32(ctx, UI_FONT), text, TIP_X, TIP_Y);
+    }
     CALL(RECOMP_ORIGINAL(0x00245F9C));
+}
+
+/* Text the bottom screen prints that belongs on the top screen: the
+ * loading screen's tip (its renderer f_00303E78 prints "%s %s" of "Tip:"
+ * and the tip, returning to 0x003041C0). (A cutscene video's subtitles,
+ * printed returning to 0x002E18F4, cannot go this way: the video's frame
+ * is copied over the top screen after everything drawn there, so Zakuro
+ * moves their text as a piece instead.) screen_frame_counters.c, which wraps
+ * the printf, hands each print here (top_text_seen) with the font it uses;
+ * the render loop f_0025BE10(phase, modes, count), which draws every
+ * active mode for one phase, prints the text last seen at the bottom middle
+ * of the top screen after a top-screen frame's last phase (6). A print
+ * not repeated within a few frames has gone. */
+#define LOADING_PRINT   0x003041C0u
+#define LAST_PHASE      6
+#define BOTTOM_TEXT_Y   208.0f
+
+typedef struct { uint32_t from, font; unsigned age; char text[0x400]; } Moved;
+#define MOVED 1
+static Moved moved[MOVED] = { { LOADING_PRINT, 0, 1000, "" } };
+
+void top_text_seen(Context *ctx, uint32_t return_address, uint32_t text) {
+    if (printing) return;
+    for (int i = 0; i < MOVED; i++) {
+        if (moved[i].from != return_address) continue;
+        read_string(ctx, text, moved[i].text, sizeof moved[i].text);
+        moved[i].font = mem_read32(ctx, CURRENT_FONT);
+        moved[i].age = 0;
+    }
+}
+
+RECOMP_OVERRIDE(0x0025BE10) {
+    uint32_t phase = ctx->r[0];
+    CALL(RECOMP_ORIGINAL(0x0025BE10));
+    if (phase != LAST_PHASE || printing || mem_read32(ctx, SCREEN) != 0) return;
+    for (int i = 0; i < MOVED; i++) {
+        if (moved[i].age++ > 8) continue;
+        print_text(ctx, moved[i].font, moved[i].text, TIP_X, BOTTOM_TEXT_Y);
+    }
 }

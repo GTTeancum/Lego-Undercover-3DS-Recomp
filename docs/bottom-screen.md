@@ -129,6 +129,22 @@ below; preview composed from the dumps); not seen in a window yet.
 To test without playing there: `LEGO_OPEN_SHOP=4` (or 0) with
 `LEGO_OPEN_SHOP_AFTER=<frames>` makes `overrides/debug_open_shop.c` open one.
 
+**Loading-screen tips**: the loading renderer `f_00303E78(this, phase)`
+prints "%s %s" ("Tip:" and the tip) on the bottom screen in phase 6
+(printf returning to 0x003041C0). `overrides/tip_text.c` takes the text and
+font from that print (through the printf wrapper in
+`screen_frame_counters.c`) and prints it again at the bottom middle of the
+top screen after the top frame's last phase, which it finds by wrapping the
+render loop `f_0025BE10(phase, modes, count)` that draws every active mode
+for one phase (called by the frame `f_0010130C` for phases 1-6). Zakuro
+patch 0015 hides the bottom screen on the loading screen. Status: works
+headless.
+
+Cutscene video subtitles (printed returning to 0x002E18F4) can't be done
+this way: the video's frame is copied over the top screen after everything
+drawn there (text printed after any phase is gone), so Zakuro still moves
+their text as a piece.
+
 ### Drawing on a screen from an override
 
 - In gameplay the renderer `f_002E4858(this, phase)` draws one screen a

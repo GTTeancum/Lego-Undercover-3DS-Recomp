@@ -1,0 +1,17 @@
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 664638a..23483a5 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -149,9 +149,10 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+         let pieces = if ran_video(TEXT) { vec![piece([12.0, 18.0, 295.0, 64.0], 0.5, 0.87, 0.85, PieceShape::Text)] } else { Vec::new() };
+         return BottomView { hide: pieces.is_empty(), pieces, round: false, swap: false };
+     }
+-    // the loading screen: just its tip's text (y 112-230) under the badge
++    // the loading screen: overrides/tip_text.c has the game print its tip
++    // on the top screen, so nothing of the bottom one is needed
+     if ran(LOADING) {
+-        return BottomView { hide: false, pieces: vec![piece([14.0, 112.0, 292.0, 114.0], 0.5, 0.78, 0.85, PieceShape::Text)], round: false, swap: false };
++        return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false };
+     }
+     // a shop (red bricks, extras): its menu on the bottom screen is all there
+     // is to do, so it fills the window, with the top screen's stud counter

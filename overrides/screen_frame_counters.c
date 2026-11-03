@@ -37,12 +37,15 @@ RECOMP_OVERRIDE(0x0014FFBC) {
     count(ctx, 1);
 }
 
+void top_text_seen(Context *ctx, uint32_t return_address, uint32_t text);  /* tip_text.c */
+
 RECOMP_OVERRIDE(0x00303E78) {
     CALL(RECOMP_ORIGINAL(0x00303E78));
     count(ctx, 2);
 }
 
 RECOMP_OVERRIDE(0x00235CC4) {
+    top_text_seen(ctx, ctx->r[14], ctx->r[0]);
     CALL(RECOMP_ORIGINAL(0x00235CC4));
     count(ctx, 3);
 }
