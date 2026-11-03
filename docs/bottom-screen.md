@@ -104,6 +104,16 @@ the bottom screen, and `overrides/tip_text.c` has the game print the tip's
 text, button icons included, at the bottom middle of the top screen in its
 own font. Status: works (headless, both opening tips).
 
+**Story dialogue** (`ShowDialogueText`/`ShowDialogueTextTimed`,
+`f_0026FF84`/`f_002A6D90` → `f_001B1314(text id, -1, speaker)`): the text
+(with the speaker) is copied to `0x0051893C +0x1B0`, the portrait path to
++0x2C, and the panel's state at +0x10 is 2 while it is up. That panel
+(callback `f_001CC760`) is on the top screen's list, so the game already
+draws dialogue on the top screen; in cutscenes the bottom screen shows the
+wipe, which is hidden. Seen headless in the opening (frames 3000-3400).
+Dialogue on the bottom screen has not been seen yet; if one turns up, its
+call is the place to look.
+
 **Shops** (red bricks, the police station's extras): the script commands
 `HubShop`, `RedBrickShop`, `CharacterShop`, `VehicleShop` call
 `f_002133C4(type, 0)` (0 hub, 4 red bricks), which records the request at
@@ -192,7 +202,7 @@ scenes under `sprites/blend/`, loaded by `f_00217430(path, …)`; sprites are
 | **Map** (minimap scene, level map textures, player icon, mission and pulse icons) | `sprites/ui_bottomscreen/maps/` (70), `mapiconmission`, `mapiconpulse` | `f_002DC284` (DRC setup), `f_001EE4E0` (map textures) | bottom | yes: `f_002D9F84`/`f_001EE730` via `f_0020A620`; stylus drag = camera (TouchCameraSystem) |
 | **Map button bar**: Scan, Chars (character switch), Audio, Exit, Red Bricks, Free Play, Hint, fast travel, zoom in/out, portraits per character class | `sprites/blend/mapbuttons/` (37), `ui_bottomscreen/drc_*`, `character_*` | `f_002DC284`; shown/hidden by the functions in the API table | bottom | yes (buttons) |
 | **Hexagon wipe** (idle badge screen, map open/close transition) | `sprites/blend/drc_wipe/` (13) | `f_002DC284` (+488), `f_00194830` (`MainWindow`) | bottom | no |
-| **Dialogue box** (story/radio text on the bottom screen) | `sprites/ui_dialog/` (12), `ui_bottomscreena/b` | `f_002DC284` (+47C/+480), `f_001A0494`; drawn by vtable slot `f_002D93D0` | bottom | ? |
+| **Dialogue box** (story text; drawn on the top screen, see Story dialogue) | `sprites/ui_dialog/` (12), `ui_bottomscreena/b` | `f_002DC284` (+47C/+480), `f_001A0494`; drawn by vtable slot `f_002D93D0` | bottom | ? |
 | **Scanner** (visual scan, audio scan, conversation decrypt, distance meter, crosshair, scan meter, object icons) | `sprites/blend/drc_scanner/` (156) | `f_001BEB1C` | ? (Wii U: GamePad) | ? |
 | **Safe Crack minigame** | `sprites/ui_bottomscreen/safe_crack/` (14) | `f_002FDEAC`; class vtable `0x003633F8` | bottom | yes: `f_002FD52C` (vtable +0x48) |
 | **Wiretap minigame** | `ui_bottomscreen/wiretap` | `f_0031D754` | bottom | ? |
