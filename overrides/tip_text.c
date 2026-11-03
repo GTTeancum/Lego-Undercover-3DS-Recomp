@@ -1,122 +1,182 @@
-/* Tutorial tips as text on the top screen, drawn by the game's own text
- * printer, in place of the bottom screen's tip box (Zakuro hides the bottom
- * screen while one is up). See docs/bottom-screen.md.
+/* Tutorial tips as text on the top screen, bottom middle, drawn by the
+ * game's own text printer in its font (button tags as button icons), in
+ * place of the bottom screen's tip box; Zakuro hides the bottom screen while
+ * one is up. See docs/bottom-screen.md.
  *
- * After the top screen's HUD is drawn (see below), while a notice is up (0x00517E68 +0x10) that a tutorial tip showed (the
+ * Where: the gameplay renderer f_002E4858(this, phase) draws one screen a
+ * frame (0x00529DA0 +0x3C8: 0 top, 1 bottom; it flips every frame in
+ * gameplay). Its last phase sets up 2D drawing and runs the panel
+ * dispatcher f_00245F9C(list) (from f_001EEBB4): list 0x00518188 holds the
+ * top screen's panels, 0x00518198 the bottom's (the tip box is one of
+ * those). The tip is printed just before a top-screen dispatch, in that 2D
+ * state.
+ *
+ * When: a notice is up (0x00517E68 +0x10) that a tutorial tip showed (the
  * ShowTipTextOnce / ShowTipTextTimed calls, return addresses 0x002638D0 and
- * 0x00270068, recorded at 0x005A4F44 by screen_frame_counters.c), this
- * prints the notice's text (+0x30) at the bottom middle, the way the HUD
- * prints its own text (f_00286A54):
- *   font = f_00220674(12)            a font by size
- *   f_00255244(font)                 make it the current font
- *   f_00235CB0(font, ALIGN)          alignment
- *   f_002551F8(font, 0, 1, 0, 0, 0)  scale and flags
- *   f_00229120(font, 0xFF)           alpha
- *   f_002551C4(font, COLOUR)         colour, 0xAABBGGRR
+ * 0x00270068, recorded at 0x005A4F44 by screen_frame_counters.c). Its text
+ * is at +0x30.
+ *
+ * How, as the tip box prints (f_0023C780) but without its box:
+ *   f_00255244(font)                 the UI font ([0x003757A0]) made current
+ *   f_001A0FF8(text, 1, 0)           text box and flags
+ *   f_002551CC(font, 4, 5)           blending
+ *   f_00235CB0(font, ALIGN)          alignment, 0 centred
+ *   f_002551C4 / f_00229120          colour and alpha
  *   f_00254D80(x, y)                 position, s0 and s1, top-screen pixels
- *   f_00235CC4("%s", text)           print
- * The font's fields (+0x9C colour and alpha, +0xAA..+0xB0 alignment,
- * scale, flags), the current font and the text position are put back
- * afterwards, so the game's own text is unchanged.
+ *   f_002244D8(buffer)               a copy of the text with its tags
+ *                                    (<l>, <r>...) turned into button glyphs
+ *   f_00195408(font, 0, buffer)      draw it
+ * (the printf f_00235CC4 does the last two after formatting). The 2D draw
+ * alpha and layer (0x00376300, 0x003763EC), the font's settings, the
+ * current font, the text position and the clip rectangles are put back
+ * afterwards, so the game's own drawing is unchanged.
  */
 #include <string.h>
 #include "overrides.h"
 
+#define SCREEN        (0x00529DA0u + 0x3C8u)
 #define NOTICE_UP     (0x00517E68u + 0x10u)
 #define NOTICE_TEXT   (0x00517E68u + 0x30u)
 #define NOTICE_FROM   0x005A4F44u
-#define FORMAT_S      0x0017C410u          /* "%s" in the game's data */
+#define UI_FONT       0x003757A0u            /* the tip box's font */
 #define CURRENT_FONT  (0x00376618u + 0x14u)  /* f_00255234 reads, f_00255244 sets */
 #define TEXT_POS      0x00376624u            /* f_00254D80 sets x, y */
-#define FONT_SIZE     12                     /* f_00220674 picks a font by size */
+#define DRAW_ALPHA    0x00376300u            /* 0x80 opaque */
+#define DRAW_LAYER    0x003763ECu
 
-#define ALIGN   0                          /* 0 centred, as the HUD's -1 is left */
-#define COLOUR  0xFFFFFFFFu
-#define TIP_X   200.0f
-#define TIP_Y   206.0f
+/* 2D drawing, text included, is clipped to a rectangle kept at CLIP:
+ * x0, y0, x1, y1, width, height, within the screen's bounds at BOUNDS
+ * (x0, y0, x1, y1). Text also re-clips to the text box at TEXT_BOX
+ * (x0, y0, x1, y1) unless a caller set its own clip. The tip opens both to
+ * the whole screen while it prints. */
+#define CLIP          (0x00529DA0u + 0xE4u)
+#define BOUNDS        (0x00529DA0u + 0xFCu)
+#define TEXT_BOX      0x0052EC1Cu
+
+#define ALIGN   0                            /* centred */
+#define COLOUR  0xFFFFFFFFu                  /* 0xAABBGGRR */
+#define TIP_X   200.0f                       /* top screen, 400 x 240 */
+#define TIP_Y   196.0f
 
 static int printing;
 
 static uint32_t bits(float f) { uint32_t b; memcpy(&b, &f, 4); return b; }
+static float as_float(uint32_t b) { float f; memcpy(&f, &b, 4); return f; }
 
-/* calls a game function with up to four arguments and two more on the stack */
-#define GAME_CALL(fn, a0, a1, a2, a3) do { \
-    ctx->r[0] = (a0); ctx->r[1] = (a1); ctx->r[2] = (a2); ctx->r[3] = (a3); \
-    ctx->r[14] = 0x002E4858u; \
-    CALL(fn); \
-} while (0)
-
-static uint32_t font(Context *ctx) {
-    ctx->r[14] = 0x002E4858u;
-    f_00255234(ctx);
-    return ctx->r[0];
+/* Calls a game function the way generated code does. A call can come back
+ * with r15 somewhere other than the return address (an indirect jump left
+ * to its caller, as the text code's helpers do); the caller then keeps
+ * dispatching from r15 until the return address is reached. The time
+ * slice is lifted for the call, so the thread is not handed back to the
+ * host halfway through the print. */
+#define RETURN_ADDRESS 0x00245F9Cu
+static int game_call(Context *ctx, void (*fn)(Context *), uint32_t addr) {
+    int32_t budget = ctx->budget;
+    ctx->budget = 1 << 28;
+    ctx->r[14] = RETURN_ADDRESS;
+    ctx->r[15] = addr;
+    ctx->depth++; fn(ctx); ctx->depth--;
+    while (!ctx->exit && (ctx->r[15] != RETURN_ADDRESS || ctx->thumb)) {
+        ctx->depth++; recomp_call(ctx); ctx->depth--;
+    }
+    ctx->budget = budget;
+    return !ctx->exit;
 }
 
+#define GAME_CALL(addr, a0, a1, a2, a3) do { \
+    ctx->r[0] = (a0); ctx->r[1] = (a1); ctx->r[2] = (a2); ctx->r[3] = (a3); \
+    if (!game_call(ctx, f_##addr, 0x##addr##u)) return; \
+} while (0)
+
 static int tip_up(Context *ctx) {
-    if (!mem_read32(ctx, NOTICE_UP)) return 0;
+    if (!mem_read32(ctx, NOTICE_UP) || !mem_read32(ctx, NOTICE_TEXT)) return 0;
     uint32_t from = mem_read32(ctx, NOTICE_FROM);
     return from == 0x002638D0u || from == 0x00270068u;
 }
 
-#define DEBUG_CALLS  0x005A4F48u
-#define DEBUG_PRINTS 0x005A4F4Cu
+/* the game state the print changes, kept and put back */
+typedef struct {
+    uint32_t r[16], s0, s1, thumb;
+    uint32_t current, pos[2], alpha, layer, clip[6], box[4];
+    uint32_t font, fields[6];              /* the font's +0x9C..+0xB3 */
+} Saved;
 
-static void print_tip(Context *ctx);
+static void save(Context *ctx, Saved *k, uint32_t font) {
+    memcpy(k->r, ctx->r, sizeof k->r);
+    k->s0 = ctx->vfp[0]; k->s1 = ctx->vfp[1]; k->thumb = ctx->thumb;
+    k->current = mem_read32(ctx, CURRENT_FONT);
+    k->pos[0] = mem_read32(ctx, TEXT_POS); k->pos[1] = mem_read32(ctx, TEXT_POS + 4);
+    k->alpha = mem_read32(ctx, DRAW_ALPHA); k->layer = mem_read32(ctx, DRAW_LAYER);
+    for (int i = 0; i < 6; i++) k->clip[i] = mem_read32(ctx, CLIP + 4 * i);
+    for (int i = 0; i < 4; i++) k->box[i] = mem_read32(ctx, TEXT_BOX + 4 * i);
+    k->font = font;
+    for (int i = 0; i < 6; i++) k->fields[i] = mem_read32(ctx, font + 0x9C + 4 * i);
+}
 
-/* The gameplay renderer f_002E4858(this, phase) draws one screen a frame
- * (0x00529DA0 +0x3C8: 0 top, 1 bottom; it flips every frame in gameplay).
- * Phase 6 of a top frame draws the HUD (f_001D9614), so the tip is printed
- * right after it. */
-#define SCREEN    (0x00529DA0u + 0x3C8u)
-#define HUD_PHASE 6
+static void restore(Context *ctx, const Saved *k) {
+    for (int i = 0; i < 6; i++) mem_write32(ctx, k->font + 0x9C + 4 * i, k->fields[i]);
+    for (int i = 0; i < 4; i++) mem_write32(ctx, TEXT_BOX + 4 * i, k->box[i]);
+    for (int i = 0; i < 6; i++) mem_write32(ctx, CLIP + 4 * i, k->clip[i]);
+    mem_write32(ctx, DRAW_ALPHA, k->alpha); mem_write32(ctx, DRAW_LAYER, k->layer);
+    mem_write32(ctx, TEXT_POS, k->pos[0]); mem_write32(ctx, TEXT_POS + 4, k->pos[1]);
+    mem_write32(ctx, CURRENT_FONT, k->current);
+    ctx->vfp[0] = k->s0; ctx->vfp[1] = k->s1; ctx->thumb = (uint8_t)k->thumb;
+    memcpy(ctx->r, k->r, sizeof k->r);
+}
 
-RECOMP_OVERRIDE(0x002E4858) {
-    uint32_t phase = ctx->r[1];
-    CALL(RECOMP_ORIGINAL(0x002E4858));
-    if (phase != HUD_PHASE || mem_read32(ctx, SCREEN) != 0) return;
-    mem_write32(ctx, DEBUG_CALLS, mem_read32(ctx, DEBUG_CALLS) + 1);
-    if (!printing && tip_up(ctx)) print_tip(ctx);
+static void whole_screen(Context *ctx) {
+    uint32_t b[4];
+    for (int i = 0; i < 4; i++) b[i] = mem_read32(ctx, BOUNDS + 4 * i);
+    for (int i = 0; i < 4; i++) mem_write32(ctx, CLIP + 4 * i, b[i]);
+    mem_write32(ctx, CLIP + 16, bits(as_float(b[2]) - as_float(b[0])));
+    mem_write32(ctx, CLIP + 20, bits(as_float(b[3]) - as_float(b[1])));
+    for (int i = 0; i < 4; i++) mem_write32(ctx, TEXT_BOX + 4 * i, b[i]);
+}
+
+static void draw(Context *ctx, uint32_t font, uint32_t text, uint32_t stack) {
+    mem_write32(ctx, DRAW_ALPHA, 0x80);
+    mem_write32(ctx, DRAW_LAYER, 0x3D);
+    GAME_CALL(00255244, font, 0, 0, 0);
+    ctx->vfp[0] = bits(0.0f);
+    GAME_CALL(001A0FF8, text, 1, 0, 0);
+    GAME_CALL(002551CC, font, 4, 5, 0);
+    GAME_CALL(00235CB0, font, (uint32_t)ALIGN, 0, 0);
+    GAME_CALL(002551C4, font, COLOUR, 0, 0);
+    GAME_CALL(00229120, font, 0xFF, 0, 0);
+    ctx->vfp[0] = bits(TIP_X);
+    ctx->vfp[1] = bits(TIP_Y);
+    GAME_CALL(00254D80, 0, 0, 0, 0);
+    whole_screen(ctx);
+    /* the text, copied to a buffer below the stack for its tags to become
+       glyphs, as the printf formats into its own */
+    uint32_t buffer = (stack - 0x800u) & ~7u;
+    uint32_t n = 0;
+    for (; n < 0x7FF; n++) {
+        uint8_t c = mem_read8(ctx, text + n);
+        mem_write8(ctx, buffer + n, c);
+        if (!c) break;
+    }
+    mem_write8(ctx, buffer + n, 0);
+    ctx->r[13] = buffer - 8;
+    GAME_CALL(002244D8, buffer, 0, 0, 0);
+    GAME_CALL(00195408, font, 0, buffer, 0);
 }
 
 static void print_tip(Context *ctx) {
-    mem_write32(ctx, DEBUG_PRINTS, mem_read32(ctx, DEBUG_PRINTS) + 1);
-    uint32_t text = mem_read32(ctx, NOTICE_TEXT);
-    if (!text) return;
-    /* the caller's registers, the game's current font and text position,
-       as they were */
-    uint32_t saved[16];
-    memcpy(saved, ctx->r, sizeof saved);
-    uint32_t s0 = ctx->vfp[0], s1 = ctx->vfp[1];
-    uint32_t current = mem_read32(ctx, CURRENT_FONT);
-    uint32_t pos_x = mem_read32(ctx, TEXT_POS), pos_y = mem_read32(ctx, TEXT_POS + 4);
+    uint32_t font = mem_read32(ctx, UI_FONT);
+    if (!font) return;
+    Saved k;
+    save(ctx, &k, font);
     printing = 1;
-
-    GAME_CALL(f_00220674, FONT_SIZE, 0, 0, 0);      /* a font by size */
-    uint32_t f = ctx->r[0];
-    if (f) {
-        uint32_t fields[6];                          /* +0x9C..+0xB3 */
-        for (int i = 0; i < 6; i++) fields[i] = mem_read32(ctx, f + 0x9C + 4 * i);
-        GAME_CALL(f_00255244, f, 0, 0, 0);           /* make it current */
-        GAME_CALL(f_00235CB0, f, (uint32_t)ALIGN, 0, 0);
-        ctx->r[13] -= 8;
-        mem_write32(ctx, ctx->r[13], 0);
-        mem_write32(ctx, ctx->r[13] + 4, 0);
-        GAME_CALL(f_002551F8, f, 0, 1, 0);
-        ctx->r[13] += 8;
-        GAME_CALL(f_002551C4, f, COLOUR, 0, 0);
-        GAME_CALL(f_00229120, f, 0xFF, 0, 0);
-        ctx->vfp[0] = bits(TIP_X);
-        ctx->vfp[1] = bits(TIP_Y);
-        GAME_CALL(f_00254D80, 0, 0, 0, 0);
-        GAME_CALL(f_00235CC4, FORMAT_S, text, 0, 0);
-        for (int i = 0; i < 6; i++) mem_write32(ctx, f + 0x9C + 4 * i, fields[i]);
-    }
-    mem_write32(ctx, CURRENT_FONT, current);
-    mem_write32(ctx, TEXT_POS, pos_x);
-    mem_write32(ctx, TEXT_POS + 4, pos_y);
-
+    draw(ctx, font, mem_read32(ctx, NOTICE_TEXT), k.r[13]);
     printing = 0;
-    ctx->vfp[0] = s0;
-    ctx->vfp[1] = s1;
-    memcpy(ctx->r, saved, sizeof saved);
+    /* back to where the dispatcher was entered; a call that stopped early
+       (it should not, with the time slice lifted) leaves the print short */
+    ctx->exit = 0;
+    restore(ctx, &k);
+}
+
+RECOMP_OVERRIDE(0x00245F9C) {
+    if (!printing && mem_read32(ctx, SCREEN) == 0 && tip_up(ctx)) print_tip(ctx);
+    CALL(RECOMP_ORIGINAL(0x00245F9C));
 }

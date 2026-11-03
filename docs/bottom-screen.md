@@ -97,6 +97,34 @@ sits at x 10–309, y 66–173 of the bottom screen, its "!" and badge reaching
 y 50–200. Zakuro patch 0011 draws just that part, centred on the top
 screen at 0.8× its pixel scale, in place of the corner screen.
 
+**Tutorial tips** (the notices `ShowTipTextOnce`/`ShowTipTextTimed` show,
+told apart by `f_00235F30`'s return address, 0x002638D0 or 0x00270068,
+which `overrides/screen_frame_counters.c` keeps at 0x005A4F44): Zakuro hides
+the bottom screen, and `overrides/tip_text.c` has the game print the tip's
+text, button icons included, at the bottom middle of the top screen in its
+own font. Status: works (headless, both opening tips).
+
+### Drawing on a screen from an override
+
+- In gameplay the renderer `f_002E4858(this, phase)` draws one screen a
+  frame: `0x00529DA0 +0x3C8` is 0 for the top, 1 for the bottom, flipped
+  every frame (`+0x3C4` mode 2). Phase 6 sets up 2D and ends in the panel
+  dispatcher `f_00245F9C(list)` (via `f_001EEBB4`); list `0x00518188` is
+  the top screen's panels, `0x00518198` the bottom's. Each panel
+  (`f_0023CB90` registers one: draw callback at +0x20) draws immediately.
+- Text: `f_00235CC4(fmt, …)` is the printf: it formats into a stack
+  buffer, `f_002244D8` turns tags such as `<l>` into button glyphs, and
+  `f_00195408(font, 0, buffer)` draws at the text position (`f_00254D80`,
+  0x00376624) with the current font (`f_00255244`, 0x0037662C). The UI font
+  is `[0x003757A0]`. Text is clipped to `0x00529DA0 +0xE4` (x0, y0, x1, y1,
+  w, h) and to the text box at 0x0052EC1C.
+- Calling game code from an override: set r15 to the function's address
+  (generated code starts from the pc), and after it returns keep running
+  `recomp_call` until r15 is back at the return address you put in r14,
+  as generated callers do (the printf's formatter, for one, returns
+  halfway). Lift `ctx->budget` for the call, or a time slice can end
+  inside it. See `game_call` in `overrides/tip_text.c`.
+
 **To change it:** override `f_00236104`'s use here, or `f_001EF45C`, or
 `f_002DDD64` itself (call the original, then adjust +485/+498).
 

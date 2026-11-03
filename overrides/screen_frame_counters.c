@@ -41,16 +41,6 @@ RECOMP_OVERRIDE(0x00303E78) {
 }
 
 RECOMP_OVERRIDE(0x00235CC4) {
-    { /* DEBUG: distinct callers on top frames, 16 at 0x005A4F60 */
-        uint32_t lr = ctx->r[14];
-        uint32_t scr = mem_read32(ctx, 0x00529DA0u + 0x3C8u);
-        uint32_t base = scr ? 0x005A4FA0u : 0x005A4F60u;
-        for (int i = 0; i < 16; i++) {
-            uint32_t v = mem_read32(ctx, base + 4 * i);
-            if (v == lr) break;
-            if (!v) { mem_write32(ctx, base + 4 * i, lr); break; }
-        }
-    }
     CALL(RECOMP_ORIGINAL(0x00235CC4));
     count(ctx, 3);
 }
