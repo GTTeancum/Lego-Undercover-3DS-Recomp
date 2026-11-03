@@ -159,6 +159,18 @@ scripted stylus tap there, which behaves the same); the character switch
 is not unlocked in the test save, and Scan only shows near scannable
 things, so neither action has been seen yet.
 
+**Map mode** (Zakuro patch 0017, `title_hooks::map_mode`): while the
+minimap shows, D-pad Up opens the map by itself, filling the window, with
+a cursor drawn over it; the left stick moves the cursor, A taps there (a
+real stylus tap, so map points, zoom, fast travel and every map button
+work), B or D-pad Up closes it, as does the map going away. While it is
+open the game sees none of the controller. The game reads the D-pad
+(input channels 12-15, index globals 0x00376958-0x00376964) only in menus,
+the fast travel menu and the keypad minigame, apart from Down, a
+character class's ability (`f_00200444`); Up is free in free roam. Status:
+opening, closing and A's tap checked headless; the cursor's movement and
+look not yet seen.
+
 ### Drawing on a screen from an override
 
 - In gameplay the renderer `f_002E4858(this, phase)` draws one screen a

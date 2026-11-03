@@ -1,0 +1,180 @@
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index dc4ab85..7389641 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -342,7 +342,9 @@ fn shown_layout(layout: Screens, game: Option<&Running>, hide_idle: bool) -> zak
+     let view = game.map(|game| &game.bottom_view);
+     if layout == Screens::PictureInPicture && hide_idle && view.is_some_and(|view| view.hide) {
+         zakuro_gpu::ScreenLayout::TopOnly
+-    } else if layout == Screens::PictureInPicture && view.is_some_and(|view| view.swap) {
++    } else if layout == Screens::PictureInPicture
++        && (view.is_some_and(|view| view.swap) || game.is_some_and(|game| game.taps.map_cursor().is_some()))
++    {
+         zakuro_gpu::ScreenLayout::BottomOnly
+     } else {
+         layout.screens()
+@@ -352,7 +354,12 @@ fn shown_layout(layout: Screens, game: Option<&Running>, hide_idle: bool) -> zak
+ /// tells the presenter how picture-in-picture shows the bottom screen now.
+ fn apply_bottom_view(backend: &mut Backend, layout: Screens, game: Option<&Running>, settings: &Settings) {
+     let pip = layout == Screens::PictureInPicture;
+-    let view = game.map(|game| game.bottom_view.clone()).unwrap_or_default();
++    let mut view = game.map(|game| game.bottom_view.clone()).unwrap_or_default();
++    if game.is_some_and(|game| game.taps.map_cursor().is_some()) {
++        // map mode: the map by itself, square
++        view.round = false;
++        view.pieces.clear();
++    }
+     backend.set_layout(shown_layout(layout, game, settings.hide_idle_bottom));
+     backend.set_round_bottom(pip && settings.round_minimap && view.round);
+     backend.set_bottom_pieces(if pip && settings.notice_over_top { view.pieces } else { Vec::new() });
+@@ -382,9 +389,19 @@ fn run_headless(system: &mut System, frames: u64) {
+     let mut ran = 0;
+     let probe = headless_probe::Probe::from_env();
+     let mut taps = title_hooks::Taps::default();
++    let mut watch = title_hooks::Watch::default();
++    let mut view = title_hooks::BottomView::default();
+     for frame in 0..frames {
+-        probe.before_frame(system, frame, &mut |system, input| title_hooks::tap_input(system, &mut taps, input));
++        probe.before_frame(system, frame, &mut |system, input| {
++            title_hooks::tap_input(system, &mut taps, input);
++            let open = taps.map_cursor().is_some();
++            title_hooks::map_mode(&view, &mut taps, input);
++            if open != taps.map_cursor().is_some() {
++                eprintln!("frame {frame}: map mode {}", if open { "closed" } else { "open" });
++            }
++        });
+         outcome = system.run_frame();
++        view = title_hooks::bottom_view(system, &mut watch);
+         ran += 1;
+         probe.after_frame(system, frame + 1);
+         if outcome != FrameOutcome::Completed {
+@@ -1429,6 +1446,9 @@ impl App {
+         // a tap the game's code asked for (a controller button bound to a
+         // touch-screen button), recorded like any touch
+         title_hooks::tap_input(&mut game.system, &mut game.taps, &mut input);
++        let was_open = game.taps.map_cursor().is_some();
++        title_hooks::map_mode(&game.bottom_view, &mut game.taps, &mut input);
++        let map_changed = was_open != game.taps.map_cursor().is_some();
+         game.frame += 1;
+         if let Some(recorder) = &mut game.recorder {
+             recorder.record(input);
+@@ -1436,7 +1456,7 @@ impl App {
+         game.system.set_input(input);
+         let outcome = game.system.run_frame();
+         let view = title_hooks::bottom_view(&mut game.system, &mut game.bottom_watch);
+-        if view != game.bottom_view {
++        if view != game.bottom_view || map_changed {
+             game.bottom_view = view;
+             if let Some(backend) = &mut self.backend {
+                 apply_bottom_view(backend, self.layout, Some(game), &self.settings);
+@@ -1692,6 +1712,15 @@ impl App {
+             game.system.cheats.iter().map(|cheat| (cheat.name.clone(), cheat.enabled, cheat.notes.join("\n"), cheat.builtin)).collect::<Vec<_>>()
+         });
+         let corner = self.overlay_corner.clone().filter(|_| game.is_some());
++        // map mode's cursor, where it is in the window (points) and how big
++        // a bottom-screen pixel is there
++        let map_cursor = self.game.as_ref().and_then(|game| game.taps.map_cursor()).and_then(|(x, y)| {
++            let size = window.inner_size();
++            let scale = window.scale_factor() as f32;
++            let shown = shown_layout(self.layout, self.game.as_ref(), self.settings.hide_idle_bottom);
++            let (_, bottom) = layout(size.width, size.height, shown, self.top_shape.width(), self.settings.integer_scale);
++            bottom.map(|b| ((b.x + x / 320.0 * b.width) / scale, (b.y + y / 240.0 * b.height) / scale, b.width / 320.0 / scale))
++        });
+         let (menus, library, settings, jobs) = (&mut self.menus, &self.library, &mut self.settings, &self.jobs);
+         let mut actions = Vec::new();
+         let overlay = gui.frame(window, |ui| {
+@@ -1716,6 +1745,20 @@ impl App {
+             }
+             actions.extend(menus.compiler_offer(ui.ctx()));
+             menus.message(ui.ctx());
++            if let Some((x, y, pixel)) = map_cursor {
++                let painter = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("map cursor")));
++                let centre = egui::pos2(x, y);
++                let r = 7.0 * pixel;
++                let dark = egui::Stroke::new(4.0, egui::Color32::from_black_alpha(200));
++                let light = egui::Stroke::new(2.0, egui::Color32::WHITE);
++                for stroke in [dark, light] {
++                    painter.circle_stroke(centre, r, stroke);
++                    painter.line_segment([egui::pos2(x - 2.0 * r, y), egui::pos2(x - 0.5 * r, y)], stroke);
++                    painter.line_segment([egui::pos2(x + 0.5 * r, y), egui::pos2(x + 2.0 * r, y)], stroke);
++                    painter.line_segment([egui::pos2(x, y - 2.0 * r), egui::pos2(x, y - 0.5 * r)], stroke);
++                    painter.line_segment([egui::pos2(x, y + 0.5 * r), egui::pos2(x, y + 2.0 * r)], stroke);
++                }
++            }
+         });
+         self.library.changed = false;
+         for action in actions {
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 25c2bb6..5a9b12f 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -211,12 +211,68 @@ const TAP_REQUEST: u32 = 0x005A_4F70;
+ /// frames a requested tap holds the stylus down, then lets go.
+ const TAP_FRAMES: u32 = 4;
+ 
+-/// what tap_input remembers between frames.
++/// what tap_input remembers between frames, map mode included.
+ #[derive(Default)]
+ pub struct Taps {
+     serial: u32,
+     left: u32,
+     at: (u16, u16),
++    /// map mode: the bottom screen fills the window, the left stick moves
++    /// a cursor over it and A taps there; where the cursor is, while open.
++    map_cursor: Option<(f32, f32)>,
++    /// the buttons held last frame, for presses.
++    held: zakuro_core::services::hid::PadState,
++}
++
++impl Taps {
++    /// where map mode's cursor is on the bottom screen (pixels), while it
++    /// is open.
++    pub fn map_cursor(&self) -> Option<(f32, f32)> {
++        self.map_cursor
++    }
++}
++
++/// bottom-screen pixels the cursor moves a frame with the stick held all
++/// the way.
++const CURSOR_SPEED: f32 = 4.0;
++
++/// map mode, from the controller: D-pad Up while the map shows opens it,
++/// B or D-pad Up closes it, as does the map going away. While it is open
++/// the game sees none of the controller, only the taps A asks for.
++pub fn map_mode(view: &BottomView, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
++    use zakuro_core::services::hid::PadState;
++    let pressed = input.buttons & !taps.held;
++    taps.held = input.buttons;
++    let map_shows = view.round || taps.map_cursor.is_some() && !view.hide && view.pieces.is_empty();
++    match taps.map_cursor {
++        None => {
++            if map_shows && view.round && pressed.contains(PadState::UP) {
++                taps.map_cursor = Some((160.0, 120.0));
++                input.buttons.remove(PadState::UP);
++            }
++        }
++        Some((mut x, mut y)) => {
++            if !map_shows || pressed.intersects(PadState::B | PadState::UP) {
++                taps.map_cursor = None;
++            } else {
++                x = (x + input.circle_x * CURSOR_SPEED).clamp(0.0, 319.0);
++                y = (y - input.circle_y * CURSOR_SPEED).clamp(0.0, 239.0);
++                taps.map_cursor = Some((x, y));
++                if pressed.contains(PadState::A) {
++                    taps.at = (x as u16, y as u16);
++                    taps.left = TAP_FRAMES;
++                }
++            }
++            // the controller is the cursor's now
++            let touch = input.touch;
++            *input = Default::default();
++            input.touch = touch;
++            if taps.left > 0 && input.touch.is_none() {
++                taps.left -= 1;
++                input.touch = Some(taps.at);
++            }
++        }
++    }
+ }
+ 
+ /// touches the bottom screen where the game asked for a tap, a few frames,
