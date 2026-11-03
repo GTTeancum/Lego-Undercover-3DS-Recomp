@@ -151,7 +151,7 @@ Chars, +0xAC Audio, +0xD8 Red Bricks, +0x104 Free Play, +0x130 Hint,
 +0x264 area exit; the map update `f_002D9F84` asks `f_001EE730(button,
 touch)` of each shown button whether the stylus is on it (a circle around
 the sprite's middle: place at sprite +0xF0, size at +0x54/+0x58) and acts
-on a short touch let go. A press of LT (ZL) or RT (ZR) asks Zakuro (patch
+on a short touch let go. A press of LB or RB (on foot; see below) asks Zakuro (patch
 0016, `title_hooks::tap_input`, mailbox 0x005A4F70) for a real stylus tap
 on Chars or Scan. Zakuro also leaves the buttons held in the shared page
 (0x1FF81F14). Status: the tap lands on the button (checked against a
@@ -170,6 +170,15 @@ the fast travel menu and the keypad minigame, apart from Down, a
 character class's ability (`f_00200444`); Up is free in free roam. Status:
 opening, closing and A's tap checked headless; the cursor's movement and
 look not yet seen.
+
+**Controller layout for the bottom screen's buttons** (overrides/map_buttons.c,
+Zakuro patches 0016-0019): on foot, while the map shows, Zakuro keeps the
+console's L and R from the game (so the bumpers no longer turn the camera;
+the right stick does) and hands them to the override as host bits: LB is
+the character switch, RB Scan. Elsewhere (scanner, binoculars, menus) the
+bumpers are the game's L and R. D-pad Left is Hint, D-pad Right Red Bricks,
+L3 the area exit or Exit, D-pad Up map mode. The triggers (ZL/ZR, which the
+game never reads) are left free, for driving later; R3 is fast forward.
 
 ### Drawing on a screen from an override
 

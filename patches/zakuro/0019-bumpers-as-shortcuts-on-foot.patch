@@ -1,0 +1,38 @@
+diff --git a/crates/zakuro-core/src/services/hid.rs b/crates/zakuro-core/src/services/hid.rs
+index 787af8c..bbb0264 100644
+--- a/crates/zakuro-core/src/services/hid.rs
++++ b/crates/zakuro-core/src/services/hid.rs
+@@ -85,6 +85,10 @@ pub struct InputState {
+ 
+ /// the left stick pressed in, which no console button is bound to.
+ pub const HOST_L3: u32 = 1 << 0;
++/// L and R held, kept from the game while the title hooks give them
++/// another use (LEGO City: on foot, character switch and Scan).
++pub const HOST_L: u32 = 1 << 1;
++pub const HOST_R: u32 = 1 << 2;
+ /// the frontend's map mode is open (title hooks).
+ pub const HOST_MAP_MODE: u32 = 1 << 15;
+ 
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 347e02c..fbd8816 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -250,7 +250,17 @@ const CURSOR_SPEED: f32 = 4.0;
+ /// (HOST_MAP_MODE), and where the cursor is when A is pressed, to set a
+ /// navigation point there (MAP_POINT_REQUEST).
+ pub fn map_mode(view: &BottomView, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
+-    use zakuro_core::services::hid::PadState;
++    use zakuro_core::services::hid::{PadState, HOST_L, HOST_R};
++    // on foot, where the map shows, L and R are the character switch and
++    // Scan (overrides/map_buttons.c), not the game's camera turn
++    if taps.map_cursor.is_none() && view.round {
++        for (button, host) in [(PadState::L, HOST_L), (PadState::R, HOST_R)] {
++            if input.buttons.contains(button) {
++                input.buttons.remove(button);
++                input.host |= host;
++            }
++        }
++    }
+     let pressed = input.buttons & !taps.held;
+     taps.held = input.buttons;
+     let map_shows = view.round || taps.map_cursor.is_some() && !view.hide && view.pieces.is_empty();

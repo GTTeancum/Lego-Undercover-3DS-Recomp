@@ -1,6 +1,9 @@
 /* The bottom screen's touch buttons from the controller, so they work
- * without reaching for the corner screen: LT (the console's ZL, which the
- * game never reads) opens the character switch, RT (ZR) scans, D-pad Left
+ * without reaching for the corner screen: LB (the console's L) opens the
+ * character switch and RB (R) scans, on foot, where the map shows (Zakuro
+ * keeps L and R from the game there, so they no longer turn the camera,
+ * and hands them over as host bits; elsewhere they are the game's L and R;
+ * the triggers, ZL and ZR, are left free), D-pad Left
  * asks for a hint, D-pad Right opens Red Bricks, L3 (the left stick
  * pressed in) takes the area exit or, without one, Exit (the game reads
  * the D-pad only in menus, and Down for one character's ability). While
@@ -30,14 +33,14 @@
 #define DRC          0x00519D94u
 #define PAD_RIGHT    (1u << 4)
 #define PAD_LEFT     (1u << 5)
-#define PAD_ZL       (1u << 14)
-#define PAD_ZR       (1u << 15)
 #define HOST_L3      (1u << 16)
+#define HOST_L       (1u << 17)               /* L held, kept from the game */
+#define HOST_R       (1u << 18)
 #define HOST_MAP     (1u << 31)               /* Zakuro's map mode is open */
 
 static const struct { uint32_t button, pad; } bindings[] = {
-    { DRC + 0x80,  PAD_ZL },    /* Chars: the character switch */
-    { DRC + 0x28,  PAD_ZR },    /* Scan */
+    { DRC + 0x80,  HOST_L },    /* Chars: the character switch */
+    { DRC + 0x28,  HOST_R },    /* Scan */
     { DRC + 0x130, PAD_LEFT },  /* Hint */
     { DRC + 0xD8,  PAD_RIGHT }, /* Red Bricks */
     { DRC + 0x264, HOST_L3 },   /* the area exit */
