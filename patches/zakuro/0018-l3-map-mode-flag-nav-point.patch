@@ -1,0 +1,164 @@
+diff --git a/crates/zakuro-core/src/lib.rs b/crates/zakuro-core/src/lib.rs
+index 42e705b..f16c150 100644
+--- a/crates/zakuro-core/src/lib.rs
++++ b/crates/zakuro-core/src/lib.rs
+@@ -914,7 +914,7 @@ impl System {
+             self.memory.phys.shared_page_mut(),
+             (input.c_stick_x, input.c_stick_y),
+             (input.circle_x, input.circle_y),
+-            input.buttons.bits(),
++            input.buttons.bits() | (input.host << 16),
+         );
+     }
+ 
+diff --git a/crates/zakuro-core/src/memory/config.rs b/crates/zakuro-core/src/memory/config.rs
+index 5366868..b3643c9 100644
+--- a/crates/zakuro-core/src/memory/config.rs
++++ b/crates/zakuro-core/src/memory/config.rs
+@@ -84,7 +84,8 @@ pub fn init_shared_page(page: &mut [u8], model: ConsoleModel, slider_3d: f32, cl
+ /// "ZKRS", then the right stick's x and y, then the left stick's (the
+ /// circle pad's) x and y, each -1 to 1, up positive, as f32, then the
+ /// buttons held as a u32 in HID's bit order (with ZL and ZR, which a game
+-/// for the original 3DS never reads).
++/// for the original 3DS never reads), and in its top half
++/// InputState::host's (bit 16 the left stick pressed in, bit 31 map mode).
+ /// The console leaves this end of the page unused.
+ pub const HOST_RIGHT_STICK: usize = 0xF00;
+ 
+diff --git a/crates/zakuro-core/src/replay.rs b/crates/zakuro-core/src/replay.rs
+index 666d3c6..d0e0b01 100644
+--- a/crates/zakuro-core/src/replay.rs
++++ b/crates/zakuro-core/src/replay.rs
+@@ -86,6 +86,7 @@ impl Replay {
+                         tilt,
+                         c_stick_x: c_stick[0],
+                         c_stick_y: c_stick[1],
++                        host: 0,
+                     },
+                 ))
+             };
+diff --git a/crates/zakuro-core/src/services/hid.rs b/crates/zakuro-core/src/services/hid.rs
+index b2bf50d..787af8c 100644
+--- a/crates/zakuro-core/src/services/hid.rs
++++ b/crates/zakuro-core/src/services/hid.rs
+@@ -76,8 +76,18 @@ pub struct InputState {
+     /// right of the screen and toward its bottom, the way dragging the mouse
+     /// tilts it. the sensors report it, and how fast it changes.
+     pub tilt: [f32; 2],
++    /// buttons the console has no place for, for game code written for
++    /// Zakuro (overrides) only: HOST_L3, HOST_MAP_MODE. HID never sees
++    /// them.
++    #[serde(default)]
++    pub host: u32,
+ }
+ 
++/// the left stick pressed in, which no console button is bound to.
++pub const HOST_L3: u32 = 1 << 0;
++/// the frontend's map mode is open (title hooks).
++pub const HOST_MAP_MODE: u32 = 1 << 15;
++
+ #[derive(Default, serde::Serialize, serde::Deserialize)]
+ pub struct HidState {
+     pub shared_memory_handle: Option<u32>,
+diff --git a/crates/zakuro/src/gamepad.rs b/crates/zakuro/src/gamepad.rs
+index f1127ab..42c935f 100644
+--- a/crates/zakuro/src/gamepad.rs
++++ b/crates/zakuro/src/gamepad.rs
+@@ -71,6 +71,10 @@ impl Gamepads {
+                     state.buttons.set(button, true);
+                 }
+             }
++            // the left stick pressed in, unless a console button has it
++            if pad.is_pressed(Button::LeftThumb) && self.buttons.map().iter().all(|&(_, bound)| bound != Button::LeftThumb) {
++                state.host |= zakuro_core::services::hid::HOST_L3;
++            }
+             // the left stick is the circle pad and the right one the
+             // C-stick, up positive as the console has it
+             let (x, y) = (pad.value(Axis::LeftStickX), pad.value(Axis::LeftStickY));
+diff --git a/crates/zakuro/src/input.rs b/crates/zakuro/src/input.rs
+index 7c8b023..e8a19a7 100644
+--- a/crates/zakuro/src/input.rs
++++ b/crates/zakuro/src/input.rs
+@@ -101,6 +101,7 @@ impl Keyboard {
+             c_stick_y: axis(c_up, c_down),
+             touch: self.touch,
+             tilt: self.tilt,
++            host: 0,
+         }
+     }
+ }
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 5a9b12f..347e02c 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -208,6 +208,10 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+ /// x and y in bottom-screen pixels as f32, and a number that changes with
+ /// each request.
+ const TAP_REQUEST: u32 = 0x005A_4F70;
++/// where map mode leaves the navigation point asked for, for overrides:
++/// "NAV!", x and y in bottom-screen pixels as f32, a number that changes
++/// with each press of A.
++const MAP_POINT_REQUEST: u32 = 0x005A_4F80;
+ /// frames a requested tap holds the stylus down, then lets go.
+ const TAP_FRAMES: u32 = 4;
+ 
+@@ -222,6 +226,10 @@ pub struct Taps {
+     map_cursor: Option<(f32, f32)>,
+     /// the buttons held last frame, for presses.
+     held: zakuro_core::services::hid::PadState,
++    /// the last navigation point asked for in map mode: x, y (bottom-screen
++    /// pixels) and its number.
++    point: Option<(f32, f32, u32)>,
++    point_serial: u32,
+ }
+ 
+ impl Taps {
+@@ -238,7 +246,9 @@ const CURSOR_SPEED: f32 = 4.0;
+ 
+ /// map mode, from the controller: D-pad Up while the map shows opens it,
+ /// B or D-pad Up closes it, as does the map going away. While it is open
+-/// the game sees none of the controller, only the taps A asks for.
++/// the game sees none of the controller; overrides are told it is open
++/// (HOST_MAP_MODE), and where the cursor is when A is pressed, to set a
++/// navigation point there (MAP_POINT_REQUEST).
+ pub fn map_mode(view: &BottomView, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
+     use zakuro_core::services::hid::PadState;
+     let pressed = input.buttons & !taps.held;
+@@ -259,17 +269,14 @@ pub fn map_mode(view: &BottomView, taps: &mut Taps, input: &mut zakuro_core::ser
+                 y = (y - input.circle_y * CURSOR_SPEED).clamp(0.0, 239.0);
+                 taps.map_cursor = Some((x, y));
+                 if pressed.contains(PadState::A) {
+-                    taps.at = (x as u16, y as u16);
+-                    taps.left = TAP_FRAMES;
++                    taps.point_serial = taps.point_serial.wrapping_add(1);
++                    taps.point = Some((x, y, taps.point_serial));
+                 }
+             }
+             // the controller is the cursor's now
+-            let touch = input.touch;
+             *input = Default::default();
+-            input.touch = touch;
+-            if taps.left > 0 && input.touch.is_none() {
+-                taps.left -= 1;
+-                input.touch = Some(taps.at);
++            if taps.map_cursor.is_some() {
++                input.host = zakuro_core::services::hid::HOST_MAP_MODE;
+             }
+         }
+     }
+@@ -281,6 +288,15 @@ pub fn tap_input(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::
+     if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
+         return;
+     }
++    // map mode's navigation point, for overrides: "NAV!", x, y, number
++    if let Some((x, y, serial)) = taps.point {
++        let mut block = Vec::with_capacity(16);
++        block.extend_from_slice(b"NAV!");
++        block.extend_from_slice(&x.to_le_bytes());
++        block.extend_from_slice(&y.to_le_bytes());
++        block.extend_from_slice(&serial.to_le_bytes());
++        system.memory.write_bytes(MAP_POINT_REQUEST, &block);
++    }
+     if read_u32(system, TAP_REQUEST) == u32::from_le_bytes(*b"TAP!") {
+         let serial = read_u32(system, TAP_REQUEST + 12);
+         if serial != taps.serial {
