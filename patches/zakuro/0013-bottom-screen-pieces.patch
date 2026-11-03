@@ -750,7 +750,7 @@ index 2c58eb3..ad08f2f 100644
          }
      }
 diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
-index ba5da0d..29bd16a 100644
+index ba5da0d..f32454c 100644
 --- a/crates/zakuro/src/title_hooks.rs
 +++ b/crates/zakuro/src/title_hooks.rs
 @@ -9,6 +9,11 @@
@@ -765,7 +765,7 @@ index ba5da0d..29bd16a 100644
  //! The map is showing when the map's per-frame function, f_001EE730, ran
  //! this frame (overrides/map_frame_counter.c counts its runs at
  //! MAP_FRAMES, past the end of the game's .bss), the map is fully faded
-@@ -16,79 +21,148 @@
+@@ -16,79 +21,152 @@
  //! over it stop that function.
  
  use zakuro_core::System;
@@ -828,6 +828,8 @@ index ba5da0d..29bd16a 100644
 +const GRACE: u32 = 4;
 +/// the wipe's opening animation, after it stops counting as shut.
 +const WIPE_OPENING: u32 = 40;
++/// a video's frames come at 15-20 a second.
++const VIDEO_GRACE: u32 = 12;
  
 -/// whether the bottom screen shows the game's map and nothing over it, which
 -/// a layout can draw as a round minimap.
@@ -874,11 +876,11 @@ index ba5da0d..29bd16a 100644
 +    let at = |x: f32, y: f32| (cx + (x - 160.0) * scale / 400.0, cy + (y - 120.0) * scale / 240.0);
 +    let (bx, by) = at(159.5, 119.5);
 +    let (ex, ey) = at(281.0, 68.0);
-+    let (gx, gy) = at(281.0, 178.0);
++    let (gx, gy) = at(281.0, 179.0);
 +    vec![
 +        piece([10.0, 66.0, 300.0, 108.0], bx, by, scale, PieceShape::Rounded(0.08)),
 +        piece([267.0, 54.0, 28.0, 28.0], ex, ey, scale, PieceShape::Ellipse),
-+        piece([258.0, 154.0, 46.0, 48.0], gx, gy, scale, PieceShape::Ellipse),
++        piece([263.0, 160.0, 36.0, 38.0], gx, gy, scale, PieceShape::Ellipse),
 +    ]
 +}
 +
@@ -905,6 +907,8 @@ index ba5da0d..29bd16a 100644
      }
 -}
 +    let ran = |i: usize| watch.quiet[i] <= GRACE;
++    // videos decode slower than the game draws, and subtitles come and go
++    let ran_video = |i: usize| watch.quiet[i] <= VIDEO_GRACE;
 +    let mut shut = [0u8];
 +    system.memory.read_bytes(DRC_WIPE_SHUT, &mut shut);
 +    watch.since_wipe = if shut[0] != 0 { 0 } else { watch.since_wipe.saturating_add(1) };
@@ -925,8 +929,8 @@ index ba5da0d..29bd16a 100644
 +    // a cutscene video on the top screen: the bottom one only has its
 +    // subtitles, the only text drawn while one plays (box at y 8-92); just
 +    // their text goes along the bottom of the top screen
-+    if ran(VIDEO) {
-+        let pieces = if ran(TEXT) { vec![piece([10.0, 12.0, 300.0, 76.0], 0.5, 0.86, 0.85, PieceShape::Text)] } else { Vec::new() };
++    if ran_video(VIDEO) {
++        let pieces = if ran_video(TEXT) { vec![piece([10.0, 12.0, 300.0, 76.0], 0.5, 0.86, 0.85, PieceShape::Text)] } else { Vec::new() };
 +        return BottomView { hide: pieces.is_empty(), pieces, round: false };
 +    }
 +    // the loading screen: just its tip's text (y 112-230) under the badge

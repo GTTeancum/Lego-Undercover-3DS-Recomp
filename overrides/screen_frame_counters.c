@@ -70,8 +70,12 @@ RECOMP_OVERRIDE(0x0026FFEC) {
     in_tip = 0;
 }
 
+/* and at 0x005A4F44 the return address of the call that showed it, to tell
+ * where a notice comes from */
 RECOMP_OVERRIDE(0x00235F30) {
     int tip = in_tip;
+    uint32_t from = ctx->r[14];
     CALL(RECOMP_ORIGINAL(0x00235F30));
     mem_write32(ctx, NOTICE_IS_TIP, (uint32_t)tip);
+    mem_write32(ctx, NOTICE_IS_TIP + 4, from);
 }
