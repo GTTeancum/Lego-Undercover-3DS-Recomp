@@ -1,5 +1,5 @@
 diff --git a/crates/zakuro-gpu/shaders/present.frag b/crates/zakuro-gpu/shaders/present.frag
-index 83cf292..a8fb30f 100644
+index 83cf292..062b08b 100644
 --- a/crates/zakuro-gpu/shaders/present.frag
 +++ b/crates/zakuro-gpu/shaders/present.frag
 @@ -19,9 +19,10 @@ layout(push_constant) uniform Crop {
@@ -15,7 +15,7 @@ index 83cf292..a8fb30f 100644
  #endif
  #ifdef STEREO
      // how the eyes are shown, 1 in red and cyan, 2 on alternate rows,
-@@ -71,20 +72,58 @@ vec3 shown(sampler2D image, vec4 area, vec4 bounds) {
+@@ -71,20 +72,69 @@ vec3 shown(sampler2D image, vec4 area, vec4 bounds) {
  }
  
  #ifndef STEREO
@@ -40,9 +40,20 @@ index 83cf292..a8fb30f 100644
 -    float r = length((uv - 0.5) * vec2(ASPECT, 1.0));
 -    float edge = fwidth(r);
 -    if (r > 0.5) {
-+bool texty(vec3 c) {
-+    // white or pale text; panel backgrounds are dark and borders saturated
-+    return min(c.r, min(c.g, c.b)) > 0.45 && dot(c, vec3(0.3, 0.59, 0.11)) > 0.6;
++bool bright(vec3 c) {
++    // white or pale text on a dark panel; borders and badges are more
++    // saturated or, below, too long
++    float lo = min(c.r, min(c.g, c.b));
++    float hi = max(c.r, max(c.g, c.b));
++    return dot(c, vec3(0.3, 0.59, 0.11)) > 0.42 && hi - lo < 0.62;
++}
++// text there: bright, and not part of a long upright line (a box's side),
++// which letters, about 9 texels tall, are not
++bool texty(vec2 texels) {
++    if (!bright(around(texels))) {
++        return false;
++    }
++    return !(bright(around(texels + vec2(0.0, 8.0))) && bright(around(texels - vec2(0.0, 8.0))));
 +}
 +vec3 shaped(vec3 seen, int shape, float radius, float aspect) {
 +    if (shape == 1) {
@@ -68,12 +79,12 @@ index 83cf292..a8fb30f 100644
 +        return seen;
 +    }
 +    if (shape == 4) {
-+        if (texty(seen)) {
++        if (texty(vec2(0.0))) {
 +            return seen;
 +        }
 +        for (int i = 0; i < 8; i++) {
 +            float a = float(i) * 0.785398;
-+            if (texty(around(vec2(cos(a), sin(a)) * 1.5))) {
++            if (texty(vec2(cos(a), sin(a)) * 1.5)) {
 +                return vec3(0.02, 0.03, 0.05);
 +            }
 +        }
@@ -85,7 +96,7 @@ index 83cf292..a8fb30f 100644
  }
  #endif
  
-@@ -108,10 +147,6 @@ void main() {
+@@ -108,10 +158,6 @@ void main() {
          colour = vec4((int(gl_FragCoord.y) & 1) == 0 ? left : right, 1.0);
      }
  #else
@@ -98,83 +109,90 @@ index 83cf292..a8fb30f 100644
  #endif
  }
 diff --git a/crates/zakuro-gpu/shaders/present.frag.spv b/crates/zakuro-gpu/shaders/present.frag.spv
-index e8cde4281039d6e9f6bdc3f0cd3eefa54de00dce..456c8a8e3ff702881d49b88099d3de8aaca1f64a 100644
+index e8cde4281039d6e9f6bdc3f0cd3eefa54de00dce..b3dd74de8ef2900b9848e91ecf419c6c86f44edd 100644
 GIT binary patch
-literal 9876
-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
-Cf~5KY
+literal 10900
+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
+H-@X0^@5C`&
 
 literal 6176
 zcmZ9P36z#)6~|wgg>68L#nhrfh$V<*7e^K)9U}_J$_i@y_`VOAnyuLc+lDkSwNToN
@@ -227,7 +245,7 @@ z{)+Cr-YH}L23*%-5b?%Xv;EZXSoiVoz<r5a|3Wt=_W$4LaslUX+`Yg#76EhI1B~@7
 I=<_W6AKlkbnE(I)
 
 diff --git a/crates/zakuro-gpu/src/backend/gl.rs b/crates/zakuro-gpu/src/backend/gl.rs
-index d63cb0c..3fb5ed4 100644
+index d63cb0c..133301f 100644
 --- a/crates/zakuro-gpu/src/backend/gl.rs
 +++ b/crates/zakuro-gpu/src/backend/gl.rs
 @@ -4,7 +4,7 @@ use std::collections::HashMap;
@@ -239,7 +257,7 @@ index d63cb0c..3fb5ed4 100644
  
  const VERTEX_SHADER: &str = r#"#version 330 core
  // a single oversized triangle covers the viewport with no vertex buffer.
-@@ -59,21 +59,63 @@ vec3 shown(sampler2D image) {
+@@ -59,21 +59,74 @@ vec3 shown(sampler2D image) {
  "#;
  
  const SCREEN_MAIN: &str = r#"
@@ -261,9 +279,20 @@ index d63cb0c..3fb5ed4 100644
 +// (radius a share of its height), 3 the ellipse filling it, 4 only what is
 +// near white, text, with a dark edge around it to read on anything.
 +const vec3 RIM_COLOUR = vec3(0.07, 0.09, 0.13);
-+bool texty(vec3 c) {
-+    // white or pale text; panel backgrounds are dark and borders saturated
-+    return min(c.r, min(c.g, c.b)) > 0.45 && dot(c, vec3(0.3, 0.59, 0.11)) > 0.6;
++bool bright(vec3 c) {
++    // white or pale text on a dark panel; borders and badges are more
++    // saturated or, below, too long
++    float lo = min(c.r, min(c.g, c.b));
++    float hi = max(c.r, max(c.g, c.b));
++    return dot(c, vec3(0.3, 0.59, 0.11)) > 0.42 && hi - lo < 0.62;
++}
++// text there: bright, and not part of a long upright line (a box's side),
++// which letters, about 9 texels tall, are not
++bool texty(vec2 texels) {
++    if (!bright(around(texels))) {
++        return false;
++    }
++    return !(bright(around(texels + vec2(0.0, 8.0))) && bright(around(texels - vec2(0.0, 8.0))));
 +}
 +vec3 shaped(vec3 seen, int shape, float radius, float aspect) {
      if (shape == 1) {
@@ -290,20 +319,20 @@ index d63cb0c..3fb5ed4 100644
 +            discard;
 +        }
 +        return seen;
-     }
--    color = vec4(seen, 1.0);
++    }
 +    if (shape == 4) {
-+        if (texty(seen)) {
++        if (texty(vec2(0.0))) {
 +            return seen;
 +        }
 +        for (int i = 0; i < 8; i++) {
 +            float a = float(i) * 0.785398;
-+            if (texty(around(vec2(cos(a), sin(a)) * 1.5))) {
++            if (texty(vec2(cos(a), sin(a)) * 1.5)) {
 +                return vec3(0.02, 0.03, 0.05);
 +            }
 +        }
 +        discard;
-+    }
+     }
+-    color = vec4(seen, 1.0);
 +    return seen;
 +}
 +void main() {
@@ -311,7 +340,7 @@ index d63cb0c..3fb5ed4 100644
  }
  "#;
  
-@@ -156,7 +198,7 @@ pub struct GlPresenter {
+@@ -156,7 +209,7 @@ pub struct GlPresenter {
      /// the bottom screen drawn round, for a minimap.
      round_bottom: bool,
      /// a part of the bottom screen over the top one instead of it.
@@ -320,7 +349,7 @@ index d63cb0c..3fb5ed4 100644
      top_width: f32,
      filter: ScreenFilter,
      integer: bool,
-@@ -228,7 +270,7 @@ impl GlPresenter {
+@@ -228,7 +281,7 @@ impl GlPresenter {
              window,
              arrangement: ScreenLayout::default(),
              round_bottom: false,
@@ -329,7 +358,7 @@ index d63cb0c..3fb5ed4 100644
              top_width: super::TOP_WIDTH,
              filter: ScreenFilter::default(),
              integer: false,
-@@ -289,16 +331,30 @@ impl GlPresenter {
+@@ -289,16 +342,30 @@ impl GlPresenter {
          unsafe { self.gl.viewport(viewport.x as i32, y as i32, viewport.width as i32, viewport.height as i32) };
      }
  
@@ -363,7 +392,7 @@ index d63cb0c..3fb5ed4 100644
                  gl.uniform_4_f32(Some(&location), crop[0], crop[1], crop[2], crop[3]);
              }
              gl.active_texture(glow::TEXTURE0);
-@@ -365,13 +421,12 @@ impl Presenter for GlPresenter {
+@@ -365,13 +432,12 @@ impl Presenter for GlPresenter {
              gl.bind_vertex_array(Some(self.vertex_array));
          }
  
@@ -382,7 +411,7 @@ index d63cb0c..3fb5ed4 100644
                  Shown::Both if !top.is_empty() => self.draw_both(viewport),
                  _ => {}
              }
-@@ -392,8 +447,8 @@ impl Presenter for GlPresenter {
+@@ -392,8 +458,8 @@ impl Presenter for GlPresenter {
          self.round_bottom = round;
      }
  
@@ -750,7 +779,7 @@ index 2c58eb3..ad08f2f 100644
          }
      }
 diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
-index ba5da0d..f32454c 100644
+index ba5da0d..3eba906 100644
 --- a/crates/zakuro/src/title_hooks.rs
 +++ b/crates/zakuro/src/title_hooks.rs
 @@ -9,6 +9,11 @@
@@ -765,7 +794,7 @@ index ba5da0d..f32454c 100644
  //! The map is showing when the map's per-frame function, f_001EE730, ran
  //! this frame (overrides/map_frame_counter.c counts its runs at
  //! MAP_FRAMES, past the end of the game's .bss), the map is fully faded
-@@ -16,79 +21,152 @@
+@@ -16,79 +21,158 @@
  //! over it stop that function.
  
  use zakuro_core::System;
@@ -856,9 +885,12 @@ index ba5da0d..f32454c 100644
 +const TEXT: usize = 3;
 +const SAVE_SLOTS: usize = 4;
 +const MISSION_CARD: usize = 5;
-+/// 1 when the notice up came from a tutorial tip (the ShowTipText script
-+/// commands), 0 for anything else (postcards, challenges).
-+const NOTICE_IS_TIP: u32 = 0x005A_4F40;
++/// the return address of the call that showed the notice up
++/// (overrides/screen_frame_counters.c): the ShowTipTextOnce and
++/// ShowTipTextTimed script commands' calls are tutorial tips, anything else
++/// (postcards, challenges) is not.
++const NOTICE_FROM: u32 = 0x005A_4F44;
++const TIP_CALLERS: [u32; 2] = [0x0026_38D0, 0x0027_0068];
 +
 +/// a part of the bottom screen, x, y, width, height in its pixels, drawn
 +/// with its centre at (cx, cy) of the top screen (fractions), its pixels
@@ -927,15 +959,16 @@ index ba5da0d..f32454c 100644
 -                scale: 0.8,
 -            })
 +    // a cutscene video on the top screen: the bottom one only has its
-+    // subtitles, the only text drawn while one plays (box at y 8-92); just
++    // subtitles, the only text drawn while one plays (box x 6-313, y 14-85,
++    // taken inside its border); just
 +    // their text goes along the bottom of the top screen
 +    if ran_video(VIDEO) {
-+        let pieces = if ran_video(TEXT) { vec![piece([10.0, 12.0, 300.0, 76.0], 0.5, 0.86, 0.85, PieceShape::Text)] } else { Vec::new() };
++        let pieces = if ran_video(TEXT) { vec![piece([12.0, 18.0, 295.0, 64.0], 0.5, 0.87, 0.85, PieceShape::Text)] } else { Vec::new() };
 +        return BottomView { hide: pieces.is_empty(), pieces, round: false };
 +    }
 +    // the loading screen: just its tip's text (y 112-230) under the badge
 +    if ran(LOADING) {
-+        return BottomView { hide: false, pieces: vec![piece([12.0, 112.0, 296.0, 118.0], 0.5, 0.78, 0.85, PieceShape::Text)], round: false };
++        return BottomView { hide: false, pieces: vec![piece([14.0, 112.0, 292.0, 114.0], 0.5, 0.78, 0.85, PieceShape::Text)], round: false };
 +    }
 +    // choosing a save slot: the two slots (x 49-273, y 86-133 and 140-186)
 +    // in the lower middle, "Select (A)" at the bottom right
@@ -959,11 +992,13 @@ index ba5da0d..f32454c 100644
 +        }
 +        return BottomView { hide: true, pieces: Vec::new(), round: false };
 +    }
-+    // a notice: a tutorial tip's text alone at the bottom middle (the box's
-+    // inside, y 70-170); anything else as its box, "!" and badge in the middle
++    // a notice: a tutorial tip is printed on the top screen by the game
++    // (overrides/tip_text.c), so the bottom screen goes; anything else as its box, "!" and badge in the middle
 +    if read_u32(system, NOTICE_STATE) != 0 {
-+        if read_u32(system, NOTICE_IS_TIP) != 0 {
-+            return BottomView { hide: false, pieces: vec![piece([16.0, 70.0, 260.0, 100.0], 0.5, 0.82, 0.85, PieceShape::Text)], round: false };
++        if TIP_CALLERS.contains(&read_u32(system, NOTICE_FROM)) {
++            // overrides/tip_text.c has the game print its text on the top
++            // screen; nothing of the bottom one is needed
++            return BottomView { hide: true, pieces: Vec::new(), round: false };
          }
 -        _ => None,
 +        return BottomView { hide: false, pieces: notice_pieces(0.5, 0.5, 0.8), round: false };
