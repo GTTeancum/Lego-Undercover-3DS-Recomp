@@ -67,6 +67,7 @@ or after `work/3dsrecomp/target/release/3dsrecomp build game/<rom>.cci work/reco
   - `zakuro/0005` a port keeps its saves in `saves/` beside the program (copying earlier saves from the shared data folder once; falling back to it when the folder isn't writable), and controllers use XInput on Windows instead of Windows.Gaming.Input,
   - `zakuro/0006` controller face buttons by letter (3DS A on Xbox A, B on B, X on X, Y on Y); saved settings with the old by-position defaults are moved over once,
   - `zakuro/0008` picture-in-picture hides the bottom screen while the game shows only its idle hexagon screen (cutscenes and scripted scenes), read from the game's bottom-screen manager (see `docs/bottom-screen.md`); a menu checkbox turns it off. Also `ZAKURO_PEEK` for logging guest memory in headless runs,
+  - `zakuro/0012` the left stick is published next to the right one for overrides,
   - `zakuro/0011` notices (collected postcard, tips) leave the corner and show by themselves in the middle of the top screen (presenter "bottom inset": a crop of the bottom screen drawn over the top one; menu checkbox),
   - `zakuro/0010` round minimap: in picture-in-picture the bottom screen is drawn as a circle with a dark rim while the game shows its map (both presenters; menu checkbox),
   - `zakuro/0009` the right stick is published in the 3DS shared page for game code (overrides) to read; headless `RSTICK:x,y` and `ZAKURO_PEEK_AT`,
@@ -76,6 +77,7 @@ or after `work/3dsrecomp/target/release/3dsrecomp build game/<rom>.cci work/reco
   - `3dsrecomp/0002` the port is a Windows GUI program, no console window.
 - `overrides/` — hand-written C replacements for game functions:
   - `camera_right_stick.c` — right stick orbits (yaw) and tilts (pitch) the camera, analog, through the game's own camera input (`docs/camera.md`),
+  - `safecrack_left_stick.c` — safe cracking: point the left stick and the dial turns there (gives the minigame a stylus point on the dial; untested in the minigame so far),
   - `map_frame_counter.c` — counts the map's frames so Zakuro knows when the map is showing (round minimap),
   - `debug_scene_log.c` — logs UI scene loads when `LEGO_SCENE_LOG` is set.
 - `game/` — your own decrypted ROM; ignored by Git.

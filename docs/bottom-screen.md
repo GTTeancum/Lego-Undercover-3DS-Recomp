@@ -174,6 +174,20 @@ scenes under `sprites/blend/`, loaded by `f_00217430(path, …)`; sprites are
 | **Boot splash** | `splashscreens/` | `f_00302144` | both | skip by touch: `f_003023B8` via `f_001E7F08` |
 | Touch gestures | none in the archive (`TouchGestures/%s.dat` missing) | `leSGOTouchGestureSystem` vtable `0x00364590` | — | unused in this port |
 
+## Safe cracking
+
+Class vtable `0x003633F8`; its update `f_002FD52C` (+0x48) reads the
+stylus, takes touch − dial centre (centre = 320 × `[0x003758B8]`,
+240 × `[0x003758BC]` = 201.6, 120 on the bottom screen), and if the length
+is between `[+0x40]` 38 and `[+0x3C]` 116 px turns it into a 16-bit dial
+angle, `atan2(x, −y) · 65536 / 2π` (0 straight up, clockwise), at +0xFA of
+its state (`[this+0x24]`). Within 0x1000 (about 22°) of the knob's angle
+(+0xF8) it grabs the knob (+0xFE = 1) and the knob follows.
+`overrides/safecrack_left_stick.c` gives that update a stylus point on the
+dial while the left stick is pushed and the stylus is up: first on the
+knob, so it grabs, then turning toward the stick's direction at up to about
+8° a frame. The corner screen stays where it is.
+
 ## Touch input
 
 All stylus input comes from one table at `0x0052A448`, 32 bytes per entry

@@ -1,0 +1,49 @@
+diff --git a/crates/zakuro-core/src/lib.rs b/crates/zakuro-core/src/lib.rs
+index 4921da0..86fb008 100644
+--- a/crates/zakuro-core/src/lib.rs
++++ b/crates/zakuro-core/src/lib.rs
+@@ -908,9 +908,13 @@ impl System {
+     /// reports from the next frame on.
+     pub fn set_input(&mut self, input: InputState) {
+         self.services.hid.input = input;
+-        // the right stick, which a 3DS game cannot read, for overrides that
+-        // give it a use (memory::config::HOST_RIGHT_STICK)
+-        memory::config::set_host_right_stick(self.memory.phys.shared_page_mut(), input.c_stick_x, input.c_stick_y);
++        // the right stick, which a 3DS game cannot read, and the left one,
++        // for overrides that give them a use (memory::config::HOST_RIGHT_STICK)
++        memory::config::set_host_sticks(
++            self.memory.phys.shared_page_mut(),
++            (input.c_stick_x, input.c_stick_y),
++            (input.circle_x, input.circle_y),
++        );
+     }
+ 
+     // -- GPU plumbing -------------------------------------------------------
+diff --git a/crates/zakuro-core/src/memory/config.rs b/crates/zakuro-core/src/memory/config.rs
+index f861a93..7dc8371 100644
+--- a/crates/zakuro-core/src/memory/config.rs
++++ b/crates/zakuro-core/src/memory/config.rs
+@@ -81,15 +81,18 @@ pub fn init_shared_page(page: &mut [u8], model: ConsoleModel, slider_3d: f32, cl
+ 
+ /// where in the shared page Zakuro leaves input the console has no place
+ /// for, for game code written for Zakuro (overrides) to read: the magic
+-/// "ZKRS", then the right stick's x and y, -1 to 1, up positive, as f32.
++/// "ZKRS", then the right stick's x and y, then the left stick's (the
++/// circle pad's) x and y, each -1 to 1, up positive, as f32.
+ /// The console leaves this end of the page unused.
+ pub const HOST_RIGHT_STICK: usize = 0xF00;
+ 
+-/// writes the right stick where HOST_RIGHT_STICK says.
+-pub fn set_host_right_stick(page: &mut [u8], x: f32, y: f32) {
++/// writes the sticks where HOST_RIGHT_STICK says.
++pub fn set_host_sticks(page: &mut [u8], right: (f32, f32), left: (f32, f32)) {
+     page[HOST_RIGHT_STICK..HOST_RIGHT_STICK + 4].copy_from_slice(b"ZKRS");
+-    page[HOST_RIGHT_STICK + 4..HOST_RIGHT_STICK + 8].copy_from_slice(&x.to_le_bytes());
+-    page[HOST_RIGHT_STICK + 8..HOST_RIGHT_STICK + 12].copy_from_slice(&y.to_le_bytes());
++    for (i, value) in [right.0, right.1, left.0, left.1].into_iter().enumerate() {
++        let at = HOST_RIGHT_STICK + 4 + 4 * i;
++        page[at..at + 4].copy_from_slice(&value.to_le_bytes());
++    }
+ }
+ 
+ /// the host's local time, in milliseconds since 1900.
