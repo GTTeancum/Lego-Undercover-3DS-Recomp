@@ -1,0 +1,971 @@
+diff --git a/crates/zakuro-gpu/shaders/present.frag b/crates/zakuro-gpu/shaders/present.frag
+index 83cf292..a8fb30f 100644
+--- a/crates/zakuro-gpu/shaders/present.frag
++++ b/crates/zakuro-gpu/shaders/present.frag
+@@ -19,9 +19,10 @@ layout(push_constant) uniform Crop {
+     vec4 bounds;
+     int mode;
+ #ifndef STEREO
+-    // 0 the whole screen, 1 a circle as tall as it, centred, with a dark
+-    // rim, for a minimap
++    // what of the screen is drawn, see shaped()
+     int shape;
++    float radius;
++    float aspect;
+ #endif
+ #ifdef STEREO
+     // how the eyes are shown, 1 in red and cyan, 2 on alternate rows,
+@@ -71,20 +72,58 @@ vec3 shown(sampler2D image, vec4 area, vec4 bounds) {
+ }
+ 
+ #ifndef STEREO
+-// a circle as tall as the screen, its centre the screen's: what lies
+-// outside it is not drawn, so the screen under it shows, and a dark rim
+-// edges it
+-const float ASPECT = 4.0 / 3.0;
+-const float RIM = 0.03;
++// the screen's colour this many texels from here
++vec3 around(vec2 texels) {
++    vec2 at = crop.area.xy + uv * crop.area.zw;
++    vec2 size = vec2(textureSize(screen, 0));
++    return texture(screen, clamp(at + texels / size, crop.bounds.xy, crop.bounds.zw)).rgb;
++}
++
++// what of the screen is drawn: 0 all, 1 a circle as tall as it with a dark
++// rim (a minimap; aspect its width over height), 2 a rounded rectangle
++// (radius a share of its height), 3 the ellipse filling it, 4 only what is
++// near white, text, with a dark edge around it to read on anything.
+ const vec3 RIM_COLOUR = vec3(0.07, 0.09, 0.13);
+-vec3 round_off(vec3 seen) {
+-    float r = length((uv - 0.5) * vec2(ASPECT, 1.0));
+-    float edge = fwidth(r);
+-    if (r > 0.5) {
++bool texty(vec3 c) {
++    // white or pale text; panel backgrounds are dark and borders saturated
++    return min(c.r, min(c.g, c.b)) > 0.45 && dot(c, vec3(0.3, 0.59, 0.11)) > 0.6;
++}
++vec3 shaped(vec3 seen, int shape, float radius, float aspect) {
++    if (shape == 1) {
++        float r = length((uv - 0.5) * vec2(aspect, 1.0));
++        float edge = fwidth(r);
++        if (r > 0.5) {
++            discard;
++        }
++        return mix(seen, RIM_COLOUR, smoothstep(0.5 - 0.03 - edge, 0.5 - 0.03, r));
++    }
++    if (shape == 2) {
++        vec2 half_size = vec2(aspect, 1.0) * 0.5;
++        vec2 q = abs((uv - 0.5) * vec2(aspect, 1.0)) - half_size + radius;
++        if (length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius > 0.0) {
++            discard;
++        }
++        return seen;
++    }
++    if (shape == 3) {
++        if (length((uv - 0.5) * 2.0) > 1.0) {
++            discard;
++        }
++        return seen;
++    }
++    if (shape == 4) {
++        if (texty(seen)) {
++            return seen;
++        }
++        for (int i = 0; i < 8; i++) {
++            float a = float(i) * 0.785398;
++            if (texty(around(vec2(cos(a), sin(a)) * 1.5))) {
++                return vec3(0.02, 0.03, 0.05);
++            }
++        }
+         discard;
+     }
+-    float rim = smoothstep(0.5 - RIM - edge, 0.5 - RIM, r);
+-    return mix(seen, RIM_COLOUR, rim);
++    return seen;
+ }
+ #endif
+ 
+@@ -108,10 +147,6 @@ void main() {
+         colour = vec4((int(gl_FragCoord.y) & 1) == 0 ? left : right, 1.0);
+     }
+ #else
+-    vec3 seen = shown(screen, crop.area, crop.bounds);
+-    if (crop.shape == 1) {
+-        seen = round_off(seen);
+-    }
+-    colour = vec4(seen, 1.0);
++    colour = vec4(shaped(shown(screen, crop.area, crop.bounds), crop.shape, crop.radius, crop.aspect), 1.0);
+ #endif
+ }
+diff --git a/crates/zakuro-gpu/shaders/present.frag.spv b/crates/zakuro-gpu/shaders/present.frag.spv
+index e8cde4281039d6e9f6bdc3f0cd3eefa54de00dce..456c8a8e3ff702881d49b88099d3de8aaca1f64a 100644
+GIT binary patch
+literal 9876
+zcmZ9R2Y8m%6~|vl!k!``pqMxqf&&l{5s0G3fim2Rr6KtO(U8O>fT&e)?}ZD+RreP6
+zuC=vO+uEgVpU2T*tF^5i&e}fx{odS@zUF;$Jpc1Q=bn4+z30B)_hDJj?RsZfkF0+-
+zFngg#mOn$Yo-kRao`UY5^~&v<d56v0xxJ%)=iR35YT%%(OqKfvXT7s>u(G1Iu~~j6
+z<PH)IAx@r&KxJgjvX|h?vwm64yd^dB=hw{JZ%JKi>yq}4HBF@@O^wZ^CH0MMrMiyB
+zRVCy46yh42>zY>97XvDYD9&5KOhcKYeR<33=JD-QCeK{euv;!!X6zt*jVo%Gkvg{r
+zqifqrwW!=4f?nFPvbnxpyCNHr`z6M&YM3%JkJ$pQqjYkqDaCBvX?Lt4Wa>=Em1SGO
+z)gcwsKMvi#ytcJuj;S*nC(mri|Df}H+vzWr@_n<$?IS+<cR;t*);F%q=PS>~V%N5}
+zvPGS9P0&u*eP6k%Gw)Pzd*dlCHJ@isbY07;Qd_A$w-3h7*OC15(R15cT2Y*OMW*c&
+z`xBh~5qlJz=enY$KA$T%J0xE>IylcN))HI=-2c~8o-M?#OLe#(%dp$)YMV^1-J-wL
+z+!5<wTe781rRMtNUytsnZIvdzEV}{SzH&v5Zv?MN{9Wjib6lQnLbo(Dw3pI8zKPwr
+zr{&pu;Nm{MuU*%cpICm@Y)Bhies<teecoQ!71=E8<+V)>OHu;k_l7$u#jggp*0$BI
+z$nCQ1bnM22&jZ({xb<I(E6=X(W_#D_TAEr`Qiyfj+0B1XH~YbE_Cww5N4nWh6zm%E
+z+h=1Cp97dNdc|J$365czocAg?dqu9Yz}YKu_I||KD{|utoV_A938`T(o!5NU<hg8%
+z_=H{6Y38<j6g3ZHl;f(%;oRaaK)ukF$jGd3{?5{7*q5HLM-$%%kMFih=I@)L<VIlk
+zLp$De=<km<R$l)Aw0`HW0u4mVna5bgxM67HtkFE1qs=2<g*_bYIC=de(fT{Np4lj{
+zaih^<{ll@hL02L@a$TNd$93}MjOond+*M?BZ_VlWN<_cnoRiQ!5Nn#5Y<om*Vw!6j
+z*vB<ZM>~&evX(jMO2o%_?P?94u;+p!pEcDWFITReGlo;J58PM9yoxc3^({cVuf|!Q
+zw(l9asBaNC_V}>mGf()B1Q+LDjLkDgzw<25&9z<j3E0n1KX=+B?uYwwA|j{6nA5;M
+z)_5h_{daG|e+@Xx)>cnq2KRm=;+PP}y@l;MT)S%%zmNEsXAZiY!d+YB?Tg*e@b2ue
+z2Vq~oVMCWa7<*Q~5nXE;g8g94JF}vWq1cWwPG9612EKm7$gXiaVNY0m*{tyIjQzpF
+zr@HK2u%8-JF+1|^itQNV^u@Tz;MZ^aFt5)uS&Hqw34bFtPqnuGc5Lrm*ymt-FC+d!
+z>^BA<*j48h`S=&R><!rcUcYUxh`%2DvX?&UvTwkC^_6*D`>_$*F~;fhTy95OW1Ne&
+z@1UsLIv>FHoo4)_V9(B8+8x&Oat%I?`4q-j&)9c^?|AzqY~S%=dq*EE*p=8173?Z(
+z-|-Qz?K@t3Z)SN5eHXTO#Cto7IbFxyaPqUM$oaJ+{$8;0-jj&G4^G~A>(idWEcWvK
+z;Gt-H)m-|Gvu=In^&UP9Hm_%HUiWPiSl)QorER=>_!wfmJz%{1`FP@uciq|%|0LLW
+z&m!WV0?QlkzG%;&gRJ{$@Hn(}I=A_ZS;+j(^$ge;pWvQNoOE!{CC+nRz@E6j&%-(1
+zc>TUptiis~_aELsdm#3QwYYyies)YJ&i?T`uGk(KT)=(?+e4e7?HNBWCLqxR+EcsP
+zerGKD5AJ3!>t?rfv)c={@3-{@+aC41S>&$-`~9qF-&L@!Z&R|PzjnlSjq@2b3_TH%
+zQ+(L6{7m)jjQE)pV|M`;$L@+Pr+6mbxpUZO$4*8ZZ_K*HO#wTfKF`R#lrz8Yn%xl3
+zq8{5d?Vh-0jQ1VCN8-F+EyOs_jKrI7YO>9zkDnI#9IqvNuf&Ca7Pe!e=GkCl<jv<<
+z%Gvi-xz2K~8f*@Gcb~*Z%)Z!;n~Oxueqi|ltjaO_BkuEf#PRx{V-CM-9DwMrK|Y~|
+zgU~*oGoQW#5jp!(9BY{ec0a>D1YBI(q1eXAyEgk$&bkjnAC4?U79r;FopA&re{ZVo
+zsKoicvbJN;KGvr1XrvagHgVK)EZF%5uzJtsIK=gP=K2<pU;cPxagyknuV5RmFY+w`
+zySDSwxUYhZlaIcV`;0oQ(R!>a*18njeXVtH^0C%>u$=qhS{u+lu2o+Nku$eAYHI|0
+z{+_jKYC__y^__^sdRKs#CyBK*W6L|vwJbx+MgCT>dl@-S0>_@6mG+|z&NzMMXhF+G
+zjt;O~oX1MAHTFaFMebGL?zvaP8Luz$`J2!>;~uR68z&#RP60=*INMX<jMW!$Ujv_(
+zB)HSDW1j}lHSX&fh&4|{%;PxYTyHyCf7G`YTwL!uY{%MvYmu1eOmO!a&w?{vU*tO*
+z>>RO<bHK*QN6fk4sYsmbd0^w@qetcJ(dZ*}v1jdF^I7Nl$e?7q{tJ+}@1EO*$Pgsn
+z>lY<X-pBQt%h-#NV(cY}lkbU?A+gVwf*tEVJEwV#KZ;&6*JX&c88@Fw2cR!U<P{&s
+zoA<x`SD$z0Aav~2Rp8D$)A@e58rv~_5q)t!*MgTP3GO=VYm!9G8?d8hb2-kqX4XF)
+zeLZ4~=deE6;v2vl6MrLm8sd4}gtlh&$K<#LeJkRl|LbV|YS*+4`ZmNIzH=(kw<FFq
+z7m1iV62FO<QQ$if$I1Ji(Y_hE1u?(aI`2Y9ZFeW1+S=|#--q~E+x=+As$<><z~+eB
+z9t2xkH4-rof#svNhry1Mw>Is25a%<$IL1B#Hou?Iz0i*$a^Zgr?B0a`aj;yR=@Veb
+z$Orc%xcl9F3eH%4=Jsr#MqEpLKX@i_aSxxxcAR|VehwVD;~n}uoU!`MJq-N<vL_Pn
+zxo?1tlaH7e!Bdf#@0(!bUPL^*O=vme`=DP!1|{1$zJ*LE*xv>_Cf+qKgN>0lhj;Kh
+z$Pgs%{&y26@6!W`*zbXhvERp*Q+gt0NZg|zfF0}IcV6=vA9w$UVCy$7?*1!adBw-^
+z=5>DG4X+~JGuNa2qr^Eb?x38#dmq}~QagSd^p6pHYc1oof0DQ((Q!BA9Dg_3@%E_p
+zt;tqLzSqF^V&wZNST6GElXHB$2X4WR_52L%dg3nq9K0T>Mq-X%faN3RmtbS&A`$aC
+zSpMv^t~bDrlaG7yE3o_mZk2oYYeX)@o|FF#VqN-u=V}*!1C7A;8IJh7XLIxxh<mjq
+zI)3ZC3GQ96-%GaZcnkbCvJjbuxDI>q9pr5!dhxf3llSR?7&{F8J7gy$^8Fs%J>MVT
+z<Rjm^U^&IUvR~sq{t;|WW7bilbNmUh27UI2Ym&2uKIlIq?<4V><AcP-Z;roU%elsQ
+zr~DNxZ$9@#JM#SvY`$3IhhXOn`|n`)I_!Ud%@Oa5e}avXk2U-YY#x2FS091ht0NI}
+zx%VF<^08N+Bu?JPy^ryqg1e9Z3{F1Ae-4&YVz1-f@NYQtO+>8Exr~o@!xv!p!nk-h
+z{0A(r_&DCY_Ncz-(NW;75ueeBJvtJ-6=IK$LA#DBv`OTv5%-~&l!=ju>6v2Uz8O;n
+zCm%5tDW)79d3u56<9AzcFn`$&X}tdM^(pwA-`HoU(Y5pg>+g&BTVep($InrH{Si6W
+zCU$=B@j$R^yNW#4ycxFKP$Y714wfH=_>PJ^>W{d+&OaRNJnozE&f%WR$DTXiIK*dL
+zB=&r}ge%e8CtQVg4~!9yMXY^1+INTCR^;wou(vPRzHj{hJmJ^gyI_0P{(qkES7Q7B
+zdBU#3KCfUqetp4q{ME^JFa4a@65IOY_uWWrIq#2WG8*jTndlpZ$hj`Dd3>L24fdTC
+z-yOzaFUD5lyTdkc#_5Y*ssy`FF|G<*ZaG}MzqZA8tUiC6dFI=J`OE*EK)>%C_f|e~
+z?*Nwb-#HvJ7A$A1`>q|a<G{v7|BMIAS-<<RBiP4%&^G~*b05TCP>op5oc7HmuzeD9
+zOu=?u_rrRof+r*L5wjcEI((lPGY!mN{%=DOZ%lmF?G833#Bt6&9ge^J-<qt$e-Ag-
+z{?=!$o}=^H2Q$FMKG+jmZV^7$zZclY_3N97$eBkR_0I;6B`(f$4z`@<c`56*SE{k)
+z-CNJXo|iL+{(Zp3UYeU?i@mfjoN@YM?)|{Ux%bDGEA~<iwqy0h@B9P6{4qQKz66Lm
+z4iqENzXySh&3U3dpM$Zz^ReD}*mBCcwBAF&j@9RSz0-0r&!J$s$T1&$8ab8t_mTy0
+z{N?Ww<Bf^CurT@du?}#&yBCR(YWUcr!?1In+N$6WPcg;MfFt1K;~jn^n7@2($LkN@
+zQOV~X7-!9{+r2p&+uDqY`Huk`8+YJXY~$qP?i~k~H<!J4JlMzH)3+Frv-iYt_vD<%
+z{$B$2?%D5RW9?V{_IoY3*za}Na!V2CETMgzQ(rwIXCAS6?9~Qvu~(O2FNRm5Z<fOu
+zr!Vfn31Im~B+l_fFn{?wO@Hi16Ih>pY;Da3@mQO_6^NX*iDN(HVn15Ju^(b%T~F*s
+z8@RY19oTa1h;yz&$DI0BB68*t$2=#4oyR_34c4APKlpjO2JH72d2^nM_HiBhPC?|%
+zDUO_{funY@e&d|ubhO_={fs{&`PBaAUxz*u@zH-)@~dOrXM@cVzvs^d%bkN*m-br3
+zT+S<wvFC#w8^1#?0L%HgW&d9Umb(zK*7MMEj@N%NST4^05-@-H?_PZocPY3ScUg)X
+zNUXkiZ(I&GhyLiZE5Y(tAl9%RE$5kdPp$&{yGLIC)o8gmvunVfnY?Fq9oome(RVE(
+z=iZ3DZyS>>@4kBm`qi;_H-X)|_<eaZSkCVqajtU3bM*|Ox9vT1xrST8(H~;JyZsOF
+Cf~5KY
+
+literal 6176
+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
+I=<_W6AKlkbnE(I)
+
+diff --git a/crates/zakuro-gpu/src/backend/gl.rs b/crates/zakuro-gpu/src/backend/gl.rs
+index d63cb0c..3fb5ed4 100644
+--- a/crates/zakuro-gpu/src/backend/gl.rs
++++ b/crates/zakuro-gpu/src/backend/gl.rs
+@@ -4,7 +4,7 @@ use std::collections::HashMap;
+ 
+ use glow::HasContext;
+ 
+-use super::{apply_inset, place, Inset, Overlay, OverlayVertex, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
++use super::{expand_pieces, place, Piece, Overlay, OverlayVertex, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
+ 
+ const VERTEX_SHADER: &str = r#"#version 330 core
+ // a single oversized triangle covers the viewport with no vertex buffer.
+@@ -59,21 +59,63 @@ vec3 shown(sampler2D image) {
+ "#;
+ 
+ const SCREEN_MAIN: &str = r#"
+-// 0 the whole screen, 1 a circle as tall as it, centred, with a dark rim,
+-// as the Vulkan presenter's shader does it
+ uniform int shape;
+-void main() {
+-    vec3 seen = shown(screen);
++uniform float radius;
++uniform float aspect;
++// the screen's colour this many texels from here
++vec3 around(vec2 texels) {
++    vec2 at = crop.z > 0.0 ? crop.xy + uv * crop.zw : uv;
++    return texture(screen, at + texels / vec2(textureSize(screen, 0))).rgb;
++}
++
++// what of the screen is drawn: 0 all, 1 a circle as tall as it with a dark
++// rim (a minimap; aspect its width over height), 2 a rounded rectangle
++// (radius a share of its height), 3 the ellipse filling it, 4 only what is
++// near white, text, with a dark edge around it to read on anything.
++const vec3 RIM_COLOUR = vec3(0.07, 0.09, 0.13);
++bool texty(vec3 c) {
++    // white or pale text; panel backgrounds are dark and borders saturated
++    return min(c.r, min(c.g, c.b)) > 0.45 && dot(c, vec3(0.3, 0.59, 0.11)) > 0.6;
++}
++vec3 shaped(vec3 seen, int shape, float radius, float aspect) {
+     if (shape == 1) {
+-        float r = length((uv - 0.5) * vec2(4.0 / 3.0, 1.0));
++        float r = length((uv - 0.5) * vec2(aspect, 1.0));
+         float edge = fwidth(r);
+         if (r > 0.5) {
+             discard;
+         }
+-        float rim = smoothstep(0.5 - 0.03 - edge, 0.5 - 0.03, r);
+-        seen = mix(seen, vec3(0.07, 0.09, 0.13), rim);
++        return mix(seen, RIM_COLOUR, smoothstep(0.5 - 0.03 - edge, 0.5 - 0.03, r));
++    }
++    if (shape == 2) {
++        vec2 half_size = vec2(aspect, 1.0) * 0.5;
++        vec2 q = abs((uv - 0.5) * vec2(aspect, 1.0)) - half_size + radius;
++        if (length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius > 0.0) {
++            discard;
++        }
++        return seen;
++    }
++    if (shape == 3) {
++        if (length((uv - 0.5) * 2.0) > 1.0) {
++            discard;
++        }
++        return seen;
+     }
+-    color = vec4(seen, 1.0);
++    if (shape == 4) {
++        if (texty(seen)) {
++            return seen;
++        }
++        for (int i = 0; i < 8; i++) {
++            float a = float(i) * 0.785398;
++            if (texty(around(vec2(cos(a), sin(a)) * 1.5))) {
++                return vec3(0.02, 0.03, 0.05);
++            }
++        }
++        discard;
++    }
++    return seen;
++}
++void main() {
++    color = vec4(shaped(shown(screen), shape, radius, aspect), 1.0);
+ }
+ "#;
+ 
+@@ -156,7 +198,7 @@ pub struct GlPresenter {
+     /// the bottom screen drawn round, for a minimap.
+     round_bottom: bool,
+     /// a part of the bottom screen over the top one instead of it.
+-    bottom_inset: Option<Inset>,
++    bottom_pieces: Vec<Piece>,
+     top_width: f32,
+     filter: ScreenFilter,
+     integer: bool,
+@@ -228,7 +270,7 @@ impl GlPresenter {
+             window,
+             arrangement: ScreenLayout::default(),
+             round_bottom: false,
+-            bottom_inset: None,
++            bottom_pieces: Vec::new(),
+             top_width: super::TOP_WIDTH,
+             filter: ScreenFilter::default(),
+             integer: false,
+@@ -289,16 +331,30 @@ impl GlPresenter {
+         unsafe { self.gl.viewport(viewport.x as i32, y as i32, viewport.width as i32, viewport.height as i32) };
+     }
+ 
+-    fn draw_screen(&self, index: usize, viewport: Viewport) {
++    fn draw_screen(&self, index: usize, viewport: Viewport, piece: Option<Piece>) {
+         let gl = &self.gl;
+         self.use_program(self.program);
+         self.set_viewport(viewport);
+         unsafe {
++            let (shape, radius, aspect) = match piece {
++                Some(piece) => {
++                    let (shape, radius) = piece.shape.code();
++                    (shape, radius, viewport.width / viewport.height.max(1.0))
++                }
++                None if index == 1 && self.round_bottom => (1, 0.0, viewport.width / viewport.height.max(1.0)),
++                None => (0, 0.0, 1.0),
++            };
+             if let Some(location) = gl.get_uniform_location(self.program, "shape") {
+-                gl.uniform_1_i32(Some(&location), (index == 1 && self.round_bottom && self.bottom_inset.is_none()) as i32);
++                gl.uniform_1_i32(Some(&location), shape);
++            }
++            if let Some(location) = gl.get_uniform_location(self.program, "radius") {
++                gl.uniform_1_f32(Some(&location), radius);
++            }
++            if let Some(location) = gl.get_uniform_location(self.program, "aspect") {
++                gl.uniform_1_f32(Some(&location), aspect);
+             }
+             if let Some(location) = gl.get_uniform_location(self.program, "crop") {
+-                let crop = self.bottom_inset.filter(|_| index == 1).map_or([0.0; 4], |inset| inset.crop);
++                let crop = piece.map_or([0.0; 4], |piece| piece.crop);
+                 gl.uniform_4_f32(Some(&location), crop[0], crop[1], crop[2], crop[3]);
+             }
+             gl.active_texture(glow::TEXTURE0);
+@@ -365,13 +421,12 @@ impl Presenter for GlPresenter {
+             gl.bind_vertex_array(Some(self.vertex_array));
+         }
+ 
+-        let mut places = place(self.window.0, self.window.1, self.arrangement, self.top_width, self.integer, self.stereo, has_right);
+-        apply_inset(&mut places, self.bottom_inset);
+-        for (viewport, shown) in places {
++        let places = place(self.window.0, self.window.1, self.arrangement, self.top_width, self.integer, self.stereo, has_right);
++        for (viewport, shown, piece) in expand_pieces(places, &self.bottom_pieces) {
+             match shown {
+-                Shown::Top if !top.is_empty() => self.draw_screen(0, viewport),
+-                Shown::Bottom if !bottom.is_empty() => self.draw_screen(1, viewport),
+-                Shown::Right => self.draw_screen(2, viewport),
++                Shown::Top if !top.is_empty() => self.draw_screen(0, viewport, None),
++                Shown::Bottom if !bottom.is_empty() => self.draw_screen(1, viewport, piece),
++                Shown::Right => self.draw_screen(2, viewport, None),
+                 Shown::Both if !top.is_empty() => self.draw_both(viewport),
+                 _ => {}
+             }
+@@ -392,8 +447,8 @@ impl Presenter for GlPresenter {
+         self.round_bottom = round;
+     }
+ 
+-    fn set_bottom_inset(&mut self, inset: Option<Inset>) {
+-        self.bottom_inset = inset;
++    fn set_bottom_pieces(&mut self, pieces: Vec<Piece>) {
++        self.bottom_pieces = pieces;
+     }
+ 
+     fn set_layout(&mut self, arrangement: ScreenLayout) {
+diff --git a/crates/zakuro-gpu/src/backend/mod.rs b/crates/zakuro-gpu/src/backend/mod.rs
+index 5313597..3ba5327 100644
+--- a/crates/zakuro-gpu/src/backend/mod.rs
++++ b/crates/zakuro-gpu/src/backend/mod.rs
+@@ -89,39 +89,57 @@ pub struct Viewport {
+     pub height: f32,
+ }
+ 
+-/// a part of the bottom screen drawn on its own over the middle of the top
+-/// screen, in place of the whole bottom screen: crop is the part, as a
+-/// fraction of the screen (x, y, width, height from the top left), and
+-/// scale its size against the top screen's pixels.
++/// a part of the bottom screen drawn over the top screen, in place of the
++/// whole bottom screen: crop is the part and dest where it goes on the top
++/// screen, each x, y, width, height as fractions (from the top left).
+ #[derive(Debug, Clone, Copy, PartialEq)]
+-pub struct Inset {
++pub struct Piece {
+     pub crop: [f32; 4],
+-    pub scale: f32,
++    pub dest: [f32; 4],
++    pub shape: PieceShape,
+ }
+ 
+-/// moves the bottom screen's place to where an inset puts it: centred on
+-/// the top screen, crop's size at the top screen's scale times inset.scale.
+-pub fn apply_inset(places: &mut [(Viewport, Shown)], inset: Option<Inset>) {
+-    let Some(inset) = inset else { return };
+-    let Some(top) = places.iter().find(|(_, shown)| matches!(shown, Shown::Top | Shown::Both)).map(|(v, _)| *v) else {
+-        return;
+-    };
+-    // the top screen's pixels: 240 rows over its height
+-    let pixel = top.height / 240.0;
+-    let width = 320.0 * inset.crop[2] * pixel * inset.scale;
+-    let height = 240.0 * inset.crop[3] * pixel * inset.scale;
+-    for (viewport, shown) in places.iter_mut() {
+-        if *shown == Shown::Bottom {
+-            *viewport = Viewport {
+-                x: top.x + (top.width - width) / 2.0,
+-                y: top.y + (top.height - height) / 2.0,
+-                width,
+-                height,
+-            };
++/// what of a piece is drawn.
++#[derive(Debug, Clone, Copy, PartialEq)]
++pub enum PieceShape {
++    /// all of it.
++    Rect,
++    /// the ellipse that fills it.
++    Ellipse,
++    /// a rounded rectangle, corners this share of its height.
++    Rounded(f32),
++    /// only what is near white (text), with a dark edge to read on anything.
++    Text,
++}
++
++impl PieceShape {
++    /// the shader's shape number and its parameter.
++    pub(crate) fn code(self) -> (i32, f32) {
++        match self {
++            PieceShape::Rect => (0, 0.0),
++            PieceShape::Ellipse => (3, 0.0),
++            PieceShape::Rounded(radius) => (2, radius),
++            PieceShape::Text => (4, 0.0),
+         }
+     }
+ }
+ 
++/// the places to draw, with the bottom screen's swapped for the pieces' on
++/// the top screen when there are any.
++pub fn expand_pieces(places: Vec<(Viewport, Shown)>, pieces: &[Piece]) -> Vec<(Viewport, Shown, Option<Piece>)> {
++    let top = places.iter().find(|(_, shown)| matches!(shown, Shown::Top | Shown::Both)).map(|(v, _)| *v);
++    let (Some(top), false) = (top, pieces.is_empty()) else {
++        return places.into_iter().map(|(v, s)| (v, s, None)).collect();
++    };
++    let mut out: Vec<_> = places.into_iter().filter(|(_, s)| *s != Shown::Bottom).map(|(v, s)| (v, s, None)).collect();
++    for piece in pieces {
++        let [x, y, w, h] = piece.dest;
++        let viewport = Viewport { x: top.x + x * top.width, y: top.y + y * top.height, width: w * top.width, height: h * top.height };
++        out.push((viewport, Shown::Bottom, Some(*piece)));
++    }
++    out
++}
++
+ /// how the screens are arranged in the window.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+ pub enum ScreenLayout {
+@@ -378,9 +396,9 @@ pub trait Presenter {
+     /// whether the bottom screen is drawn as a circle, for a minimap.
+     fn set_round_bottom(&mut self, round: bool);
+ 
+-    /// a part of the bottom screen drawn over the middle of the top one in
+-    /// its place, or none.
+-    fn set_bottom_inset(&mut self, inset: Option<Inset>);
++    /// parts of the bottom screen drawn over the top one in its place, or
++    /// none for the bottom screen as it is.
++    fn set_bottom_pieces(&mut self, pieces: Vec<Piece>);
+ 
+     /// how wide the top screen shows, TOP_WIDTH for the console's shape.
+     fn set_top_width(&mut self, width: f32);
+diff --git a/crates/zakuro-gpu/src/backend/vulkan.rs b/crates/zakuro-gpu/src/backend/vulkan.rs
+index 66adfbd..94fd76b 100644
+--- a/crates/zakuro-gpu/src/backend/vulkan.rs
++++ b/crates/zakuro-gpu/src/backend/vulkan.rs
+@@ -8,7 +8,7 @@ use ash::vk;
+ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
+ 
+ use super::vulkan_overlay::OverlayPainter;
+-use super::{apply_inset, place, GpuScreen, Inset, Overlay, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
++use super::{expand_pieces, place, GpuScreen, Piece, Overlay, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
+ use crate::raster::hardware::{can_render, render_device};
+ use crate::SharedDevice;
+ 
+@@ -19,7 +19,7 @@ const STEREO_FRAGMENT_SPIRV: &[u8] = include_bytes!("../../shaders/present_stere
+ /// the bytes of push constants the fragment shader reads: where the screen
+ /// lies in its image, the bounds its samples keep in and the filter, and
+ /// for 3D how the eyes show and the right eye's place in its image.
+-const CONSTANTS: u32 = 40;
++const CONSTANTS: u32 = 48;
+ const STEREO_CONSTANTS: u32 = 80;
+ 
+ /// how many frames may be recorded before waiting on the oldest.
+@@ -124,7 +124,7 @@ pub struct VulkanPresenter {
+     /// the bottom screen drawn round, for a minimap.
+     round_bottom: bool,
+     /// a part of the bottom screen over the top one instead of it.
+-    bottom_inset: Option<Inset>,
++    bottom_pieces: Vec<Piece>,
+     top_width: f32,
+     filter: ScreenFilter,
+     integer: bool,
+@@ -411,7 +411,7 @@ impl VulkanPresenter {
+             window: size,
+             arrangement: ScreenLayout::default(),
+             round_bottom: false,
+-            bottom_inset: None,
++            bottom_pieces: Vec::new(),
+             top_width: super::TOP_WIDTH,
+             filter: ScreenFilter::default(),
+             integer: false,
+@@ -782,19 +782,18 @@ impl VulkanPresenter {
+                     Some((self.gpu_sets[self.frame][index], [x, y, width, height, left, top, right, bottom]))
+                 }
+             };
+-            let mut places = place(self.extent.width, self.extent.height, self.arrangement, self.top_width, self.integer, self.stereo, right);
+-            apply_inset(&mut places, self.bottom_inset);
+-            for (viewport, shown) in places {
++            let places = place(self.extent.width, self.extent.height, self.arrangement, self.top_width, self.integer, self.stereo, right);
++            for (viewport, shown, piece) in expand_pieces(places, &self.bottom_pieces) {
+                 let index = match shown {
+                     Shown::Top | Shown::Both => 0,
+                     Shown::Bottom => 1,
+                     Shown::Right => 2,
+                 };
+                 let Some((descriptor, mut area)) = crop(index) else { continue };
+-                if let (Shown::Bottom, Some(inset)) = (shown, self.bottom_inset) {
+-                    // only the inset's part of the screen, kept within it
++                if let Some(piece) = piece {
++                    // only the piece's part of the screen, kept within it
+                     let [x, y, width, height] = [area[0], area[1], area[2], area[3]];
+-                    let [cx, cy, cw, ch] = inset.crop;
++                    let [cx, cy, cw, ch] = piece.crop;
+                     let (nx, ny, nw, nh) = (x + cx * width, y + cy * height, cw * width, ch * height);
+                     area = [nx, ny, nw, nh, area[4].max(nx), area[5].max(ny), area[6].min(nx + nw), area[7].min(ny + nh)];
+                 }
+@@ -810,8 +809,15 @@ impl VulkanPresenter {
+                     constants.extend(right.iter().flat_map(|c| c.to_le_bytes()));
+                     (self.stereo_pipeline, self.stereo_pipeline_layout, self.stereo_sets[self.frame])
+                 } else {
+-                    let round = shown == Shown::Bottom && self.round_bottom && self.bottom_inset.is_none();
+-                    constants.extend_from_slice(&(round as i32).to_le_bytes());
++                    let aspect = viewport.width / viewport.height.max(1.0);
++                    let (shape, radius) = match piece {
++                        Some(piece) => piece.shape.code(),
++                        None if shown == Shown::Bottom && self.round_bottom => (1, 0.0),
++                        None => (0, 0.0),
++                    };
++                    constants.extend_from_slice(&shape.to_le_bytes());
++                    constants.extend_from_slice(&radius.to_le_bytes());
++                    constants.extend_from_slice(&aspect.to_le_bytes());
+                     (self.pipeline, self.pipeline_layout, descriptor)
+                 };
+                 set_viewport(device, command_buffer, viewport, self.extent);
+@@ -976,8 +982,8 @@ impl Presenter for VulkanPresenter {
+         self.round_bottom = round;
+     }
+ 
+-    fn set_bottom_inset(&mut self, inset: Option<Inset>) {
+-        self.bottom_inset = inset;
++    fn set_bottom_pieces(&mut self, pieces: Vec<Piece>) {
++        self.bottom_pieces = pieces;
+     }
+ 
+     fn set_layout(&mut self, arrangement: ScreenLayout) {
+diff --git a/crates/zakuro-gpu/src/lib.rs b/crates/zakuro-gpu/src/lib.rs
+index 87873b8..2253b59 100644
+--- a/crates/zakuro-gpu/src/lib.rs
++++ b/crates/zakuro-gpu/src/lib.rs
+@@ -22,7 +22,7 @@ pub mod texture;
+ use format::ColorFormat;
+ pub use interpolation::Matches;
+ use registers::*;
+-pub use backend::{layout, place, GpuScreen, Inset, Overlay, OverlayMesh, OverlayTexture, OverlayVertex, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
++pub use backend::{layout, place, GpuScreen, Piece, PieceShape, Overlay, OverlayMesh, OverlayTexture, OverlayVertex, PresentError, Presenter, ScreenFilter, ScreenImage, ScreenLayout, Shown, Stereo, StereoMode, Viewport};
+ pub use renderer::{DrawCall, Renderer, RendererKind, SoftwareRenderer};
+ #[cfg(feature = "vulkan")]
+ pub use device::SharedDevice;
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index e0b68a3..1e2ac2a 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -337,25 +337,22 @@ fn paint_test_pattern(config: Config) -> System {
+ }
+ 
+ /// the layout as shown: picture-in-picture leaves the bottom screen out
+-/// while the game shows only its idle picture there.
++/// while the game has nothing worth showing there.
+ fn shown_layout(layout: Screens, game: Option<&Running>, hide_idle: bool) -> zakuro_gpu::ScreenLayout {
+-    if layout == Screens::PictureInPicture && hide_idle && game.is_some_and(|game| game.bottom_idle) {
++    if layout == Screens::PictureInPicture && hide_idle && game.is_some_and(|game| game.bottom_view.hide) {
+         zakuro_gpu::ScreenLayout::TopOnly
+     } else {
+         layout.screens()
+     }
+ }
+ 
+-/// the part of the bottom screen drawn by itself over the top one: in
+-/// picture-in-picture, while it shows a notice.
+-fn bottom_inset(layout: Screens, game: Option<&Running>, notice_over_top: bool) -> Option<zakuro_gpu::Inset> {
+-    (layout == Screens::PictureInPicture && notice_over_top).then(|| game.and_then(|game| game.bottom_notice)).flatten()
+-}
+-
+-/// whether the bottom screen is drawn round: in picture-in-picture, while it
+-/// shows the game's map.
+-fn round_bottom(layout: Screens, game: Option<&Running>, round_minimap: bool) -> bool {
+-    layout == Screens::PictureInPicture && round_minimap && game.is_some_and(|game| game.bottom_map)
++/// tells the presenter how picture-in-picture shows the bottom screen now.
++fn apply_bottom_view(backend: &mut Backend, layout: Screens, game: Option<&Running>, settings: &Settings) {
++    let pip = layout == Screens::PictureInPicture;
++    let view = game.map(|game| game.bottom_view.clone()).unwrap_or_default();
++    backend.set_layout(shown_layout(layout, game, settings.hide_idle_bottom));
++    backend.set_round_bottom(pip && settings.round_minimap && view.round);
++    backend.set_bottom_pieces(if pip && settings.notice_over_top { view.pieces } else { Vec::new() });
+ }
+ 
+ /// the resolution that draws the top screen's 240 rows at least as tall as
+@@ -408,16 +405,11 @@ fn run_headless(system: &mut System, frames: u64) {
+ /// a game being played.
+ struct Running {
+     system: System,
+-    /// the bottom screen is left out of the layout for now, the game showing
+-    /// only its idle picture there (title_hooks).
+-    bottom_idle: bool,
+-    /// the bottom screen shows the map, drawn round in picture-in-picture
+-    /// (title_hooks), and what that watches between frames.
+-    bottom_map: bool,
+-    map_watch: title_hooks::MapWatch,
+-    /// a notice on the bottom screen, drawn by itself over the top one in
+-    /// picture-in-picture (title_hooks).
+-    bottom_notice: Option<zakuro_gpu::Inset>,
++    /// what the bottom screen shows, as the game says (title_hooks), for
++    /// picture-in-picture to hide it, inset part of it or round it, and
++    /// what that watches between frames.
++    bottom_view: title_hooks::BottomView,
++    bottom_watch: title_hooks::Watch,
+     path: PathBuf,
+     name: String,
+     /// the inputs written down, ZAKURO_RECORD=file, for playing the run
+@@ -436,10 +428,8 @@ struct Running {
+ impl Running {
+     fn new(system: System, path: PathBuf, name: String) -> Running {
+         Running {
+-            bottom_idle: false,
+-            bottom_map: false,
+-            map_watch: Default::default(),
+-            bottom_notice: None,
++            bottom_view: Default::default(),
++            bottom_watch: Default::default(),
+             system,
+             path,
+             name,
+@@ -1057,9 +1047,7 @@ impl App {
+             backend.set_top_width(self.settings.top_shape.width());
+             backend.set_scaling(self.settings.filter.screens(), self.settings.integer_scale);
+             backend.set_stereo(self.settings.stereo());
+-            backend.set_layout(shown_layout(self.layout, self.game.as_ref(), self.settings.hide_idle_bottom));
+-            backend.set_round_bottom(round_bottom(self.layout, self.game.as_ref(), self.settings.round_minimap));
+-            backend.set_bottom_inset(bottom_inset(self.layout, self.game.as_ref(), self.settings.notice_over_top));
++            apply_bottom_view(backend, self.layout, self.game.as_ref(), &self.settings);
+         }
+         let scale = if self.options.scale.is_none() { self.settings.scale.max(1) } else { self.scale };
+         if scale != self.scale || self.settings.layout != self.layout || self.settings.top_shape != self.top_shape {
+@@ -1437,25 +1425,11 @@ impl App {
+         }
+         game.system.set_input(input);
+         let outcome = game.system.run_frame();
+-        let idle = title_hooks::bottom_screen_idle(&mut game.system);
+-        if idle != game.bottom_idle {
+-            game.bottom_idle = idle;
+-            if let Some(backend) = &mut self.backend {
+-                backend.set_layout(shown_layout(self.layout, Some(game), self.settings.hide_idle_bottom));
+-            }
+-        }
+-        let notice = title_hooks::bottom_screen_notice(&mut game.system);
+-        if notice != game.bottom_notice {
+-            game.bottom_notice = notice;
+-            if let Some(backend) = &mut self.backend {
+-                backend.set_bottom_inset(bottom_inset(self.layout, Some(game), self.settings.notice_over_top));
+-            }
+-        }
+-        let map = title_hooks::bottom_screen_map(&mut game.system, &mut game.map_watch);
+-        if map != game.bottom_map {
+-            game.bottom_map = map;
++        let view = title_hooks::bottom_view(&mut game.system, &mut game.bottom_watch);
++        if view != game.bottom_view {
++            game.bottom_view = view;
+             if let Some(backend) = &mut self.backend {
+-                backend.set_round_bottom(round_bottom(self.layout, Some(game), self.settings.round_minimap));
++                apply_bottom_view(backend, self.layout, Some(game), &self.settings);
+             }
+         }
+         // the overlay reads the game the program was built on, not another
+diff --git a/crates/zakuro/src/menus.rs b/crates/zakuro/src/menus.rs
+index a584fa6..73e308b 100644
+--- a/crates/zakuro/src/menus.rs
++++ b/crates/zakuro/src/menus.rs
+@@ -713,9 +713,9 @@ impl Menus {
+                 .on_hover_text("The corner screen is drawn as a circle while it shows the game's map, for games Zakuro knows how to tell.");
+                 ui.add_enabled(
+                     settings.layout == Screens::PictureInPicture,
+-                    egui::Checkbox::new(&mut settings.notice_over_top, "Notices over the top screen"),
++                    egui::Checkbox::new(&mut settings.notice_over_top, "Move bottom-screen text to the top screen"),
+                 )
+-                .on_hover_text("A notice on the bottom screen, such as a collected postcard, shows by itself in the middle of the top screen instead of in the corner, for games Zakuro knows how to tell.");
++                .on_hover_text("Notices, subtitles, loading tips and menus on the bottom screen show by themselves on the top screen instead of in the corner, for games Zakuro knows how to tell.");
+                 egui::ComboBox::from_label("Filter").selected_text(settings.filter.name()).show_ui(ui, |ui| {
+                     for filter in Filter::ALL {
+                         ui.selectable_value(&mut settings.filter, filter, filter.name());
+diff --git a/crates/zakuro/src/present.rs b/crates/zakuro/src/present.rs
+index 2c58eb3..ad08f2f 100644
+--- a/crates/zakuro/src/present.rs
++++ b/crates/zakuro/src/present.rs
+@@ -118,10 +118,10 @@ impl Backend {
+         }
+     }
+ 
+-    pub fn set_bottom_inset(&mut self, inset: Option<zakuro_gpu::Inset>) {
++    pub fn set_bottom_pieces(&mut self, pieces: Vec<zakuro_gpu::Piece>) {
+         match self {
+-            Backend::OpenGl { presenter, .. } => presenter.set_bottom_inset(inset),
+-            Backend::Vulkan(presenter) => presenter.set_bottom_inset(inset),
++            Backend::OpenGl { presenter, .. } => presenter.set_bottom_pieces(pieces),
++            Backend::Vulkan(presenter) => presenter.set_bottom_pieces(pieces),
+             Backend::None => {}
+         }
+     }
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index ba5da0d..29bd16a 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -9,6 +9,11 @@
+ //! the update itself set whenever a cutscene or scripted sequence has the
+ //! camera (f_00236104), and keeps whether the wipe is shut at +0x485.
+ //!
++//! Rules (bottom_view): a video hides the bottom screen, its subtitles go
++//! over the bottom of the top screen; the loading screen's tip goes there
++//! too; the wipe, shut or opening, hides it; a notice goes over the middle
++//! of the top screen; the map is drawn round.
++//!
+ //! The map is showing when the map's per-frame function, f_001EE730, ran
+ //! this frame (overrides/map_frame_counter.c counts its runs at
+ //! MAP_FRAMES, past the end of the game's .bss), the map is fully faded
+@@ -16,79 +21,148 @@
+ //! over it stop that function.
+ 
+ use zakuro_core::System;
++use zakuro_gpu::{Piece, PieceShape};
+ 
+ const LEGO_CITY_CHASE_BEGINS: u64 = 0x0004_0000_000A_D500;
+ const DRC_MANAGER: u32 = 0x0051_9D94;
+ const DRC_WIPE_SHUT: u32 = DRC_MANAGER + 0x485;
+ const DRC_MAP_FADE: u32 = DRC_MANAGER + 0x4A0;
+-const MAP_FRAMES: u32 = 0x005A_4F00;
+ /// the notice box (postcards, tips): f_00235F30 shows one, and +0x10 of
+ /// this is non-zero while it is up (f_001EE9A0 asks the same).
+ const NOTICE_STATE: u32 = 0x0051_7E68 + 0x10;
++/// overrides/screen_frame_counters.c counts frames of: the map, video
++/// playback, the loading screen, text drawing.
++const COUNTERS: u32 = 0x005A_4F00;
+ 
+-/// whether the bottom screen shows nothing but a game's idle picture, which
+-/// a layout that overlays it can leave out.
+-pub fn bottom_screen_idle(system: &mut System) -> bool {
+-    match system.title.as_ref().map(|title| title.program_id()) {
+-        Some(LEGO_CITY_CHASE_BEGINS) => {
+-            let mut shut = [0u8];
+-            system.memory.read_bytes(DRC_WIPE_SHUT, &mut shut);
+-            shut[0] != 0
+-        }
+-        _ => false,
+-    }
++/// what the bottom screen shows, for a layout that overlays it.
++#[derive(Debug, Clone, PartialEq, Default)]
++pub struct BottomView {
++    /// nothing worth showing: leave the bottom screen out.
++    pub hide: bool,
++    /// draw just these parts of it over the top screen instead.
++    pub pieces: Vec<Piece>,
++    /// it shows the map: draw it round, as a minimap.
++    pub round: bool,
+ }
+ 
+-/// what bottom_screen_map remembers between frames.
++/// what bottom_view remembers between frames.
+ #[derive(Default)]
+-pub struct MapWatch {
+-    count: u32,
+-    /// frames since the map last ran.
+-    quiet: u32,
++pub struct Watch {
++    counts: [u32; 6],
++    /// frames since each counter last moved.
++    quiet: [u32; 6],
++    /// frames since the wipe last was shut.
++    since_wipe: u32,
+ }
+ 
+-/// the game runs its logic at 30 frames a second or slower, so the map's
+-/// function skips frames; it counts as showing while it ran within these.
+-const MAP_GRACE: u32 = 4;
++/// the game runs its logic at 30 frames a second or slower, so a function
++/// that runs each of its frames skips some of ours.
++const GRACE: u32 = 4;
++/// the wipe's opening animation, after it stops counting as shut.
++const WIPE_OPENING: u32 = 40;
+ 
+-/// whether the bottom screen shows the game's map and nothing over it, which
+-/// a layout can draw as a round minimap.
+-pub fn bottom_screen_map(system: &mut System, watch: &mut MapWatch) -> bool {
+-    match system.title.as_ref().map(|title| title.program_id()) {
+-        Some(LEGO_CITY_CHASE_BEGINS) => {
+-            let mut word = [0u8; 4];
+-            system.memory.read_bytes(MAP_FRAMES, &mut word);
+-            let count = u32::from_le_bytes(word);
+-            if count != watch.count {
+-                watch.count = count;
+-                watch.quiet = 0;
+-            } else {
+-                watch.quiet = watch.quiet.saturating_add(1);
+-            }
+-            system.memory.read_bytes(DRC_MAP_FADE, &mut word);
+-            let faded_in = f32::from_le_bytes(word) > 0.99;
+-            let mut shut = [0u8];
+-            system.memory.read_bytes(DRC_WIPE_SHUT, &mut shut);
+-            watch.quiet <= MAP_GRACE && faded_in && shut[0] == 0
++const MAP: usize = 0;
++const VIDEO: usize = 1;
++const LOADING: usize = 2;
++const TEXT: usize = 3;
++const SAVE_SLOTS: usize = 4;
++const MISSION_CARD: usize = 5;
++/// 1 when the notice up came from a tutorial tip (the ShowTipText script
++/// commands), 0 for anything else (postcards, challenges).
++const NOTICE_IS_TIP: u32 = 0x005A_4F40;
++
++/// a part of the bottom screen, x, y, width, height in its pixels, drawn
++/// with its centre at (cx, cy) of the top screen (fractions), its pixels
++/// scale times the top screen's.
++fn piece(part: [f32; 4], cx: f32, cy: f32, scale: f32, shape: PieceShape) -> Piece {
++    let [x, y, w, h] = part;
++    let (dw, dh) = (w * scale / 400.0, h * scale / 240.0);
++    Piece { crop: [x / 320.0, y / 240.0, w / 320.0, h / 240.0], dest: [cx - dw / 2.0, cy - dh / 2.0, dw, dh], shape }
++}
++
++/// a notice box, its "!" and its badge, by themselves around (cx, cy): the
++/// box spans x 10-309, y 66-173, the "!" is a circle at (281, 68), the
++/// badge at (281, 178).
++fn notice_pieces(cx: f32, cy: f32, scale: f32) -> Vec<Piece> {
++    let at = |x: f32, y: f32| (cx + (x - 160.0) * scale / 400.0, cy + (y - 120.0) * scale / 240.0);
++    let (bx, by) = at(159.5, 119.5);
++    let (ex, ey) = at(281.0, 68.0);
++    let (gx, gy) = at(281.0, 178.0);
++    vec![
++        piece([10.0, 66.0, 300.0, 108.0], bx, by, scale, PieceShape::Rounded(0.08)),
++        piece([267.0, 54.0, 28.0, 28.0], ex, ey, scale, PieceShape::Ellipse),
++        piece([258.0, 154.0, 46.0, 48.0], gx, gy, scale, PieceShape::Ellipse),
++    ]
++}
++
++fn read_u32(system: &mut System, address: u32) -> u32 {
++    let mut word = [0u8; 4];
++    system.memory.read_bytes(address, &mut word);
++    u32::from_le_bytes(word)
++}
++
++/// what the bottom screen shows this frame, as far as the game says.
++pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
++    if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
++        return BottomView::default();
++    }
++    for i in 0..6 {
++        let count = read_u32(system, COUNTERS + 4 * i as u32);
++        if count != watch.counts[i] {
++            watch.counts[i] = count;
++            watch.quiet[i] = 0;
++        } else {
++            watch.quiet[i] = watch.quiet[i].saturating_add(1);
+         }
+-        _ => false,
+     }
+-}
++    let ran = |i: usize| watch.quiet[i] <= GRACE;
++    let mut shut = [0u8];
++    system.memory.read_bytes(DRC_WIPE_SHUT, &mut shut);
++    watch.since_wipe = if shut[0] != 0 { 0 } else { watch.since_wipe.saturating_add(1) };
+ 
+-/// the part of the bottom screen that shows a notice by itself, and how big
+-/// to draw it over the top screen, while the game shows one there.
+-pub fn bottom_screen_notice(system: &mut System) -> Option<zakuro_gpu::Inset> {
+-    match system.title.as_ref().map(|title| title.program_id()) {
+-        Some(LEGO_CITY_CHASE_BEGINS) => {
+-            let mut word = [0u8; 4];
+-            system.memory.read_bytes(NOTICE_STATE, &mut word);
+-            // the box spans x 10-309, y 66-173 of 320x240, its "!" above
+-            // and badge below it reaching y 50-200
+-            (u32::from_le_bytes(word) != 0).then_some(zakuro_gpu::Inset {
+-                crop: [6.0 / 320.0, 50.0 / 240.0, 308.0 / 320.0, 150.0 / 240.0],
+-                scale: 0.8,
+-            })
++    // a cutscene video on the top screen: the bottom one only has its
++    // subtitles, the only text drawn while one plays (box at y 8-92); just
++    // their text goes along the bottom of the top screen
++    if ran(VIDEO) {
++        let pieces = if ran(TEXT) { vec![piece([10.0, 12.0, 300.0, 76.0], 0.5, 0.86, 0.85, PieceShape::Text)] } else { Vec::new() };
++        return BottomView { hide: pieces.is_empty(), pieces, round: false };
++    }
++    // the loading screen: just its tip's text (y 112-230) under the badge
++    if ran(LOADING) {
++        return BottomView { hide: false, pieces: vec![piece([12.0, 112.0, 296.0, 118.0], 0.5, 0.78, 0.85, PieceShape::Text)], round: false };
++    }
++    // choosing a save slot: the two slots (x 49-273, y 86-133 and 140-186)
++    // in the lower middle, "Select (A)" at the bottom right
++    if ran(SAVE_SLOTS) {
++        return BottomView {
++            hide: false,
++            pieces: vec![
++                piece([49.0, 86.0, 225.0, 48.0], 0.5, 0.58, 1.0, PieceShape::Rounded(0.12)),
++                piece([49.0, 140.0, 225.0, 47.0], 0.5, 0.80, 1.0, PieceShape::Rounded(0.12)),
++                piece([236.0, 220.0, 84.0, 20.0], 0.87, 0.93, 1.0, PieceShape::Text),
++            ],
++            round: false,
++        };
++    }
++    // the hexagon wipe, shut (cutscenes, scripted scenes) or opening; while
++    // it shows the mission's name (box x 100-219, y 6-53), that box goes to
++    // the top middle of the top screen
++    if watch.since_wipe <= WIPE_OPENING {
++        if shut[0] != 0 && ran(MISSION_CARD) {
++            return BottomView { hide: false, pieces: vec![piece([98.0, 4.0, 124.0, 52.0], 0.5, 0.13, 1.0, PieceShape::Rounded(0.25))], round: false };
++        }
++        return BottomView { hide: true, pieces: Vec::new(), round: false };
++    }
++    // a notice: a tutorial tip's text alone at the bottom middle (the box's
++    // inside, y 70-170); anything else as its box, "!" and badge in the middle
++    if read_u32(system, NOTICE_STATE) != 0 {
++        if read_u32(system, NOTICE_IS_TIP) != 0 {
++            return BottomView { hide: false, pieces: vec![piece([16.0, 70.0, 260.0, 100.0], 0.5, 0.82, 0.85, PieceShape::Text)], round: false };
+         }
+-        _ => None,
++        return BottomView { hide: false, pieces: notice_pieces(0.5, 0.5, 0.8), round: false };
+     }
++    let mut word = [0u8; 4];
++    system.memory.read_bytes(DRC_MAP_FADE, &mut word);
++    let faded_in = f32::from_le_bytes(word) > 0.99;
++    BottomView { hide: false, pieces: Vec::new(), round: ran(MAP) && faded_in }
+ }
