@@ -27,8 +27,12 @@ static void count(Context *ctx, uint32_t slot) {
     mem_write32(ctx, at, mem_read32(ctx, at) + 1);
 }
 
+void map_button_pressed(Context *ctx, uint32_t button);  /* map_buttons.c */
+
 RECOMP_OVERRIDE(0x001EE730) {
+    uint32_t button = ctx->r[0];
     CALL(RECOMP_ORIGINAL(0x001EE730));
+    map_button_pressed(ctx, button);
     count(ctx, 0);
 }
 

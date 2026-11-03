@@ -1,0 +1,153 @@
+diff --git a/crates/zakuro-core/src/lib.rs b/crates/zakuro-core/src/lib.rs
+index 86fb008..42e705b 100644
+--- a/crates/zakuro-core/src/lib.rs
++++ b/crates/zakuro-core/src/lib.rs
+@@ -914,6 +914,7 @@ impl System {
+             self.memory.phys.shared_page_mut(),
+             (input.c_stick_x, input.c_stick_y),
+             (input.circle_x, input.circle_y),
++            input.buttons.bits(),
+         );
+     }
+ 
+diff --git a/crates/zakuro-core/src/memory/config.rs b/crates/zakuro-core/src/memory/config.rs
+index 7dc8371..5366868 100644
+--- a/crates/zakuro-core/src/memory/config.rs
++++ b/crates/zakuro-core/src/memory/config.rs
+@@ -82,17 +82,21 @@ pub fn init_shared_page(page: &mut [u8], model: ConsoleModel, slider_3d: f32, cl
+ /// where in the shared page Zakuro leaves input the console has no place
+ /// for, for game code written for Zakuro (overrides) to read: the magic
+ /// "ZKRS", then the right stick's x and y, then the left stick's (the
+-/// circle pad's) x and y, each -1 to 1, up positive, as f32.
++/// circle pad's) x and y, each -1 to 1, up positive, as f32, then the
++/// buttons held as a u32 in HID's bit order (with ZL and ZR, which a game
++/// for the original 3DS never reads).
+ /// The console leaves this end of the page unused.
+ pub const HOST_RIGHT_STICK: usize = 0xF00;
+ 
+ /// writes the sticks where HOST_RIGHT_STICK says.
+-pub fn set_host_sticks(page: &mut [u8], right: (f32, f32), left: (f32, f32)) {
++pub fn set_host_sticks(page: &mut [u8], right: (f32, f32), left: (f32, f32), buttons: u32) {
+     page[HOST_RIGHT_STICK..HOST_RIGHT_STICK + 4].copy_from_slice(b"ZKRS");
+     for (i, value) in [right.0, right.1, left.0, left.1].into_iter().enumerate() {
+         let at = HOST_RIGHT_STICK + 4 + 4 * i;
+         page[at..at + 4].copy_from_slice(&value.to_le_bytes());
+     }
++    let at = HOST_RIGHT_STICK + 20;
++    page[at..at + 4].copy_from_slice(&buttons.to_le_bytes());
+ }
+ 
+ /// the host's local time, in milliseconds since 1900.
+diff --git a/crates/zakuro/src/headless_probe.rs b/crates/zakuro/src/headless_probe.rs
+index 2bb2343..7564eb5 100644
+--- a/crates/zakuro/src/headless_probe.rs
++++ b/crates/zakuro/src/headless_probe.rs
+@@ -121,7 +121,7 @@ impl Probe {
+         Probe { dump_dir, every, holds, trace: trace_dump(), peek, peek_at }
+     }
+ 
+-    pub fn before_frame(&self, system: &mut System, frame: u64) {
++    pub fn before_frame(&self, system: &mut System, frame: u64, adjust: &mut dyn FnMut(&mut System, &mut InputState)) {
+         if self.holds.is_empty() {
+             return;
+         }
+@@ -136,6 +136,7 @@ impl Probe {
+                 input.c_stick_y = y;
+             }
+         }
++        adjust(system, &mut input);
+         system.set_input(input);
+     }
+ 
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 2b61002..dc4ab85 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -381,8 +381,9 @@ fn run_headless(system: &mut System, frames: u64) {
+     let mut outcome = FrameOutcome::Completed;
+     let mut ran = 0;
+     let probe = headless_probe::Probe::from_env();
++    let mut taps = title_hooks::Taps::default();
+     for frame in 0..frames {
+-        probe.before_frame(system, frame);
++        probe.before_frame(system, frame, &mut |system, input| title_hooks::tap_input(system, &mut taps, input));
+         outcome = system.run_frame();
+         ran += 1;
+         probe.after_frame(system, frame + 1);
+@@ -413,6 +414,8 @@ struct Running {
+     /// what that watches between frames.
+     bottom_view: title_hooks::BottomView,
+     bottom_watch: title_hooks::Watch,
++    /// stylus taps the game asks for (title_hooks::tap_input).
++    taps: title_hooks::Taps,
+     path: PathBuf,
+     name: String,
+     /// the inputs written down, ZAKURO_RECORD=file, for playing the run
+@@ -433,6 +436,7 @@ impl Running {
+         Running {
+             bottom_view: Default::default(),
+             bottom_watch: Default::default(),
++            taps: Default::default(),
+             system,
+             path,
+             name,
+@@ -1418,10 +1422,13 @@ impl App {
+     /// runs one frame of the game.
+     fn emulate(&mut self) {
+         let Some(game) = &mut self.game else { return };
+-        let input = match &mut game.replay {
++        let mut input = match &mut game.replay {
+             Some(replay) => replay.input(game.frame),
+             None => self.gamepads.apply(self.keyboard.state()),
+         };
++        // a tap the game's code asked for (a controller button bound to a
++        // touch-screen button), recorded like any touch
++        title_hooks::tap_input(&mut game.system, &mut game.taps, &mut input);
+         game.frame += 1;
+         if let Some(recorder) = &mut game.recorder {
+             recorder.record(input);
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 23483a5..25c2bb6 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -203,3 +203,40 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+     let faded_in = f32::from_le_bytes(word) > 0.99;
+     BottomView { hide: false, pieces: Vec::new(), round: ran(MAP) && faded_in, swap: false }
+ }
++
++/// where overrides (overrides/map_buttons.c) ask for a stylus tap: "TAP!",
++/// x and y in bottom-screen pixels as f32, and a number that changes with
++/// each request.
++const TAP_REQUEST: u32 = 0x005A_4F70;
++/// frames a requested tap holds the stylus down, then lets go.
++const TAP_FRAMES: u32 = 4;
++
++/// what tap_input remembers between frames.
++#[derive(Default)]
++pub struct Taps {
++    serial: u32,
++    left: u32,
++    at: (u16, u16),
++}
++
++/// touches the bottom screen where the game asked for a tap, a few frames,
++/// unless the user is touching it.
++pub fn tap_input(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
++    if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
++        return;
++    }
++    if read_u32(system, TAP_REQUEST) == u32::from_le_bytes(*b"TAP!") {
++        let serial = read_u32(system, TAP_REQUEST + 12);
++        if serial != taps.serial {
++            taps.serial = serial;
++            let x = f32::from_bits(read_u32(system, TAP_REQUEST + 4)).clamp(0.0, 319.0);
++            let y = f32::from_bits(read_u32(system, TAP_REQUEST + 8)).clamp(0.0, 239.0);
++            taps.at = (x as u16, y as u16);
++            taps.left = TAP_FRAMES;
++        }
++    }
++    if taps.left > 0 && input.touch.is_none() {
++        taps.left -= 1;
++        input.touch = Some(taps.at);
++    }
++}

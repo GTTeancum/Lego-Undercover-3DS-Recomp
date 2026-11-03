@@ -145,6 +145,20 @@ this way: the video's frame is copied over the top screen after everything
 drawn there (text printed after any phase is gone), so Zakuro still moves
 their text as a piece.
 
+**Map buttons from the controller** (`overrides/map_buttons.c`): the DRC
+manager's buttons are 0x2C-byte objects at +0x28 Scan, +0x54 Exit, +0x80
+Chars, +0xAC Audio, +0xD8 Red Bricks, +0x104 Free Play, +0x130 Hint,
++0x264 area exit; the map update `f_002D9F84` asks `f_001EE730(button,
+touch)` of each shown button whether the stylus is on it (a circle around
+the sprite's middle: place at sprite +0xF0, size at +0x54/+0x58) and acts
+on a short touch let go. A press of LT (ZL) or RT (ZR) asks Zakuro (patch
+0016, `title_hooks::tap_input`, mailbox 0x005A4F70) for a real stylus tap
+on Chars or Scan. Zakuro also leaves the buttons held in the shared page
+(0x1FF81F14). Status: the tap lands on the button (checked against a
+scripted stylus tap there, which behaves the same); the character switch
+is not unlocked in the test save, and Scan only shows near scannable
+things, so neither action has been seen yet.
+
 ### Drawing on a screen from an override
 
 - In gameplay the renderer `f_002E4858(this, phase)` draws one screen a
