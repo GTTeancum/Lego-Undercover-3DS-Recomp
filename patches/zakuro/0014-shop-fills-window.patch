@@ -1,0 +1,234 @@
+diff --git a/crates/zakuro-gpu/src/backend/gl.rs b/crates/zakuro-gpu/src/backend/gl.rs
+index 133301f..5e66351 100644
+--- a/crates/zakuro-gpu/src/backend/gl.rs
++++ b/crates/zakuro-gpu/src/backend/gl.rs
+@@ -435,7 +435,7 @@ impl Presenter for GlPresenter {
+         let places = place(self.window.0, self.window.1, self.arrangement, self.top_width, self.integer, self.stereo, has_right);
+         for (viewport, shown, piece) in expand_pieces(places, &self.bottom_pieces) {
+             match shown {
+-                Shown::Top if !top.is_empty() => self.draw_screen(0, viewport, None),
++                Shown::Top if !top.is_empty() => self.draw_screen(0, viewport, piece),
+                 Shown::Bottom if !bottom.is_empty() => self.draw_screen(1, viewport, piece),
+                 Shown::Right => self.draw_screen(2, viewport, None),
+                 Shown::Both if !top.is_empty() => self.draw_both(viewport),
+diff --git a/crates/zakuro-gpu/src/backend/mod.rs b/crates/zakuro-gpu/src/backend/mod.rs
+index 3ba5327..9fda332 100644
+--- a/crates/zakuro-gpu/src/backend/mod.rs
++++ b/crates/zakuro-gpu/src/backend/mod.rs
+@@ -89,14 +89,17 @@ pub struct Viewport {
+     pub height: f32,
+ }
+ 
+-/// a part of the bottom screen drawn over the top screen, in place of the
+-/// whole bottom screen: crop is the part and dest where it goes on the top
+-/// screen, each x, y, width, height as fractions (from the top left).
++/// a part of one screen drawn over the other: a part of the bottom screen
++/// over the top one, in place of the whole bottom screen, or (from_top) a
++/// part of the top screen over the bottom one. crop is the part and dest
++/// where it goes on the other screen, each x, y, width, height as fractions
++/// (from the top left).
+ #[derive(Debug, Clone, Copy, PartialEq)]
+ pub struct Piece {
+     pub crop: [f32; 4],
+     pub dest: [f32; 4],
+     pub shape: PieceShape,
++    pub from_top: bool,
+ }
+ 
+ /// what of a piece is drawn.
+@@ -125,17 +128,24 @@ impl PieceShape {
+ }
+ 
+ /// the places to draw, with the bottom screen's swapped for the pieces' on
+-/// the top screen when there are any.
++/// the top screen when there are any from the bottom screen, and the top
++/// screen's pieces added over the bottom screen.
+ pub fn expand_pieces(places: Vec<(Viewport, Shown)>, pieces: &[Piece]) -> Vec<(Viewport, Shown, Option<Piece>)> {
+-    let top = places.iter().find(|(_, shown)| matches!(shown, Shown::Top | Shown::Both)).map(|(v, _)| *v);
+-    let (Some(top), false) = (top, pieces.is_empty()) else {
+-        return places.into_iter().map(|(v, s)| (v, s, None)).collect();
+-    };
+-    let mut out: Vec<_> = places.into_iter().filter(|(_, s)| *s != Shown::Bottom).map(|(v, s)| (v, s, None)).collect();
++    let find = |want: &dyn Fn(Shown) -> bool| places.iter().find(|(_, shown)| want(*shown)).map(|(v, _)| *v);
++    let top = find(&|s| matches!(s, Shown::Top | Shown::Both));
++    let bottom = find(&|s| s == Shown::Bottom);
++    let from_bottom = top.is_some() && pieces.iter().any(|piece| !piece.from_top);
++    let mut out: Vec<_> = places
++        .iter()
++        .filter(|(_, s)| !(from_bottom && *s == Shown::Bottom))
++        .map(|(v, s)| (*v, *s, None))
++        .collect();
+     for piece in pieces {
++        let (on, shown) = if piece.from_top { (bottom, Shown::Top) } else { (top, Shown::Bottom) };
++        let Some(on) = on else { continue };
+         let [x, y, w, h] = piece.dest;
+-        let viewport = Viewport { x: top.x + x * top.width, y: top.y + y * top.height, width: w * top.width, height: h * top.height };
+-        out.push((viewport, Shown::Bottom, Some(*piece)));
++        let viewport = Viewport { x: on.x + x * on.width, y: on.y + y * on.height, width: w * on.width, height: h * on.height };
++        out.push((viewport, shown, Some(*piece)));
+     }
+     out
+ }
+@@ -415,6 +425,24 @@ pub trait Presenter {
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn pieces_go_on_the_other_screen() {
++        let top = Viewport { x: 0.0, y: 0.0, width: 400.0, height: 240.0 };
++        let bottom = Viewport { x: 40.0, y: 240.0, width: 320.0, height: 240.0 };
++        let piece = |from_top| Piece { crop: [0.0, 0.0, 0.5, 0.5], dest: [0.25, 0.0, 0.5, 0.5], shape: PieceShape::Rect, from_top };
++        // the bottom screen's pieces replace it, over the top screen
++        let out = expand_pieces(vec![(top, Shown::Top), (bottom, Shown::Bottom)], &[piece(false)]);
++        assert_eq!(out.len(), 2);
++        assert_eq!(out[1].1, Shown::Bottom);
++        assert_eq!((out[1].0.x, out[1].0.y, out[1].0.width), (100.0, 0.0, 200.0));
++        // the top screen's go over the bottom screen, which stays
++        let out = expand_pieces(vec![(bottom, Shown::Bottom)], &[piece(true)]);
++        assert_eq!(out.len(), 2);
++        assert_eq!(out[0].1, Shown::Bottom);
++        assert_eq!(out[1].1, Shown::Top);
++        assert_eq!((out[1].0.x, out[1].0.y, out[1].0.width), (120.0, 240.0, 160.0));
++    }
++
+     #[test]
+     fn layout_keeps_the_aspect_ratio_and_centers() {
+         // a window exactly 400x480 needs no scaling or offset.
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 1e2ac2a..2b61002 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -339,8 +339,11 @@ fn paint_test_pattern(config: Config) -> System {
+ /// the layout as shown: picture-in-picture leaves the bottom screen out
+ /// while the game has nothing worth showing there.
+ fn shown_layout(layout: Screens, game: Option<&Running>, hide_idle: bool) -> zakuro_gpu::ScreenLayout {
+-    if layout == Screens::PictureInPicture && hide_idle && game.is_some_and(|game| game.bottom_view.hide) {
++    let view = game.map(|game| &game.bottom_view);
++    if layout == Screens::PictureInPicture && hide_idle && view.is_some_and(|view| view.hide) {
+         zakuro_gpu::ScreenLayout::TopOnly
++    } else if layout == Screens::PictureInPicture && view.is_some_and(|view| view.swap) {
++        zakuro_gpu::ScreenLayout::BottomOnly
+     } else {
+         layout.screens()
+     }
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 3eba906..664638a 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -43,14 +43,17 @@ pub struct BottomView {
+     pub pieces: Vec<Piece>,
+     /// it shows the map: draw it round, as a minimap.
+     pub round: bool,
++    /// the bottom screen is the one to see: it fills the window by itself
++    /// (with any pieces of the top screen over it).
++    pub swap: bool,
+ }
+ 
+ /// what bottom_view remembers between frames.
+ #[derive(Default)]
+ pub struct Watch {
+-    counts: [u32; 6],
++    counts: [u32; COUNTED],
+     /// frames since each counter last moved.
+-    quiet: [u32; 6],
++    quiet: [u32; COUNTED],
+     /// frames since the wipe last was shut.
+     since_wipe: u32,
+ }
+@@ -69,6 +72,8 @@ const LOADING: usize = 2;
+ const TEXT: usize = 3;
+ const SAVE_SLOTS: usize = 4;
+ const MISSION_CARD: usize = 5;
++const SHOP: usize = 6;
++const COUNTED: usize = 7;
+ /// the return address of the call that showed the notice up
+ /// (overrides/screen_frame_counters.c): the ShowTipTextOnce and
+ /// ShowTipTextTimed script commands' calls are tutorial tips, anything else
+@@ -82,7 +87,16 @@ const TIP_CALLERS: [u32; 2] = [0x0026_38D0, 0x0027_0068];
+ fn piece(part: [f32; 4], cx: f32, cy: f32, scale: f32, shape: PieceShape) -> Piece {
+     let [x, y, w, h] = part;
+     let (dw, dh) = (w * scale / 400.0, h * scale / 240.0);
+-    Piece { crop: [x / 320.0, y / 240.0, w / 320.0, h / 240.0], dest: [cx - dw / 2.0, cy - dh / 2.0, dw, dh], shape }
++    Piece { crop: [x / 320.0, y / 240.0, w / 320.0, h / 240.0], dest: [cx - dw / 2.0, cy - dh / 2.0, dw, dh], shape, from_top: false }
++}
++
++/// a part of the top screen, x, y, width, height in its pixels, drawn with
++/// its centre at (cx, cy) of the bottom screen (fractions), at the bottom
++/// screen's pixel scale.
++fn top_piece(part: [f32; 4], cx: f32, cy: f32, shape: PieceShape) -> Piece {
++    let [x, y, w, h] = part;
++    let (dw, dh) = (w / 320.0, h / 240.0);
++    Piece { crop: [x / 400.0, y / 240.0, w / 400.0, h / 240.0], dest: [cx - dw / 2.0, cy - dh / 2.0, dw, dh], shape, from_top: true }
+ }
+ 
+ /// a notice box, its "!" and its badge, by themselves around (cx, cy): the
+@@ -111,7 +125,7 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+     if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
+         return BottomView::default();
+     }
+-    for i in 0..6 {
++    for i in 0..COUNTED {
+         let count = read_u32(system, COUNTERS + 4 * i as u32);
+         if count != watch.counts[i] {
+             watch.counts[i] = count;
+@@ -133,11 +147,22 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+     // their text goes along the bottom of the top screen
+     if ran_video(VIDEO) {
+         let pieces = if ran_video(TEXT) { vec![piece([12.0, 18.0, 295.0, 64.0], 0.5, 0.87, 0.85, PieceShape::Text)] } else { Vec::new() };
+-        return BottomView { hide: pieces.is_empty(), pieces, round: false };
++        return BottomView { hide: pieces.is_empty(), pieces, round: false, swap: false };
+     }
+     // the loading screen: just its tip's text (y 112-230) under the badge
+     if ran(LOADING) {
+-        return BottomView { hide: false, pieces: vec![piece([14.0, 112.0, 292.0, 114.0], 0.5, 0.78, 0.85, PieceShape::Text)], round: false };
++        return BottomView { hide: false, pieces: vec![piece([14.0, 112.0, 292.0, 114.0], 0.5, 0.78, 0.85, PieceShape::Text)], round: false, swap: false };
++    }
++    // a shop (red bricks, extras): its menu on the bottom screen is all there
++    // is to do, so it fills the window, with the top screen's stud counter
++    // (x 150-249, y 2-29) over its top middle
++    if ran(SHOP) {
++        return BottomView {
++            hide: false,
++            pieces: vec![top_piece([150.0, 2.0, 100.0, 28.0], 0.5, 0.07, PieceShape::Rounded(0.3))],
++            round: false,
++            swap: true,
++        };
+     }
+     // choosing a save slot: the two slots (x 49-273, y 86-133 and 140-186)
+     // in the lower middle, "Select (A)" at the bottom right
+@@ -150,6 +175,7 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+                 piece([236.0, 220.0, 84.0, 20.0], 0.87, 0.93, 1.0, PieceShape::Text),
+             ],
+             round: false,
++            swap: false,
+         };
+     }
+     // the hexagon wipe, shut (cutscenes, scripted scenes) or opening; while
+@@ -157,9 +183,9 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+     // the top middle of the top screen
+     if watch.since_wipe <= WIPE_OPENING {
+         if shut[0] != 0 && ran(MISSION_CARD) {
+-            return BottomView { hide: false, pieces: vec![piece([98.0, 4.0, 124.0, 52.0], 0.5, 0.13, 1.0, PieceShape::Rounded(0.25))], round: false };
++            return BottomView { hide: false, pieces: vec![piece([98.0, 4.0, 124.0, 52.0], 0.5, 0.13, 1.0, PieceShape::Rounded(0.25))], round: false, swap: false };
+         }
+-        return BottomView { hide: true, pieces: Vec::new(), round: false };
++        return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false };
+     }
+     // a notice: a tutorial tip is printed on the top screen by the game
+     // (overrides/tip_text.c), so the bottom screen goes; anything else as its box, "!" and badge in the middle
+@@ -167,12 +193,12 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+         if TIP_CALLERS.contains(&read_u32(system, NOTICE_FROM)) {
+             // overrides/tip_text.c has the game print its text on the top
+             // screen; nothing of the bottom one is needed
+-            return BottomView { hide: true, pieces: Vec::new(), round: false };
++            return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false };
+         }
+-        return BottomView { hide: false, pieces: notice_pieces(0.5, 0.5, 0.8), round: false };
++        return BottomView { hide: false, pieces: notice_pieces(0.5, 0.5, 0.8), round: false, swap: false };
+     }
+     let mut word = [0u8; 4];
+     system.memory.read_bytes(DRC_MAP_FADE, &mut word);
+     let faded_in = f32::from_le_bytes(word) > 0.99;
+-    BottomView { hide: false, pieces: Vec::new(), round: ran(MAP) && faded_in }
++    BottomView { hide: false, pieces: Vec::new(), round: ran(MAP) && faded_in, swap: false }
+ }

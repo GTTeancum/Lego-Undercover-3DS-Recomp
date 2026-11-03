@@ -12,6 +12,8 @@
  *   0x005A4F10  f_002C5988  the save slot screen
  *   0x005A4F14  f_001DC234  the mission name card (on the wipe; it also
  *                           runs on the loading screen)
+ *   0x005A4F18  f_002D8768  the shop mode's renderer (red bricks, extras; class
+ *                           vtable 0x00361CC0, it draws UI_Shop_Topscreen)
  * and at 0x005A4F40 whether the notice shown last (f_00235F30) came from a
  * tutorial tip (the ShowTipTextOnce / ShowTipTextTimed script commands,
  * f_00263850 and f_0026FFEC), 1, or from anything else, 0.
@@ -53,6 +55,11 @@ RECOMP_OVERRIDE(0x002C5988) {
 RECOMP_OVERRIDE(0x001DC234) {
     CALL(RECOMP_ORIGINAL(0x001DC234));
     count(ctx, 5);
+}
+
+RECOMP_OVERRIDE(0x002D8768) {
+    CALL(RECOMP_ORIGINAL(0x002D8768));
+    count(ctx, 6);
 }
 
 #define NOTICE_IS_TIP 0x005A4F40u

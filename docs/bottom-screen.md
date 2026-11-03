@@ -104,6 +104,21 @@ the bottom screen, and `overrides/tip_text.c` has the game print the tip's
 text, button icons included, at the bottom middle of the top screen in its
 own font. Status: works (headless, both opening tips).
 
+**Shops** (red bricks, the police station's extras): the script commands
+`HubShop`, `RedBrickShop`, `CharacterShop`, `VehicleShop` call
+`f_002133C4(type, 0)` (0 hub, 4 red bricks), which records the request at
+`0x0037472C` (+1 type) and switches the game to the shop mode, a class
+with vtable `0x00361CC0` whose renderer `f_002D8768(this, phase)` runs only
+while a shop is open (`overrides/screen_frame_counters.c` counts it at
+0x005A4F18). The top screen shows the stud counter (x 150-249, y 2-29) over
+a preview of the item; the bottom screen the menu. Zakuro patch 0014 then
+shows the bottom screen alone, filling the window, with the top's stud
+counter over its top middle (pieces can now come from either screen).
+Status: works headless (red brick shop opened with the debug override
+below; preview composed from the dumps); not seen in a window yet.
+To test without playing there: `LEGO_OPEN_SHOP=4` (or 0) with
+`LEGO_OPEN_SHOP_AFTER=<frames>` makes `overrides/debug_open_shop.c` open one.
+
 ### Drawing on a screen from an override
 
 - In gameplay the renderer `f_002E4858(this, phase)` draws one screen a
