@@ -336,7 +336,8 @@ seen in a run; **open** = not known yet.
 | Crane minigame | wiped | hidden | — | D-pad (`f_002D5874`) | buttons (static) |
 | Keypad / colour codes | keypad | PiP | press keys | D-pad | buttons (static) |
 | Disguise choice at disguise objects | — | PiP | — | D-pad | buttons (game) |
-| Pause menu | pause page | PiP | pick | D-pad, A, B, L/R, Select (`f_00300378`) | buttons (static) |
+| Pause menu | menu carousel (Resume, Options, Credits, Exit); the top screen is a progress board (collectibles per area, characters, scrolling mission title) | the menu fills the window; Y flips to the progress board (full window) and Y or B back; the game prints "Y Progress" at the menu's top right | pick | D-pad, A, B; on the board L/R turn its areas (`f_00300378` counted at slot 8; Zakuro patch 0028; `tip_text.c` prints the prompt) | seen headless (menu, Y to the board, L, B back still paused) |
+| Pause → Options → Language | flags (English, Spanish, French in this release) in a hexagon grid, chosen by tapping only (`f_0031DF40`, class `0x00364A68`) | as the pause menu | tap a flag | D-pad / left stick move between flags (the game's crosshair marks it), A chooses (Zakuro patch 0027, counter slot 7) | seen headless: Spanish chosen, the game switched language and saved |
 | Status screen (options, languages, credits) | pages | PiP | pick | D-pad, L/R (`f_0030966C`); credits `f_002F26C8` | buttons (static) |
 | Shops (hub extras, red bricks, codes, gifts, postcards, story clips) | item grids | bottom screen fills the window, stud counter on top | pick, page | D-pad pages, B back, Mainframe menu "Select (A)" (`f_002D8984`) | seen (pages, back); picking an item open (all locked in the test save) |
 | Code entry (A-Z) | letter buttons | as shops | tap letters | D-pad (`f_002F43EC`) | buttons (static) |
