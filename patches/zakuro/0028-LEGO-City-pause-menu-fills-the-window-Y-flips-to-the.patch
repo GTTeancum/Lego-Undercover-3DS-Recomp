@@ -1,0 +1,231 @@
+From ea69f60fff6bad53adbd43ce13fd10a2b3a31892 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 4 Nov 2026 20:20:31 +0000
+Subject: [PATCH] LEGO City: pause menu fills the window; Y flips to the
+ progress board
+
+While the pause menu runs (overrides counter, slot 8) its menu (the
+bottom screen) fills the window; Y shows the progress board (the top
+screen) instead, where L/R still flip its areas and B comes back. A
+button used here is kept from the game until let go.
+---
+ crates/zakuro/src/lib.rs         | 10 ++++-
+ crates/zakuro/src/title_hooks.rs | 72 ++++++++++++++++++++++++++++----
+ 2 files changed, 71 insertions(+), 11 deletions(-)
+
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 6733a7d..241a122 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -403,12 +403,17 @@ fn run_headless(system: &mut System, frames: u64) {
+             title_hooks::button_wheel(system, &mut taps, input);
+             title_hooks::stick_motion(system, &mut taps, input);
+             title_hooks::language_page(system, &mut taps, input);
++            let was = (view.paused, taps.progress());
++            title_hooks::pause_menu(&view, &mut taps, input);
++            if was != (view.paused, taps.progress()) {
++                eprintln!("frame {frame}: paused {} progress {}", view.paused, taps.progress());
++            }
+             if open != taps.map_cursor().is_some() {
+                 eprintln!("frame {frame}: map mode {}", if open { "closed" } else { "open" });
+             }
+         });
+         outcome = system.run_frame();
+-        view = title_hooks::bottom_view(system, &mut watch);
++        view = title_hooks::bottom_view(system, &mut watch, taps.progress());
+         ran += 1;
+         probe.after_frame(system, frame + 1);
+         if outcome != FrameOutcome::Completed {
+@@ -1473,6 +1478,7 @@ impl App {
+         title_hooks::button_wheel(&mut game.system, &mut game.taps, &mut input);
+         title_hooks::stick_motion(&game.system, &mut game.taps, &mut input);
+         title_hooks::language_page(&mut game.system, &mut game.taps, &mut input);
++        title_hooks::pause_menu(&game.bottom_view, &mut game.taps, &mut input);
+         let map_changed = was_open != game.taps.map_cursor().is_some() || was_full != game.taps.alert_fullscreen();
+         game.frame += 1;
+         if let Some(recorder) = &mut game.recorder {
+@@ -1480,7 +1486,7 @@ impl App {
+         }
+         game.system.set_input(input);
+         let outcome = game.system.run_frame();
+-        let view = title_hooks::bottom_view(&mut game.system, &mut game.bottom_watch);
++        let view = title_hooks::bottom_view(&mut game.system, &mut game.bottom_watch, game.taps.progress());
+         if view != game.bottom_view || map_changed {
+             game.bottom_view = view;
+             if let Some(backend) = &mut self.backend {
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 07c57d4..4855f53 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -46,6 +46,9 @@ pub struct BottomView {
+     /// the bottom screen is the one to see: it fills the window by itself
+     /// (with any pieces of the top screen over it).
+     pub swap: bool,
++    /// the pause menu runs (its menu on the bottom screen, the progress
++    /// board on the top one): Y flips between them (pause_menu).
++    pub paused: bool,
+ }
+ 
+ /// what bottom_view remembers between frames.
+@@ -61,6 +64,8 @@ pub struct Watch {
+ /// the game runs its logic at 30 frames a second or slower, so a function
+ /// that runs each of its frames skips some of ours.
+ const GRACE: u32 = 4;
++/// the pause menu's update skips more frames than that (its pages change).
++const PAUSE_GRACE: u32 = 20;
+ /// the wipe's opening animation, after it stops counting as shut.
+ const WIPE_OPENING: u32 = 40;
+ /// a video's frames come at 15-20 a second.
+@@ -74,7 +79,8 @@ const SAVE_SLOTS: usize = 4;
+ const MISSION_CARD: usize = 5;
+ const SHOP: usize = 6;
+ const LANGUAGE_PAGE: usize = 7;
+-const COUNTED: usize = 8;
++const PAUSE: usize = 8;
++const COUNTED: usize = 9;
+ /// the return address of the call that showed the notice up
+ /// (overrides/screen_frame_counters.c): the ShowTipTextOnce and
+ /// ShowTipTextTimed script commands' calls are tutorial tips, anything else
+@@ -122,7 +128,7 @@ fn read_u32(system: &mut System, address: u32) -> u32 {
+ }
+ 
+ /// what the bottom screen shows this frame, as far as the game says.
+-pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
++pub fn bottom_view(system: &mut System, watch: &mut Watch, progress: bool) -> BottomView {
+     if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
+         return BottomView::default();
+     }
+@@ -148,12 +154,19 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+     // their text goes along the bottom of the top screen
+     if ran_video(VIDEO) {
+         let pieces = if ran_video(TEXT) { vec![piece([12.0, 18.0, 295.0, 64.0], 0.5, 0.87, 0.85, PieceShape::Text)] } else { Vec::new() };
+-        return BottomView { hide: pieces.is_empty(), pieces, round: false, swap: false };
++        return BottomView { hide: pieces.is_empty(), pieces, round: false, swap: false, paused: false };
+     }
+     // the loading screen: overrides/tip_text.c has the game print its tip
+     // on the top screen, so nothing of the bottom one is needed
+     if ran(LOADING) {
+-        return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false };
++        return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false, paused: false };
++    }
++    // the pause menu: its menu (the bottom screen) fills the window; Y
++    // flips to the progress board (the top screen) and back (pause_menu);
++    // the game prints "Y Progress" on the menu (overrides/tip_text.c)
++    // (its update runs less than once a frame at times: a longer grace)
++    if watch.quiet[PAUSE] <= PAUSE_GRACE {
++        return BottomView { hide: progress, pieces: Vec::new(), round: false, swap: !progress, paused: true };
+     }
+     // a shop (red bricks, extras): its menu on the bottom screen is all there
+     // is to do, so it fills the window, with the top screen's stud counter
+@@ -164,6 +177,7 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+             pieces: vec![top_piece([150.0, 2.0, 100.0, 28.0], 0.5, 0.07, PieceShape::Rounded(0.3))],
+             round: false,
+             swap: true,
++            paused: false,
+         };
+     }
+     // choosing a save slot: the two slots (x 49-273, y 86-133 and 140-186)
+@@ -178,6 +192,7 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+             ],
+             round: false,
+             swap: false,
++            paused: false,
+         };
+     }
+     // the hexagon wipe, shut (cutscenes, scripted scenes) or opening; while
+@@ -185,9 +200,9 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+     // the top middle of the top screen
+     if watch.since_wipe <= WIPE_OPENING {
+         if shut[0] != 0 && ran(MISSION_CARD) {
+-            return BottomView { hide: false, pieces: vec![piece([98.0, 4.0, 124.0, 52.0], 0.5, 0.13, 1.0, PieceShape::Rounded(0.25))], round: false, swap: false };
++            return BottomView { hide: false, pieces: vec![piece([98.0, 4.0, 124.0, 52.0], 0.5, 0.13, 1.0, PieceShape::Rounded(0.25))], round: false, swap: false, paused: false };
+         }
+-        return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false };
++        return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false, paused: false };
+     }
+     // a notice: a tutorial tip is printed on the top screen by the game
+     // (overrides/tip_text.c), so the bottom screen goes; anything else as its box, "!" and badge in the middle
+@@ -195,9 +210,9 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+         if TIP_CALLERS.contains(&read_u32(system, NOTICE_FROM)) {
+             // overrides/tip_text.c has the game print its text on the top
+             // screen; nothing of the bottom one is needed
+-            return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false };
++            return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false, paused: false };
+         }
+-        return BottomView { hide: false, pieces: notice_pieces(0.5, 0.5, 0.8), round: false, swap: false };
++        return BottomView { hide: false, pieces: notice_pieces(0.5, 0.5, 0.8), round: false, swap: false, paused: false };
+     }
+     let mut word = [0u8; 4];
+     system.memory.read_bytes(DRC_MAP_FADE, &mut word);
+@@ -205,7 +220,7 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+     // the Disguise Selector's portraits spread past the round minimap: the
+     // bottom screen shows whole while it is open
+     let selector = selector_open(system);
+-    BottomView { hide: false, pieces: Vec::new(), round: ran(MAP) && faded_in && !selector, swap: false }
++    BottomView { hide: false, pieces: Vec::new(), round: ran(MAP) && faded_in && !selector, swap: false, paused: false }
+ }
+ 
+ /// where overrides (overrides/map_buttons.c) ask for a stylus tap: "TAP!",
+@@ -254,6 +269,11 @@ pub struct Taps {
+     language_page_quiet: u32,
+     language_flag: Option<usize>,
+     language_held: zakuro_core::services::hid::PadState,
++    /// the pause menu shows its progress board (Y), and the buttons held
++    /// last frame there.
++    progress: bool,
++    pause_held: zakuro_core::services::hid::PadState,
++    pause_swallow: zakuro_core::services::hid::PadState,
+     language_stick: bool,
+     /// the button wheel, while open: the buttons on it (wheel indices) and
+     /// the one the right stick points at.
+@@ -382,6 +402,35 @@ fn flag_toward(from: usize, (dx, dy): (f32, f32)) -> usize {
+ }
+ 
+ /// the language page's flags on the D-pad (see LANGUAGE_FLAGS).
++/// the pause menu: Y flips the window between the menu and the progress
++/// board; B on the board comes back to the menu (and does not leave the
++/// pause menu). The game reads neither X nor Y while paused.
++pub fn pause_menu(view: &BottomView, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
++    use zakuro_core::services::hid::PadState;
++    let pressed = input.buttons & !taps.pause_held;
++    taps.pause_held = input.buttons;
++    // a button that did something here stays from the game until let go
++    taps.pause_swallow &= input.buttons;
++    if !view.paused {
++        taps.progress = false;
++        input.buttons.remove(taps.pause_swallow);
++        return;
++    }
++    if pressed.contains(PadState::Y) {
++        taps.progress = !taps.progress;
++    } else if taps.progress && pressed.contains(PadState::B) {
++        taps.progress = false;
++        taps.pause_swallow |= PadState::B;
++    }
++    input.buttons.remove(taps.pause_swallow);
++    input.buttons.remove(PadState::Y);
++    if taps.progress {
++        // the menu does not see the buttons while the board shows, apart
++        // from L and R, the board's own (its areas)
++        input.buttons &= PadState::L | PadState::R;
++    }
++}
++
+ pub fn language_page(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
+     use zakuro_core::services::hid::PadState;
+     if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
+@@ -454,6 +503,11 @@ impl Taps {
+     /// stick points at.
+     /// where the Disguise Selector's choice is (bottom-screen pixels),
+     /// while LB has it.
++    /// the pause menu shows its progress board.
++    pub fn progress(&self) -> bool {
++        self.progress
++    }
++
+     pub fn selector_spot(&self) -> Option<(f32, f32)> {
+         self.selector.and_then(|selector| selector.spot).or(self.language_flag.map(|k| LANGUAGE_FLAGS[k]))
+     }
+-- 
+2.43.0
+

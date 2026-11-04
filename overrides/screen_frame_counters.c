@@ -13,6 +13,7 @@
  *   0x005A4F14  f_001DC234  the mission name card (on the wipe; it also
  *                           runs on the loading screen)
  *   0x005A4F1C  f_0031DF40  the language page (Options, Language)
+ *   0x005A4F20  f_00300378  the pause menu
  *   0x005A4F18  f_002D8768  the shop mode's renderer (red bricks, extras; class
  *                           vtable 0x00361CC0, it draws UI_Shop_Topscreen)
  * and at 0x005A4F40 whether the notice shown last (f_00235F30) came from a
@@ -103,4 +104,14 @@ RECOMP_OVERRIDE(0x00235F30) {
 RECOMP_OVERRIDE(0x0031DF40) {
     count(ctx, 7);
     CALL(RECOMP_ORIGINAL(0x0031DF40));
+}
+
+/* 0x005A4F20: the pause menu (class vtable 0x003636B8; the top screen's
+ * progress board, the bottom screen's menu and its Options pages), its
+ * per-frame update f_00300378; tip_text.c prints its "Progress" prompt */
+void bottom_text_pause(void);
+RECOMP_OVERRIDE(0x00300378) {
+    count(ctx, 8);
+    bottom_text_pause();
+    CALL(RECOMP_ORIGINAL(0x00300378));
 }

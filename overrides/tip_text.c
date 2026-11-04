@@ -235,10 +235,29 @@ void top_text_save_slots(void) {
     save_slots_age = 0;
 }
 
+/* the pause menu's "Y Progress": Zakuro shows the menu (the bottom screen)
+ * filling the window and Y flips to the progress board (the top screen);
+ * printed at the menu's top right while the pause menu runs
+ * (screen_frame_counters.c calls bottom_text_pause each of its frames) */
+#define PROGRESS_TEXT "<WEST> Progress"
+#define PROGRESS_X    272.0f
+#define PROGRESS_Y    13.0f
+static unsigned pause_age = 1000;
+
+void bottom_text_pause(void) {
+    pause_age = 0;
+}
+
 RECOMP_OVERRIDE(0x0025BE10) {
     uint32_t phase = ctx->r[0];
     CALL(RECOMP_ORIGINAL(0x0025BE10));
-    if (phase != LAST_PHASE || printing || mem_read32(ctx, SCREEN) != 0) return;
+    if (phase != LAST_PHASE || printing) return;
+    if (mem_read32(ctx, SCREEN) == 1) {
+        if (pause_age++ <= 8)
+            print_text(ctx, mem_read32(ctx, UI_FONT), PROGRESS_TEXT, PROGRESS_X, PROGRESS_Y);
+        return;
+    }
+    if (mem_read32(ctx, SCREEN) != 0) return;
     for (int i = 0; i < MOVED; i++) {
         if (moved[i].age++ > 8) continue;
         print_text(ctx, moved[i].font, moved[i].text, TIP_X, BOTTOM_TEXT_Y);
