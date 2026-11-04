@@ -1,0 +1,69 @@
+From da18072a63ae1d177b126141f390c3c695d39389 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 4 Nov 2026 14:30:17 +0000
+Subject: [PATCH] headless probe: LSTICK:x,y holds the circle pad
+
+---
+ crates/zakuro/src/headless_probe.rs | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/crates/zakuro/src/headless_probe.rs b/crates/zakuro/src/headless_probe.rs
+index 7564eb5..68819b1 100644
+--- a/crates/zakuro/src/headless_probe.rs
++++ b/crates/zakuro/src/headless_probe.rs
+@@ -7,7 +7,8 @@
+ //!                    `<first frame> <last frame> <BUTTON>[+<BUTTON>...]`
+ //!                    buttons are PadState names (A, B, START, UP, ...),
+ //!                    `TOUCH:x,y` touches the bottom screen, `RSTICK:x,y`
+-//!                    holds the right stick (-1 to 1, up positive); `#` comments.
++//!                    holds the right stick (-1 to 1, up positive), `LSTICK:x,y`
++//!                    the left one; `#` comments.
+ //! ZAKURO_PEEK        guest memory to log with each dump, `addr:len[,addr:len]`
+ //!                    in hex, one line per dump to <dump dir>/peek.txt:
+ //!                    `<frame> <addr>=<bytes> ...`. ZAKURO_PEEK_AT=f1,f2,...
+@@ -28,6 +29,7 @@ struct Hold {
+     buttons: PadState,
+     touch: Option<(u16, u16)>,
+     stick: Option<(f32, f32)>,
++    circle: Option<(f32, f32)>,
+ }
+ 
+ pub struct Probe {
+@@ -91,10 +93,14 @@ impl Probe {
+                 let mut buttons = PadState::empty();
+                 let mut touch = None;
+                 let mut stick = None;
++                let mut circle = None;
+                 for name in parts[2].split('+') {
+                     if let Some(xy) = name.strip_prefix("RSTICK:") {
+                         let (x, y) = xy.split_once(',').unwrap_or_else(|| bad());
+                         stick = Some((x.parse().unwrap_or_else(|_| bad()), y.parse().unwrap_or_else(|_| bad())));
++                    } else if let Some(xy) = name.strip_prefix("LSTICK:") {
++                        let (x, y) = xy.split_once(',').unwrap_or_else(|| bad());
++                        circle = Some((x.parse().unwrap_or_else(|_| bad()), y.parse().unwrap_or_else(|_| bad())));
+                     } else if let Some(xy) = name.strip_prefix("TOUCH:") {
+                         let (x, y) = xy.split_once(',').unwrap_or_else(|| bad());
+                         touch = Some((x.parse().unwrap_or_else(|_| bad()), y.parse().unwrap_or_else(|_| bad())));
+@@ -102,7 +108,7 @@ impl Probe {
+                         buttons |= PadState::from_name(name).unwrap_or_else(|| bad());
+                     }
+                 }
+-                holds.push(Hold { first, last, buttons, touch, stick });
++                holds.push(Hold { first, last, buttons, touch, stick, circle });
+             }
+         }
+         let peek = std::env::var("ZAKURO_PEEK")
+@@ -135,6 +141,10 @@ impl Probe {
+                 input.c_stick_x = x;
+                 input.c_stick_y = y;
+             }
++            if let Some((x, y)) = hold.circle {
++                input.circle_x = x;
++                input.circle_y = y;
++            }
+         }
+         adjust(system, &mut input);
+         system.set_input(input);
+-- 
+2.43.0
+

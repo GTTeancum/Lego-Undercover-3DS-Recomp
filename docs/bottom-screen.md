@@ -161,15 +161,28 @@ things, so neither action has been seen yet.
 
 **Map mode** (Zakuro patch 0017, `title_hooks::map_mode`): while the
 minimap shows, D-pad Up opens the map by itself, filling the window, with
-a cursor drawn over it; the left stick moves the cursor, A taps there (a
-real stylus tap, so map points, zoom, fast travel and every map button
-work), B or D-pad Up closes it, as does the map going away. While it is
-open the game sees none of the controller. The game reads the D-pad
-(input channels 12-15, index globals 0x00376958-0x00376964) only in menus,
-the fast travel menu and the keypad minigame, apart from Down, a
-character class's ability (`f_00200444`); Up is free in free roam. Status:
-opening, closing and A's tap checked headless; the cursor's movement and
-look not yet seen.
+a cursor drawn over it and the map's buttons hidden; the left stick moves
+the cursor, A sets a navigation point there, B or D-pad Up closes it, as
+does the map going away. While it is open the game sees none of the
+controller. The game reads the D-pad (input channels 12-15, index globals
+0x00376958-0x00376964) only in menus, the fast travel menu and the keypad
+minigame, apart from Down, a character class's ability (`f_00200444`); Up
+is free in free roam.
+
+**Navigation point** (overrides/nav_point.c): the game has no
+tap-to-waypoint, so A in map mode (Zakuro's "NAV!" request, cursor x, y)
+makes one from its own map markers: `f_001FCE38(&position, type, flag)`
+adds a marker (one of 16 slots at `[DRC +0x24] +0xE0`) that points at a
+position the override keeps, type 15 (`SubObjectivePointGreen.tga`, apart
+from the game's mission markers). The cursor is turned into a world point
+by running the map's drawing (`f_002DBB04`) backwards: `rotate(map(p) -
+map(centre), f_001EEA58()) + screen / 2`, with `map()` = `f_001EE9B8`
+measured at the player and 100 units along x and z and inverted. Past 100
+pixels from the map's middle the game pins the point at the edge with an
+arrow pointing on to it. A on the point as shown clears it, as does
+arriving within 6 units. Status: placing (the point lands under the
+cursor), the edge arrow while walking away, and clearing with A checked
+headless; clearing on arrival not yet seen.
 
 **Controller layout for the bottom screen's buttons** (overrides/map_buttons.c,
 Zakuro patches 0016-0020): on foot, while the map shows, Zakuro keeps the

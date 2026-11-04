@@ -65,6 +65,8 @@ static int map_open;
 
 static uint32_t frame, seen[8], serial, wheel_serial;
 
+void nav_point_frame(Context *ctx);   /* nav_point.c */
+
 static float as_float(uint32_t b) { float f; memcpy(&f, &b, 4); return f; }
 static uint32_t bits(float f) { uint32_t b; memcpy(&b, &f, 4); return b; }
 
@@ -117,6 +119,7 @@ void map_button_pressed(Context *ctx, uint32_t button) {
     if (index == EXIT) {
         /* once a frame: what is shown, for the wheel, and its choice */
         frame++;
+        nav_point_frame(ctx);
         uint32_t mask = 0;
         for (int i = 0; i < 8; i++) if (shown(ctx, i)) mask |= 1u << i;
         mem_write32(ctx, BUTTONS_SHOWN, 0x214E5442u);   /* "BTN!" */
