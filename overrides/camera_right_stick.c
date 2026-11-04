@@ -4,13 +4,15 @@
  * f_00200444 runs per character each frame; for the player it adds the
  * frame's camera input into the camera object at 0x005899E0:
  *   +0x140  yaw:   2 * ch8 (L) - 2 * ch10 (R), and the stylus drag's x
- *   +0x144  pitch: the stylus drag's y (TouchCameraSystem +0x38)
+ *   +0x144  elevation: the stylus drag's y (TouchCameraSystem +0x38);
+ *           with the stick's full strength it raises the camera over the
+ *           player, looking down, up to the game's own limit (+0x13C to
+ *           +0x144 are one vector the camera damps, f_001F2xxx)
  * which the camera consumes and clears later in the same frame, applying
  * its own limits and smoothing. After the original runs, this adds the
  * right stick there too. Zakuro leaves the stick in the shared page
  * (memory::config::HOST_RIGHT_STICK): "ZKRS", x, y as f32, -1..1, up +.
  */
-#include <stdlib.h>
 #include <string.h>
 #include "overrides.h"
 
@@ -21,9 +23,10 @@
 #define WIPE_SHUT       (0x00519D94u + 0x485u) /* cutscene bottom screen */
 #define HOST_STICK      0x1FF81F00u
 
-/* full stick: yaw as fast as holding L or R, pitch as a firm stylus drag */
+/* full stick: yaw as fast as holding L or R; pitch as fast (it tops out
+ * where the game's camera stops, about 45 degrees down, for now) */
 #define YAW_PER_FRAME   2.0f
-#define PITCH_PER_FRAME 0.08f
+#define PITCH_PER_FRAME 2.0f
 #define DEADZONE        0.15f
 
 static float as_float(uint32_t bits) { float f; memcpy(&f, &bits, 4); return f; }
@@ -52,10 +55,7 @@ RECOMP_OVERRIDE(0x00200444) {
         mem_write32(ctx, CAMERA_YAW, as_bits(yaw));
     }
     if (y != 0.0f) {
-        /* DEBUG: which input component, how strong */
-        static uint32_t off = 0; static float k = 0;
-        if (!off) { const char *e = getenv("CAM_OFF"); off = e ? (uint32_t)strtoul(e, 0, 16) : 0x144; e = getenv("CAM_K"); k = e ? (float)atof(e) : PITCH_PER_FRAME; }
-        float pitch = as_float(mem_read32(ctx, CAMERA + off)) + y * k;
-        mem_write32(ctx, CAMERA + off, as_bits(pitch));
+        float pitch = as_float(mem_read32(ctx, CAMERA_PITCH)) + y * PITCH_PER_FRAME;
+        mem_write32(ctx, CAMERA_PITCH, as_bits(pitch));
     }
 }
