@@ -1,9 +1,10 @@
 /* The bottom screen's touch buttons from the controller (see
  * docs/bottom-screen.md, "Controller layout"):
  *   LB tapped        the character switch (disguises)   } Zakuro, through
- *   LB held          a wheel of every button shown,     } the wheel request
+ *   LB held          the game's Disguise Selector       } the wheel request
+ *   RB tapped        Scan                               } or touches of
+ *   RB held          a wheel of every button shown,     } its own
  *                    picked with the right stick        }
- *   RB               Scan
  *   L3               the area exit or, without one, Exit
  * On foot, where the map shows, Zakuro keeps L and R from the game (they
  * no longer turn the camera; the right stick does) and hands them over as
@@ -38,7 +39,6 @@
 #define WHEEL_REQUEST  0x005A4FA0u
 #define DRC            0x00519D94u
 #define HOST_L3        (1u << 16)
-#define HOST_R         (1u << 18)              /* R held, kept from the game */
 #define HOST_MAP       (1u << 31)              /* Zakuro's map mode is open */
 
 /* the buttons by wheel index */
@@ -48,7 +48,6 @@ static const uint32_t buttons[8] = { 0x28, 0x54, 0x80, 0xAC, 0xD8, 0x104, 0x130,
 #define AREA_EXIT 7
 
 static const struct { int index; uint32_t pad; } bindings[] = {
-    { SCAN, HOST_R },
     { AREA_EXIT, HOST_L3 },
     { EXIT, HOST_L3 },          /* when there is no area exit */
 };

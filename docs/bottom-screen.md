@@ -322,7 +322,8 @@ seen in a run; **open** = not known yet.
 | Story dialogue | text box | text printed on the top screen | advance | A | seen |
 | Tutorial tips | notice | printed on the top screen | dismiss | A | seen |
 | Other notices (postcards, challenges) | notice | box, "!" and badge over the middle | dismiss | A | seen |
-| **Map** (free roam) | minimap + buttons + portraits | round minimap (PiP) | buttons, map points, stylus-drag camera | LB tap character/disguise switch; LB hold wheel of the buttons shown (RS picks); RB Scan; L3 area exit / Exit; RS camera (orbit, up to straight down); D-pad Up map mode | built; LB, wheel choice, camera seen |
+| **Map** (free roam) | minimap + buttons + portraits | round minimap (PiP) | buttons, map points, stylus-drag camera | LB tap character/disguise switch; LB hold the Disguise Selector (below); RB tap Scan; RB hold wheel of the buttons shown (RS picks); L3 area exit / Exit; RS camera (orbit, up to straight down); D-pad Up map mode | built; LB tap, wheel choice, camera seen |
+| **Disguise Selector** (hold the disguise icon) | eight portraits (DRC +0x294, 0x28 each, border node +0xC, open while +0x472) over a dimmed map | the bottom screen whole (not round) while open | hold the icon, tap a portrait | LB held: Zakuro holds the icon until it opens; RS flicks move between portraits (the game's crosshair marks the choice); letting go of LB taps it; a locked pick or no pick closes it again (tapping the icon) | seen headless (opens, picks, closes); a real change of disguise not yet (one class unlocked in the test save) |
 | Map mode (ours) | full map | bottom screen fills the window, game's crosshair as cursor | place a waypoint | LS cursor, A sets/clears the nav point, B / Up closes | seen (placing, clearing, edge arrow) |
 | Fast travel / area map | map with area points | as the map | pick area | the game's D-pad menu; L3 area exit | buttons (static) |
 | Scanner (visual, audio, decrypt) | scanner UI (`drc_scanner`) | PiP | — | game's own: left stick looks, A locks on, L/R zoom (hint text); RB opens it from the map | buttons (game) |
@@ -338,17 +339,21 @@ seen in a run; **open** = not known yet.
 | Code entry (A-Z) | letter buttons | as shops | tap letters | D-pad (`f_002F43EC`) | buttons (static) |
 | Character customiser / police lineup | pages | PiP | pick | D-pad, L/R (`f_0030DEEC`, `f_00312FC4`, `f_00313BE8`) | buttons (static) |
 | Character select | portraits | PiP | pick | reads `0x00376968`/`6C`/`7C` (`f_00168110`) | buttons (static) |
-| Break-and-build (Super Build choice) | choice menu | PiP | pick | open: no button reads found in `f_00290B1C` | open |
-| Photo mode | meter | PiP | ? | open (`f_002EA1C0`) | open |
-| Retry / alert pages | page | PiP | pick | open (`f_0026E9D8`) | open |
-| Level select | portraits | PiP | pick | open (class `0x00363A58`, no direct button reads) | open |
-| Award viewer | top screen | PiP | ? | open | open |
+| Break-and-build (Super Build choice) | none: a top-screen HUD panel (`f_00290B1C` from the HUD setup `f_0017BB14`): object, cost, prompts | PiP | — | its prompts (A) | traced: buttons |
+| Photo mode (observation points, postcards) | none: the postcard camera of the scanner code (`f_001BEB1C` → `f_002EA1C0`, "Matched" meter) | PiP | — | A to look ("Press <EAST> to look around with these observation points"), framing by motion: RS (#4) | traced: buttons + motion |
+| Retry / alert pages | the shared alert dialog (`Page_AlertText`, `f_0026E9D8` via `f_00220334`: shops, pause, customiser, frontend, level loading, autosave, "Retry") | PiP | answer | A / B, as Zakuro answers the boot alerts | traced: buttons |
+| Level select ("Select Level", "Level Progress") | a status-screen page | PiP | pick | D-pad, L/R (status screen `f_0030966C`) | traced: buttons (static) |
+| Award viewer (Awards Wall, police station) | none: a 3D wall of awards (`f_001D2FC4`) | PiP | — | "Press <l> or <r> to rotate the camera" | traced: buttons |
 | Touch gestures | — | — | — | unused (no gesture files) | — |
 
-What's left: the five **open** rows need a run that reaches them (or a
-save that has them unlocked) to see whether the game's buttons already
-work; each one that is touch-only gets a mapping like the map's (a tap
-asked of Zakuro, `TAP!`). The **built** rows need a windowed or headless
+The five pages once marked open were traced to what opens them and what
+their own hint text says drives them: none is touch-only. Tracing them
+found the one that was: the Disguise Selector ("Tap and hold the disguise
+icon for the Disguise Selector. Then tap an icon to select."), now on LB
+held. The input channels by button (`[0x00376954] +0x14` points at an
+array of 20-byte channels, value f32 first): 0/1 circle pad x/y, 6 Select,
+7 Start, 8 L, 10 R, 12-15 D-pad, 16 A, 17 B, 18 X, 19 Y (checked by
+pressing each in a run). The **built** rows need a windowed or headless
 run on a fresh save.
 
 ## Safe cracking

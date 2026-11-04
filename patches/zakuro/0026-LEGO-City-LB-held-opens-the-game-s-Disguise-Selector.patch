@@ -1,0 +1,306 @@
+From a3ea0ae6fe9d8c424f7d8447a66320b4188d1ec6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 4 Nov 2026 17:46:55 +0000
+Subject: [PATCH] LEGO City: LB held opens the game's Disguise Selector; RB tap
+ Scan, held wheel
+
+LB held holds the disguise icon until the selector opens (+0x472), the
+right stick moves between its portraits (drawn with the map cursor),
+letting go taps the one chosen, and a locked pick or none closes it.
+The button wheel moves to RB held; RB tapped is Scan. The bottom screen
+shows whole while the selector is open.
+---
+ crates/zakuro/src/lib.rs         |   3 +-
+ crates/zakuro/src/title_hooks.rs | 200 +++++++++++++++++++++++++++++--
+ 2 files changed, 192 insertions(+), 11 deletions(-)
+
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index e71d160..811750a 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -1737,7 +1737,8 @@ impl App {
+         let corner = self.overlay_corner.clone().filter(|_| game.is_some());
+         // map mode's cursor, where it is in the window (points) and how big
+         // a bottom-screen pixel is there
+-        let map_cursor = self.game.as_ref().and_then(|game| game.taps.map_cursor()).and_then(|(x, y)| {
++        // (or the Disguise Selector's choice, drawn the same way)
++        let map_cursor = self.game.as_ref().and_then(|game| game.taps.map_cursor().or(game.taps.selector_spot())).and_then(|(x, y)| {
+             let size = window.inner_size();
+             let scale = window.scale_factor() as f32;
+             let shown = shown_layout(self.layout, self.game.as_ref(), self.settings.hide_idle_bottom);
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index e838568..8662e0b 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -201,7 +201,10 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+     let mut word = [0u8; 4];
+     system.memory.read_bytes(DRC_MAP_FADE, &mut word);
+     let faded_in = f32::from_le_bytes(word) > 0.99;
+-    BottomView { hide: false, pieces: Vec::new(), round: ran(MAP) && faded_in, swap: false }
++    // the Disguise Selector's portraits spread past the round minimap: the
++    // bottom screen shows whole while it is open
++    let selector = selector_open(system);
++    BottomView { hide: false, pieces: Vec::new(), round: ran(MAP) && faded_in && !selector, swap: false }
+ }
+ 
+ /// where overrides (overrides/map_buttons.c) ask for a stylus tap: "TAP!",
+@@ -233,8 +236,17 @@ pub struct Taps {
+     /// pixels) and its number.
+     point: Option<(f32, f32, u32)>,
+     point_serial: u32,
+-    /// frames LB has been held, on foot.
++    /// frames LB and RB have been held, on foot.
+     lb_frames: u32,
++    rb_frames: u32,
++    /// the game's Disguise Selector, while LB has it: whether it has opened
++    /// yet (frames spent opening it until then) and the portrait the right
++    /// stick moved to.
++    selector: Option<Selector>,
++    /// a touch of Zakuro's own: where, and frames left.
++    own_touch: Option<((u16, u16), u32)>,
++    /// frames until checking that the selector closed after a pick.
++    selector_check: u32,
+     /// the button wheel, while open: the buttons on it (wheel indices) and
+     /// the one the right stick points at.
+     wheel: Option<(Vec<usize>, Option<usize>)>,
+@@ -272,10 +284,78 @@ const LANGUAGE_PICKER: u32 = 0x005A_4FBC;
+ const ANSWER_FOR: u32 = 4;
+ 
+ /// the bottom screen's buttons by wheel index (overrides/map_buttons.c).
++/// LB held: the game's Disguise Selector (on the 3DS: hold the disguise
++/// icon). The manager's Chars button (+0x80, sprite at +4) opens it; it
++/// shows while +0x472 is set, +0x468 portraits from +0x294, 0x28 bytes
++/// each, their border node at +0xC (centre at the node's +0xF0, +0xF4).
++/// Tapping a portrait picks it, tapping Chars again closes it.
++const DRC: u32 = 0x0051_9D94;
++const SELECTOR_OPEN: u32 = DRC + 0x472;
++const SELECTOR_COUNT: u32 = DRC + 0x468;
++const SELECTOR_PORTRAITS: u32 = DRC + 0x294;
++const CHARS_BUTTON: u32 = DRC + 0x80;
++/// frames to try opening it before giving up, and to wait after a pick
++/// before closing it if it stayed open (a locked portrait).
++const SELECTOR_OPENING: u32 = 120;
++const SELECTOR_SETTLE: u32 = 20;
++
++#[derive(Clone, Copy)]
++pub struct Selector {
++    open: bool,
++    frames: u32,
++    choice: Option<usize>,
++    /// where that portrait is, for the overlay
++    spot: Option<(f32, f32)>,
++    /// the stick came back to the middle since the last move
++    armed: bool,
++}
++
++fn read_f32(system: &mut System, address: u32) -> f32 {
++    f32::from_bits(read_u32(system, address))
++}
++
++fn selector_open(system: &mut System) -> bool {
++    let mut byte = [0u8];
++    system.memory.read_bytes(SELECTOR_OPEN, &mut byte);
++    byte[0] != 0
++}
++
++/// the middle of the Chars button, bottom-screen pixels.
++fn chars_centre(system: &mut System) -> Option<(f32, f32)> {
++    let sprite = read_u32(system, CHARS_BUTTON + 4);
++    if sprite == 0 {
++        return None;
++    }
++    let x = read_f32(system, sprite + 0xF0) + 0.5 * read_f32(system, sprite + 0x54);
++    let y = read_f32(system, sprite + 0xF4) + 0.5 * read_f32(system, sprite + 0x58);
++    (x.is_finite() && y.is_finite() && (0.0..320.0).contains(&x) && (0.0..240.0).contains(&y)).then_some((x, y))
++}
++
++/// the selector's portraits, their middles.
++fn portraits(system: &mut System) -> Vec<(f32, f32)> {
++    let count = read_u32(system, SELECTOR_COUNT).min(8);
++    (0..count)
++        .filter_map(|k| {
++            let border = read_u32(system, SELECTOR_PORTRAITS + 0x28 * k + 0xC);
++            if border == 0 {
++                return None;
++            }
++            let (x, y) = (read_f32(system, border + 0xF0), read_f32(system, border + 0xF4));
++            (x.is_finite() && y.is_finite()).then_some((x, y))
++        })
++        .collect()
++}
++
++fn pixel((x, y): (f32, f32)) -> (u16, u16) {
++    (x.clamp(0.0, 319.0) as u16, y.clamp(0.0, 239.0) as u16)
++}
++
+ pub const WHEEL_NAMES: [&str; 8] = ["Scan", "Exit", "Disguise", "Audio", "Red Bricks", "Free Play", "Hint", "Area exit"];
+-/// the character switch's wheel index, LB's when tapped.
++/// the character switch's wheel index, LB's when tapped; Scan's, RB's.
+ const WHEEL_CHARS: usize = 2;
+-/// frames LB is held before the wheel opens; a shorter press is a tap.
++const WHEEL_SCAN: usize = 0;
++/// frames LB or RB is held before the selector or wheel opens; a shorter
++/// press is a tap.
+ const WHEEL_DELAY: u32 = 10;
+ /// what overrides/map_buttons.c says is shown: "BTN!", a mask by index.
+ const BUTTONS_SHOWN: u32 = 0x005A_4F90;
+@@ -290,6 +370,12 @@ impl Taps {
+ 
+     /// the wheel while it is open: each button's name, and which the right
+     /// stick points at.
++    /// where the Disguise Selector's choice is (bottom-screen pixels),
++    /// while LB has it.
++    pub fn selector_spot(&self) -> Option<(f32, f32)> {
++        self.selector.and_then(|selector| selector.spot)
++    }
++
+     pub fn wheel_view(&self) -> Option<(Vec<&'static str>, Option<usize>)> {
+         self.wheel.as_ref().map(|(choices, selected)| {
+             (choices.iter().map(|&i| WHEEL_NAMES[i]).collect(), selected.and_then(|s| choices.iter().position(|&c| c == s)))
+@@ -319,7 +405,9 @@ pub fn map_mode(view: &BottomView, taps: &mut Taps, input: &mut zakuro_core::ser
+     use zakuro_core::services::hid::{PadState, HOST_L, HOST_R};
+     // on foot, where the map shows, L and R are the character switch and
+     // Scan (overrides/map_buttons.c), not the game's camera turn
+-    if taps.map_cursor.is_none() && view.round {
++    // (and while LB or RB is still held from then: the Disguise Selector
++    // shows the bottom screen whole)
++    if taps.map_cursor.is_none() && (view.round || taps.lb_frames > 0 || taps.rb_frames > 0) {
+         for (button, host) in [(PadState::L, HOST_L), (PadState::R, HOST_R)] {
+             if input.buttons.contains(button) {
+                 input.buttons.remove(button);
+@@ -463,15 +551,102 @@ pub fn stick_motion(system: &System, taps: &mut Taps, input: &mut zakuro_core::s
+ }
+ 
+ pub fn button_wheel(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
+-    use zakuro_core::services::hid::HOST_L;
++    use zakuro_core::services::hid::{HOST_L, HOST_R};
+     if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
+         return;
+     }
+     let shown = if read_u32(system, BUTTONS_SHOWN) == u32::from_le_bytes(*b"BTN!") { read_u32(system, BUTTONS_SHOWN + 4) } else { 0 };
+     let mut choose = None;
++
++    // LB: tapped, the character switch; held, the game's Disguise Selector,
++    // the right stick moving between its portraits, letting go picking one
+     if input.host & HOST_L != 0 {
+         taps.lb_frames += 1;
+-        if taps.lb_frames >= WHEEL_DELAY && taps.wheel.is_none() {
++        if taps.lb_frames == WHEEL_DELAY && shown & (1 << WHEEL_CHARS) != 0 {
++            taps.selector = Some(Selector { open: false, frames: 0, choice: None, spot: None, armed: true });
++        }
++        if let Some(selector) = &mut taps.selector {
++            if !selector.open {
++                selector.frames += 1;
++                if selector_open(system) {
++                    selector.open = true;
++                    taps.own_touch = None;
++                } else if selector.frames > SELECTOR_OPENING {
++                    taps.selector = None;
++                    taps.own_touch = None;
++                } else if let Some(centre) = chars_centre(system) {
++                    // the stylus held on the disguise icon
++                    taps.own_touch = Some((pixel(centre), 1));
++                }
++            } else {
++                let (x, y) = (input.c_stick_x, input.c_stick_y);
++                let length = x.hypot(y);
++                if length < 0.3 {
++                    selector.armed = true;
++                } else if length > 0.6 && selector.armed {
++                    selector.armed = false;
++                    let spots = portraits(system);
++                    let from = match selector.choice.and_then(|k| spots.get(k).copied()) {
++                        Some(spot) => spot,
++                        None => chars_centre(system).unwrap_or((32.0, 32.0)),
++                    };
++                    // the nearest portrait within 60 degrees of the stick's
++                    // direction (screen y runs down)
++                    let (dx, dy) = (x / length, -y / length);
++                    let best = spots
++                        .iter()
++                        .enumerate()
++                        .filter(|&(k, _)| Some(k) != selector.choice)
++                        .filter_map(|(k, &(px, py))| {
++                            let (vx, vy) = (px - from.0, py - from.1);
++                            let distance = vx.hypot(vy);
++                            let cosine = (vx * dx + vy * dy) / distance.max(1e-3);
++                            (cosine > 0.5).then_some((k, distance / cosine))
++                        })
++                        .min_by(|a, b| a.1.total_cmp(&b.1));
++                    if let Some((k, _)) = best {
++                        selector.choice = Some(k);
++                    } else if selector.choice.is_none() && !spots.is_empty() {
++                        selector.choice = Some(0);
++                    }
++                    selector.spot = selector.choice.and_then(|k| spots.get(k).copied());
++                }
++            }
++            input.c_stick_x = 0.0;
++            input.c_stick_y = 0.0;
++        }
++    } else if taps.lb_frames > 0 {
++        match taps.selector.take() {
++            Some(selector) if selector.open => {
++                let spot = selector.choice.and_then(|k| portraits(system).get(k).copied());
++                match spot {
++                    Some(spot) => {
++                        taps.own_touch = Some((pixel(spot), TAP_FRAMES));
++                        taps.selector_check = TAP_FRAMES + SELECTOR_SETTLE;
++                    }
++                    // nothing chosen: close it again
++                    None => taps.own_touch = chars_centre(system).map(|centre| (pixel(centre), TAP_FRAMES)),
++                }
++            }
++            Some(_) => taps.own_touch = None,
++            None if taps.lb_frames < WHEEL_DELAY && shown & (1 << WHEEL_CHARS) != 0 => choose = Some(WHEEL_CHARS),
++            None => {}
++        }
++        taps.lb_frames = 0;
++    }
++    // a pick of a locked portrait leaves the selector open: close it
++    if taps.selector_check > 0 {
++        taps.selector_check -= 1;
++        if taps.selector_check == 0 && selector_open(system) {
++            taps.own_touch = chars_centre(system).map(|centre| (pixel(centre), TAP_FRAMES));
++        }
++    }
++
++    // RB: tapped, Scan; held, the wheel of every button shown, the right
++    // stick pointing, letting go choosing
++    if input.host & HOST_R != 0 {
++        taps.rb_frames += 1;
++        if taps.rb_frames >= WHEEL_DELAY && taps.wheel.is_none() {
+             let choices: Vec<usize> = (0..WHEEL_NAMES.len()).filter(|&i| shown & (1 << i) != 0).collect();
+             if !choices.is_empty() {
+                 taps.wheel = Some((choices, None));
+@@ -488,14 +663,15 @@ pub fn button_wheel(system: &mut System, taps: &mut Taps, input: &mut zakuro_cor
+             input.c_stick_x = 0.0;
+             input.c_stick_y = 0.0;
+         }
+-    } else if taps.lb_frames > 0 {
++    } else if taps.rb_frames > 0 {
+         choose = match taps.wheel.take() {
+             Some((_, selected)) => selected,
+-            None if shown & (1 << WHEEL_CHARS) != 0 => Some(WHEEL_CHARS),
++            None if taps.rb_frames < WHEEL_DELAY && shown & (1 << WHEEL_SCAN) != 0 => Some(WHEEL_SCAN),
+             None => None,
+         };
+-        taps.lb_frames = 0;
++        taps.rb_frames = 0;
+     }
++
+     if let Some(index) = choose {
+         taps.wheel_serial = taps.wheel_serial.wrapping_add(1);
+         let mut block = Vec::with_capacity(12);
+@@ -504,4 +680,8 @@ pub fn button_wheel(system: &mut System, taps: &mut Taps, input: &mut zakuro_cor
+         block.extend_from_slice(&taps.wheel_serial.to_le_bytes());
+         system.memory.write_bytes(WHEEL_REQUEST, &block);
+     }
++    if let Some((at, left)) = taps.own_touch {
++        input.touch = Some(at);
++        taps.own_touch = (left > 1).then_some((at, left - 1));
++    }
+ }
+-- 
+2.43.0
+
