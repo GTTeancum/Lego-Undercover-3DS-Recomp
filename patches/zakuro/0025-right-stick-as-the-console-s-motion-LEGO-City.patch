@@ -1,0 +1,218 @@
+From 2e64150dfa0693d4cf4b333fe94e167f7bb7ce88 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 4 Nov 2026 15:07:28 +0000
+Subject: [PATCH] right stick as the console's motion (LEGO City)
+
+InputState gains turn (about the upright axis) on top of tilt; the
+gyroscope and accelerometer read both. The title hooks turn and tilt the
+console with the right stick, for the game's motion look-around.
+---
+ crates/zakuro-core/src/replay.rs       |  2 ++
+ crates/zakuro-core/src/services/hid.rs | 39 +++++++++++++++++++-------
+ crates/zakuro/src/input.rs             |  1 +
+ crates/zakuro/src/lib.rs               |  2 ++
+ crates/zakuro/src/title_hooks.rs       | 29 +++++++++++++++++++
+ 5 files changed, 63 insertions(+), 10 deletions(-)
+
+diff --git a/crates/zakuro-core/src/replay.rs b/crates/zakuro-core/src/replay.rs
+index d0e0b01..6486956 100644
+--- a/crates/zakuro-core/src/replay.rs
++++ b/crates/zakuro-core/src/replay.rs
+@@ -87,6 +87,7 @@ impl Replay {
+                         c_stick_x: c_stick[0],
+                         c_stick_y: c_stick[1],
+                         host: 0,
++                        turn: 0.0,
+                     },
+                 ))
+             };
+@@ -129,6 +130,7 @@ mod tests {
+             tilt: [0.25, -0.5],
+             c_stick_x: -0.75,
+             c_stick_y: 1.0,
++            ..InputState::default()
+         };
+         let mut recorder = Recorder::create(&path, 1234).unwrap();
+         for frame in 0..10 {
+diff --git a/crates/zakuro-core/src/services/hid.rs b/crates/zakuro-core/src/services/hid.rs
+index bbb0264..a24aa2b 100644
+--- a/crates/zakuro-core/src/services/hid.rs
++++ b/crates/zakuro-core/src/services/hid.rs
+@@ -76,6 +76,11 @@ pub struct InputState {
+     /// right of the screen and toward its bottom, the way dragging the mouse
+     /// tilts it. the sensors report it, and how fast it changes.
+     pub tilt: [f32; 2],
++    /// how far the console is turned about its upright axis (the player
++    /// turning around with it), in radians, to the right positive: games
++    /// that look around with the gyroscope follow it. on top of tilt.
++    #[serde(default)]
++    pub turn: f32,
+     /// buttons the console has no place for, for game code written for
+     /// Zakuro (overrides) only: HOST_L3, HOST_MAP_MODE. HID never sees
+     /// them.
+@@ -333,7 +338,7 @@ pub fn update(system: &mut System, input: InputState) {
+ 
+     // the sensors report the tilt, and how fast it changes, kept track of
+     // whether or not they are on. titles that turn one on wait for its event
+-    let (gravity, rate) = motion(&mut system.services.hid, input.tilt);
++    let (gravity, rate) = motion(&mut system.services.hid, input.tilt, input.turn);
+     let accelerometer = gravity.map(|g| (g * ONE_G).round().clamp(-32768.0, 32767.0) as i16);
+     let gyroscope = rate.map(|r| (r * GYROSCOPE_PER_DPS).round().clamp(-32768.0, 32767.0) as i16);
+     let hid = &system.services.hid;
+@@ -383,14 +388,17 @@ fn rotate(q: Quaternion, [x, y, z]: [f32; 3]) -> [f32; 3] {
+ /// console's way round. the console turns about the axis across the
+ /// direction of the tilt, and lies upright with gravity down its y axis, as
+ /// in the motion emulation of Citra, which titles were tried with.
+-fn motion(hid: &mut HidState, [x, y]: [f32; 2]) -> ([f32; 3], [f32; 3]) {
++fn motion(hid: &mut HidState, [x, y]: [f32; 2], turn: f32) -> ([f32; 3], [f32; 3]) {
+     let angle = x.hypot(y);
+-    let q = if angle > 0.0 {
++    let tilt = if angle > 0.0 {
+         let (sin, cos) = (angle / 2.0).sin_cos();
+         [cos, -y / angle * sin, 0.0, x / angle * sin]
+     } else {
+         [1.0, 0.0, 0.0, 0.0]
+     };
++    // turning right is clockwise seen from above, about the world's up (y)
++    let (sin, cos) = (-turn / 2.0).sin_cos();
++    let q = multiply([cos, 0.0, sin, 0.0], tilt);
+     let previous = hid.orientation.replace(q).unwrap_or(q);
+     let inverse = inverse(q);
+     let gravity = rotate(inverse, [0.0, -1.0, 0.0]);
+@@ -421,12 +429,23 @@ mod tests {
+         a.iter().zip(b).all(|(a, b)| (a - b).abs() < 1e-3)
+     }
+ 
++    /// turning about the upright axis leaves gravity alone and reads as a
++    /// turn about the console's own y axis only.
++    #[test]
++    fn turning_reads_on_the_upright_axis() {
++        let mut hid = HidState::default();
++        motion(&mut hid, [0.0, 0.0], 0.0);
++        let (gravity, rate) = motion(&mut hid, [0.0, 0.0], 0.01);
++        assert!(close(gravity, [0.0, -1.0, 0.0]));
++        assert!(rate[0].abs() < 1e-3 && rate[2].abs() < 1e-3 && rate[1].abs() > 0.1);
++    }
++
+     /// upright and still, gravity is down the console's y axis and nothing
+     /// turns.
+     #[test]
+     fn untilted_the_console_reads_upright_and_still() {
+         let mut hid = HidState::default();
+-        let (gravity, rate) = motion(&mut hid, [0.0, 0.0]);
++        let (gravity, rate) = motion(&mut hid, [0.0, 0.0], 0.0);
+         assert!(close(gravity, [0.0, -1.0, 0.0]));
+         assert!(close(rate, [0.0, 0.0, 0.0]));
+     }
+@@ -437,13 +456,13 @@ mod tests {
+     fn a_tilt_moves_gravity_and_holding_it_stops_the_turning() {
+         let quarter = std::f32::consts::FRAC_PI_2;
+         let mut hid = HidState::default();
+-        motion(&mut hid, [quarter, 0.0]);
+-        let (gravity, rate) = motion(&mut hid, [quarter, 0.0]);
++        motion(&mut hid, [quarter, 0.0], 0.0);
++        let (gravity, rate) = motion(&mut hid, [quarter, 0.0], 0.0);
+         assert!(close(gravity, [-1.0, 0.0, 0.0]) || close(gravity, [1.0, 0.0, 0.0]), "{gravity:?}");
+         assert!(close(rate, [0.0, 0.0, 0.0]));
+         let mut hid = HidState::default();
+-        motion(&mut hid, [0.0, quarter]);
+-        let (gravity, _) = motion(&mut hid, [0.0, quarter]);
++        motion(&mut hid, [0.0, quarter], 0.0);
++        let (gravity, _) = motion(&mut hid, [0.0, quarter], 0.0);
+         assert!(close(gravity, [0.0, 0.0, -1.0]) || close(gravity, [0.0, 0.0, 1.0]), "{gravity:?}");
+     }
+ 
+@@ -452,9 +471,9 @@ mod tests {
+     #[test]
+     fn tilting_turns_as_fast_as_the_tilt_changes() {
+         let mut hid = HidState::default();
+-        motion(&mut hid, [0.0, 0.0]);
++        motion(&mut hid, [0.0, 0.0], 0.0);
+         let step = 0.01f32;
+-        let (_, rate) = motion(&mut hid, [step, 0.0]);
++        let (_, rate) = motion(&mut hid, [step, 0.0], 0.0);
+         let expected = step.to_degrees() * SAMPLE_RATE;
+         let speed = rate.iter().map(|r| r * r).sum::<f32>().sqrt();
+         assert!((speed - expected).abs() < expected * 0.01, "{speed} against {expected}");
+diff --git a/crates/zakuro/src/input.rs b/crates/zakuro/src/input.rs
+index e8a19a7..17c4f67 100644
+--- a/crates/zakuro/src/input.rs
++++ b/crates/zakuro/src/input.rs
+@@ -102,6 +102,7 @@ impl Keyboard {
+             touch: self.touch,
+             tilt: self.tilt,
+             host: 0,
++            turn: 0.0,
+         }
+     }
+ }
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 740fe74..e71d160 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -401,6 +401,7 @@ fn run_headless(system: &mut System, frames: u64) {
+             let open = taps.map_cursor().is_some();
+             title_hooks::map_mode(&view, &mut taps, input);
+             title_hooks::button_wheel(system, &mut taps, input);
++            title_hooks::stick_motion(system, &mut taps, input);
+             if open != taps.map_cursor().is_some() {
+                 eprintln!("frame {frame}: map mode {}", if open { "closed" } else { "open" });
+             }
+@@ -1469,6 +1470,7 @@ impl App {
+         let was_open = game.taps.map_cursor().is_some();
+         title_hooks::map_mode(&game.bottom_view, &mut game.taps, &mut input);
+         title_hooks::button_wheel(&mut game.system, &mut game.taps, &mut input);
++        title_hooks::stick_motion(&game.system, &mut game.taps, &mut input);
+         let map_changed = was_open != game.taps.map_cursor().is_some() || was_full != game.taps.alert_fullscreen();
+         game.frame += 1;
+         if let Some(recorder) = &mut game.recorder {
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 963e4e9..e838568 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -218,6 +218,9 @@ const TAP_FRAMES: u32 = 4;
+ /// what tap_input remembers between frames, map mode included.
+ #[derive(Default)]
+ pub struct Taps {
++    /// the right stick's turn and tilt of the console, radians (motion)
++    turn: f32,
++    pitch: f32,
+     serial: u32,
+     left: u32,
+     at: (u16, u16),
+@@ -433,6 +436,32 @@ pub fn tap_input(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::
+ /// LB on foot: tapped, the character switch; held, a wheel of the buttons
+ /// the bottom screen shows, the right stick picking one (the camera holds
+ /// still meanwhile) and letting go of LB pressing it.
++/// how fast the right stick turns and tilts the console, radians a frame
++/// at full stick (90 degrees a second), and how far it tilts
++pub const MOTION_SPEED: f32 = 0.026;
++pub const MOTION_TILT_MOST: f32 = 1.2;
++
++/// the right stick as the console's motion, for the game's motion
++/// controls (Move your Nintendo 3DS to look around: observation points;
++/// the wiretap, which sets its reference direction from the gyroscope,
++/// f_0031C7F8): left and right turn the console about its upright axis, up
++/// and down tilt it to look up and down. The gyroscope and accelerometer
++/// then read it as they would the console being moved. Gameplay reads
++/// neither, so the stick goes on driving the camera there (overrides).
++/// Not while map mode or the wheel has the stick.
++pub fn stick_motion(system: &System, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
++    if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
++        return;
++    }
++    if taps.map_cursor.is_none() && taps.wheel.is_none() {
++        taps.turn += input.c_stick_x * MOTION_SPEED;
++        taps.pitch = (taps.pitch + input.c_stick_y * MOTION_SPEED).clamp(-MOTION_TILT_MOST, MOTION_TILT_MOST);
++    }
++    input.turn += taps.turn;
++    // looking up turns the console's back up: a tilt toward its top
++    input.tilt[1] -= taps.pitch;
++}
++
+ pub fn button_wheel(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
+     use zakuro_core::services::hid::HOST_L;
+     if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
+-- 
+2.43.0
+

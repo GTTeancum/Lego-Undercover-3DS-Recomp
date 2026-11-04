@@ -65,3 +65,21 @@ holds after release.
 
 Tuning: `YAW_PER_FRAME`, `TILT_PER_FRAME`, `LOWEST`, `HIGHEST`,
 `DEADZONE` at the top of the override; signs flip there too.
+
+## Motion controls
+
+The game asks for the console to be moved at its observation points
+("Move your Nintendo 3DS to look around") and uses the gyroscope in the
+wiretap (`f_0031C7F8` sets the gyroscope's reference direction through
+`f_002C57F0`; the sensors are set up at boot by `f_002CDF48`, globals at
+`0x00376034`: +0x0C accelerometer, +0x10 gyroscope). There is no stick in
+their place, so Zakuro (patch 0025, `title_hooks::stick_motion`) makes the
+right stick move the console: left/right turn it about its upright axis
+(`InputState::turn`), up/down tilt it to look up and down (`tilt[1]`, up to
+about 70 degrees), 90 degrees a second at full stick. The sensors report
+it as the console being moved. Gameplay reads neither sensor, so the stick
+keeps driving the camera there. Not while map mode or the wheel has the
+stick. Status: the sensor model is unit-tested (a turn reads on the
+gyroscope's upright axis, gravity unchanged); not yet seen at an
+observation point or the wiretap, so the direction of each axis may need
+flipping (`MOTION_SPEED` sign, `input.tilt[1] -=`).
