@@ -12,6 +12,7 @@
  *   0x005A4F10  f_002C5988  the save slot screen
  *   0x005A4F14  f_001DC234  the mission name card (on the wipe; it also
  *                           runs on the loading screen)
+ *   0x005A4F1C  f_0031DF40  the language page (Options, Language)
  *   0x005A4F18  f_002D8768  the shop mode's renderer (red bricks, extras; class
  *                           vtable 0x00361CC0, it draws UI_Shop_Topscreen)
  * and at 0x005A4F40 whether the notice shown last (f_00235F30) came from a
@@ -95,4 +96,11 @@ RECOMP_OVERRIDE(0x00235F30) {
     CALL(RECOMP_ORIGINAL(0x00235F30));
     mem_write32(ctx, NOTICE_IS_TIP, (uint32_t)tip);
     mem_write32(ctx, NOTICE_IS_TIP + 4, from);
+}
+
+/* 0x005A4F1C: the status screen's language page (Options, Language; flags
+ * to tap, class vtable 0x00364A68), its per-frame update f_0031DF40 */
+RECOMP_OVERRIDE(0x0031DF40) {
+    count(ctx, 7);
+    CALL(RECOMP_ORIGINAL(0x0031DF40));
 }

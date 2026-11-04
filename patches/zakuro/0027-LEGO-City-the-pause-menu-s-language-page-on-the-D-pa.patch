@@ -1,0 +1,156 @@
+From 24592fa7056aaa718e1c9237ed8221321f9e9476 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 4 Nov 2026 18:49:43 +0000
+Subject: [PATCH] LEGO City: the pause menu's language page on the D-pad
+ (untested)
+
+The language page (Options, Language) only takes taps on its flags. While
+its frame counter moves (overrides/screen_frame_counters.c, slot 7) the
+D-pad or left stick moves between the flags, drawn with the map cursor,
+and A taps the one chosen. Not yet run.
+---
+ crates/zakuro/src/lib.rs         |  2 +
+ crates/zakuro/src/title_hooks.rs | 86 +++++++++++++++++++++++++++++++-
+ 2 files changed, 86 insertions(+), 2 deletions(-)
+
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 811750a..6733a7d 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -402,6 +402,7 @@ fn run_headless(system: &mut System, frames: u64) {
+             title_hooks::map_mode(&view, &mut taps, input);
+             title_hooks::button_wheel(system, &mut taps, input);
+             title_hooks::stick_motion(system, &mut taps, input);
++            title_hooks::language_page(system, &mut taps, input);
+             if open != taps.map_cursor().is_some() {
+                 eprintln!("frame {frame}: map mode {}", if open { "closed" } else { "open" });
+             }
+@@ -1471,6 +1472,7 @@ impl App {
+         title_hooks::map_mode(&game.bottom_view, &mut game.taps, &mut input);
+         title_hooks::button_wheel(&mut game.system, &mut game.taps, &mut input);
+         title_hooks::stick_motion(&game.system, &mut game.taps, &mut input);
++        title_hooks::language_page(&mut game.system, &mut game.taps, &mut input);
+         let map_changed = was_open != game.taps.map_cursor().is_some() || was_full != game.taps.alert_fullscreen();
+         game.frame += 1;
+         if let Some(recorder) = &mut game.recorder {
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 8662e0b..07c57d4 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -73,7 +73,8 @@ const TEXT: usize = 3;
+ const SAVE_SLOTS: usize = 4;
+ const MISSION_CARD: usize = 5;
+ const SHOP: usize = 6;
+-const COUNTED: usize = 7;
++const LANGUAGE_PAGE: usize = 7;
++const COUNTED: usize = 8;
+ /// the return address of the call that showed the notice up
+ /// (overrides/screen_frame_counters.c): the ShowTipTextOnce and
+ /// ShowTipTextTimed script commands' calls are tutorial tips, anything else
+@@ -247,6 +248,13 @@ pub struct Taps {
+     own_touch: Option<((u16, u16), u32)>,
+     /// frames until checking that the selector closed after a pick.
+     selector_check: u32,
++    /// the pause menu's language page: its frame count last seen, frames
++    /// since it moved, and the flag the D-pad is on while it shows.
++    language_page_count: u32,
++    language_page_quiet: u32,
++    language_flag: Option<usize>,
++    language_held: zakuro_core::services::hid::PadState,
++    language_stick: bool,
+     /// the button wheel, while open: the buttons on it (wheel indices) and
+     /// the one the right stick points at.
+     wheel: Option<(Vec<usize>, Option<usize>)>,
+@@ -350,6 +358,80 @@ fn pixel((x, y): (f32, f32)) -> (u16, u16) {
+     (x.clamp(0.0, 319.0) as u16, y.clamp(0.0, 239.0) as u16)
+ }
+ 
++/// the pause menu's language page (Options, Language) has flags to tap and
++/// no button of the game's on them: the D-pad or left stick moves between
++/// them, A taps one. Their middles, bottom-screen pixels, as this release
++/// (English, Spanish, French) lays them out, in the page's hexagon grid.
++const LANGUAGE_FLAGS: [(f32, f32); 3] = [(57.0, 51.0), (107.0, 80.0), (57.0, 107.0)];
++
++/// the flag nearest the way (dx, dy) points from the one at `from`.
++fn flag_toward(from: usize, (dx, dy): (f32, f32)) -> usize {
++    let (fx, fy) = LANGUAGE_FLAGS[from];
++    LANGUAGE_FLAGS
++        .iter()
++        .enumerate()
++        .filter(|&(k, _)| k != from)
++        .filter_map(|(k, &(x, y))| {
++            let (vx, vy) = (x - fx, y - fy);
++            let distance = vx.hypot(vy);
++            let cosine = (vx * dx + vy * dy) / distance.max(1e-3);
++            (cosine > 0.3).then_some((k, distance / cosine))
++        })
++        .min_by(|a, b| a.1.total_cmp(&b.1))
++        .map_or(from, |(k, _)| k)
++}
++
++/// the language page's flags on the D-pad (see LANGUAGE_FLAGS).
++pub fn language_page(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
++    use zakuro_core::services::hid::PadState;
++    if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
++        return;
++    }
++    let count = read_u32(system, COUNTERS + 4 * LANGUAGE_PAGE as u32);
++    if count != taps.language_page_count {
++        taps.language_page_count = count;
++        taps.language_page_quiet = 0;
++    } else {
++        taps.language_page_quiet = taps.language_page_quiet.saturating_add(1);
++    }
++    if taps.language_page_quiet > GRACE {
++        taps.language_flag = None;
++        return;
++    }
++    let current = *taps.language_flag.get_or_insert(0);
++    let pressed = input.buttons & !taps.language_held;
++    taps.language_held = input.buttons;
++    // the left stick, as presses: past half way, after coming back
++    let stick = (input.circle_x, input.circle_y);
++    let stick_way = if stick.0.hypot(stick.1) > 0.6 && !taps.language_stick { Some((stick.0, -stick.1)) } else { None };
++    taps.language_stick = stick.0.hypot(stick.1) > 0.3;
++    let way = if pressed.contains(PadState::UP) {
++        Some((0.0, -1.0))
++    } else if pressed.contains(PadState::DOWN) {
++        Some((0.0, 1.0))
++    } else if pressed.contains(PadState::LEFT) {
++        Some((-1.0, 0.0))
++    } else if pressed.contains(PadState::RIGHT) {
++        Some((1.0, 0.0))
++    } else {
++        stick_way
++    };
++    if let Some(way) = way {
++        taps.language_flag = Some(flag_toward(current, way));
++    }
++    if pressed.contains(PadState::A) {
++        let (x, y) = LANGUAGE_FLAGS[taps.language_flag.unwrap_or(0)];
++        taps.own_touch = Some((pixel((x, y)), TAP_FRAMES));
++    }
++    input.buttons.remove(PadState::A | PadState::UP | PadState::DOWN | PadState::LEFT | PadState::RIGHT);
++    input.circle_x = 0.0;
++    input.circle_y = 0.0;
++    if let Some((at, left)) = taps.own_touch {
++        input.touch = Some(at);
++        taps.own_touch = (left > 1).then_some((at, left - 1));
++    }
++}
++
+ pub const WHEEL_NAMES: [&str; 8] = ["Scan", "Exit", "Disguise", "Audio", "Red Bricks", "Free Play", "Hint", "Area exit"];
+ /// the character switch's wheel index, LB's when tapped; Scan's, RB's.
+ const WHEEL_CHARS: usize = 2;
+@@ -373,7 +455,7 @@ impl Taps {
+     /// where the Disguise Selector's choice is (bottom-screen pixels),
+     /// while LB has it.
+     pub fn selector_spot(&self) -> Option<(f32, f32)> {
+-        self.selector.and_then(|selector| selector.spot)
++        self.selector.and_then(|selector| selector.spot).or(self.language_flag.map(|k| LANGUAGE_FLAGS[k]))
+     }
+ 
+     pub fn wheel_view(&self) -> Option<(Vec<&'static str>, Option<usize>)> {
+-- 
+2.43.0
+
