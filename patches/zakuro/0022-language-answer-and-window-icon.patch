@@ -1,0 +1,68 @@
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index e1f3a54..e005e96 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -616,6 +616,16 @@ impl ApplicationHandler for App {
+ 
+         let size = self.window_size();
+         let attributes = Window::default_attributes().with_title("Zakuro").with_inner_size(size);
++        // a program built on Zakuro with an icon in its resources (the
++        // first) shows it on its window and in the taskbar
++        #[cfg(windows)]
++        let attributes = {
++            use winit::platform::windows::{IconExtWindows, WindowAttributesExtWindows};
++            match winit::window::Icon::from_resource(1, None) {
++                Ok(icon) => attributes.with_window_icon(Some(icon.clone())).with_taskbar_icon(Some(icon)),
++                Err(_) => attributes,
++            }
++        };
+         let renderer = self.options.renderer.unwrap_or(match self.settings.renderer {
+             Renderer::Vulkan => RendererKind::Vulkan,
+             Renderer::OpenGl => RendererKind::OpenGl,
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 272fa0e..0881f4b 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -244,6 +244,11 @@ pub struct Taps {
+     /// A answers it.
+     alert_full: bool,
+     alert_a: bool,
++    /// the language picker's count last seen, frames since it moved, and
++    /// whether this showing of it was answered.
++    language_count: u32,
++    language_quiet: u32,
++    language_answered: bool,
+ }
+ 
+ /// what overrides/system_alerts.c leaves of the alert box's text set last:
+@@ -258,6 +263,9 @@ const ALERT_AUTOSAVE: u32 = 0x0031_9B54;
+ /// frames a system message shows before it is answered, and the answer
+ /// is held.
+ const ANSWER_AFTER: u32 = 45;
++/// overrides/system_alerts.c counts the first boot's language picker here;
++/// it is answered with English (A, already highlighted).
++const LANGUAGE_PICKER: u32 = 0x005A_4FBC;
+ const ANSWER_FOR: u32 = 4;
+ 
+ /// the bottom screen's buttons by wheel index (overrides/map_buttons.c).
+@@ -365,6 +373,20 @@ pub fn tap_input(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::
+             }
+         }
+     }
++    let count = read_u32(system, LANGUAGE_PICKER);
++    if count != taps.language_count {
++        taps.language_count = count;
++        taps.language_quiet = 0;
++        if !taps.language_answered && taps.press.is_none() {
++            taps.language_answered = true;
++            taps.press = Some((PadState::A, ANSWER_AFTER, ANSWER_FOR));
++        }
++    } else {
++        taps.language_quiet = taps.language_quiet.saturating_add(1);
++        if taps.language_quiet > 120 {
++            taps.language_answered = false;
++        }
++    }
+     let a = input.buttons.contains(PadState::A);
+     if a && !taps.alert_a {
+         taps.alert_full = false;

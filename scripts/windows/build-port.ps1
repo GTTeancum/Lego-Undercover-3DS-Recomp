@@ -85,6 +85,18 @@ if (Test-Path $port) { Remove-Item -Recurse -Force $port }
 Run $recomp @("port", $Rom, $port, "--zakuro", (Join-Path $Work "zakuro"), "--name", "lego-city-undercover", "--overrides", (Join-Path $Root "overrides"))
 # build against the same dependency versions Zakuro pins
 Copy-Item -Force (Join-Path $Work "zakuro\Cargo.lock") (Join-Path $port "Cargo.lock")
+# the program's icon (assets\icon.ico), a resource linked into the exe:
+# windres with the GNU toolchain, llvm-rc with MSVC (LLVM is needed there anyway)
+$assets = Join-Path $Root "assets"
+if ($host_triple -like "*-msvc") {
+    $res = Join-Path $Work "icon.res"
+    Run llvm-rc @("/I", $assets, "/FO", $res, (Join-Path $assets "icon.rc"))
+} else {
+    Need windres "The GNU Rust toolchain needs MinGW-w64 windres on PATH (it comes with gcc)."
+    $res = Join-Path $Work "icon-res.o"
+    Run windres @("--include-dir", $assets, (Join-Path $assets "icon.rc"), "-O", "coff", "-o", $res)
+}
+$env:RUSTFLAGS = "$env:RUSTFLAGS -C link-arg=$res".Trim()
 Push-Location $port
 try { Run cargo @("build", "--release") } finally { Pop-Location }
 

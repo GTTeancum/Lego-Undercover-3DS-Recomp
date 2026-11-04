@@ -10,6 +10,7 @@
  * right stick there too. Zakuro leaves the stick in the shared page
  * (memory::config::HOST_RIGHT_STICK): "ZKRS", x, y as f32, -1..1, up +.
  */
+#include <stdlib.h>
 #include <string.h>
 #include "overrides.h"
 
@@ -46,12 +47,15 @@ RECOMP_OVERRIDE(0x00200444) {
     float x = shaped(as_float(mem_read32(ctx, HOST_STICK + 4)));
     float y = shaped(as_float(mem_read32(ctx, HOST_STICK + 8)));
     if (x != 0.0f) {
-        /* stick left turns the view like L */
-        float yaw = as_float(mem_read32(ctx, CAMERA_YAW)) - x * YAW_PER_FRAME;
+        /* stick right turns the view right */
+        float yaw = as_float(mem_read32(ctx, CAMERA_YAW)) + x * YAW_PER_FRAME;
         mem_write32(ctx, CAMERA_YAW, as_bits(yaw));
     }
     if (y != 0.0f) {
-        float pitch = as_float(mem_read32(ctx, CAMERA_PITCH)) + y * PITCH_PER_FRAME;
-        mem_write32(ctx, CAMERA_PITCH, as_bits(pitch));
+        /* DEBUG: which input component, how strong */
+        static uint32_t off = 0; static float k = 0;
+        if (!off) { const char *e = getenv("CAM_OFF"); off = e ? (uint32_t)strtoul(e, 0, 16) : 0x144; e = getenv("CAM_K"); k = e ? (float)atof(e) : PITCH_PER_FRAME; }
+        float pitch = as_float(mem_read32(ctx, CAMERA + off)) + y * k;
+        mem_write32(ctx, CAMERA + off, as_bits(pitch));
     }
 }

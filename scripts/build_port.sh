@@ -19,6 +19,10 @@ rm -rf "$PORT"
 if [ "${1:-}" = "--target" ] && [[ "$2" == *windows-gnu ]]; then
   # cross-compiling: the game's C has to be built by MinGW too
   export CC=x86_64-w64-mingw32-gcc AR=x86_64-w64-mingw32-ar
+  # the program's icon (assets/icon.ico), a resource linked into the exe
+  mkdir -p "$ROOT/work"
+  x86_64-w64-mingw32-windres --include-dir "$ROOT/assets" "$ROOT/assets/icon.rc" -O coff -o "$ROOT/work/icon-res.o"
+  export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS="${CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS:-} -C link-arg=$ROOT/work/icon-res.o"
 fi
 "$ROOT/work/3dsrecomp/target/release/3dsrecomp" port "$ROM" "$PORT" \
   --zakuro "$ROOT/work/zakuro" --name lego-city-undercover --overrides "$ROOT/overrides"
