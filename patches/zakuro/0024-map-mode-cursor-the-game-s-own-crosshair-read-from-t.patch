@@ -1,0 +1,268 @@
+From d0425a655284552970f7a3db0b39a18275625545 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 4 Nov 2026 14:40:46 +0000
+Subject: [PATCH] map mode cursor: the game's own crosshair, read from the ROM
+
+sprites/ui_hud/crosshair.btga out of lego_city3ds.fib (FUSE, RefPack-like
+chunks, RGBA8 tiled texture); the drawn crosshair stays as the fallback.
+---
+ crates/zakuro/src/game_sprites.rs | 159 ++++++++++++++++++++++++++++++
+ crates/zakuro/src/lib.rs          |  29 +++++-
+ crates/zakuro/src/title_hooks.rs  |   3 +
+ 3 files changed, 190 insertions(+), 1 deletion(-)
+ create mode 100644 crates/zakuro/src/game_sprites.rs
+
+diff --git a/crates/zakuro/src/game_sprites.rs b/crates/zakuro/src/game_sprites.rs
+new file mode 100644
+index 0000000..7a493e7
+--- /dev/null
++++ b/crates/zakuro/src/game_sprites.rs
+@@ -0,0 +1,159 @@
++//! Sprites read out of the running game's own files, for overlays drawn in
++//! the game's style. Nothing of the game is kept or shipped: they come from
++//! the player's ROM each time.
++//!
++//! LEGO City Undercover: The Chase Begins keeps its files in one archive,
++//! `lego_city3ds.fib` (TT Games FUSE), with its table of contents in
++//! `lego_city3ds.csv` (CRC, name, stored size, size, offset in hex). Stored
++//! entries smaller than their size are compressed in chunks of up to
++//! 256 KiB unpacked, each a u32 length and a RefPack-like stream (the game
++//! decodes them with f_0012EFE0). Its textures (.btga) are a 0x38-byte
++//! header (width, height at +0x18, PICA format at +0x20) then the texels,
++//! in the GPU's 8x8 tiles, bottom row first.
++
++use zakuro_fs::Title;
++
++/// a square sprite, RGBA, top row first.
++pub struct Sprite {
++    pub size: [usize; 2],
++    pub rgba: Vec<u8>,
++}
++
++/// map mode's cursor: the game's own crosshair (the HUD's, a blue ring with
++/// four marks), or none when the game has no such file.
++pub fn crosshair(title: &Title) -> Option<Sprite> {
++    texture(&archive_file(title, "sprites/ui_hud/crosshair.btga")?)
++}
++
++fn romfs_file(title: &Title, path: &str) -> Option<Vec<u8>> {
++    let file = title.romfs.as_ref()?.lookup(path).ok()?;
++    title.read_romfs(&file, 0, file.data_size as usize).map(<[u8]>::to_vec)
++}
++
++fn archive_file(title: &Title, name: &str) -> Option<Vec<u8>> {
++    let toc = romfs_file(title, "lego_city3ds.csv")?;
++    let toc = String::from_utf8_lossy(&toc);
++    let row = toc.lines().skip(1).find_map(|line| {
++        let parts: Vec<&str> = line.split(',').map(str::trim).collect();
++        (parts.len() >= 5 && parts[1].eq_ignore_ascii_case(name)).then_some(parts)
++    })?;
++    let stored: usize = row[2].parse().ok()?;
++    let size: usize = row[3].parse().ok()?;
++    let offset = u64::from_str_radix(row[4].trim_start_matches("0x"), 16).ok()?;
++    let file = title.romfs.as_ref()?.lookup("lego_city3ds.fib").ok()?;
++    let data = title.read_romfs(&file, offset, stored)?;
++    if stored == size {
++        return Some(data.to_vec());
++    }
++    let mut out = Vec::with_capacity(size);
++    let mut at = 0;
++    while out.len() < size && at + 4 <= data.len() {
++        let n = u32::from_le_bytes(data[at..at + 4].try_into().ok()?) as usize;
++        let chunk = data.get(at + 4..at + 4 + n)?;
++        unpack(chunk, (size - out.len()).min(0x40000), &mut out)?;
++        at += 4 + n;
++    }
++    (out.len() == size).then_some(out)
++}
++
++/// one compressed chunk, appended to out.
++fn unpack(src: &[u8], size: usize, out: &mut Vec<u8>) -> Option<()> {
++    let start = out.len();
++    let mut i = 0;
++    let byte = |i: usize| src.get(i).copied();
++    while i < src.len() && out.len() - start < size {
++        let b = byte(i)? as usize;
++        let (lit, count, back, end);
++        if b < 0x80 {
++            let b1 = byte(i + 1)? as usize;
++            i += 2;
++            (lit, count, back, end) = ((b >> 2) & 3, ((b >> 4) & 7) + 3, ((b & 3) << 8) + b1 + 1, false);
++        } else if b < 0xC0 {
++            let (b1, b2) = (byte(i + 1)? as usize, byte(i + 2)? as usize);
++            i += 3;
++            (lit, count, back, end) = (b1 >> 6, (b & 0x3F) + 4, ((b1 & 0x3F) << 8) + b2 + 1, false);
++        } else if b < 0xE0 {
++            let (b1, b2, b3) = (byte(i + 1)? as usize, byte(i + 2)? as usize, byte(i + 3)? as usize);
++            i += 4;
++            (lit, count, back, end) = ((b >> 3) & 3, b3 + ((b & 6) << 7) + 5, ((b & 1) << 16) + (b1 << 8) + b2 + 1, false);
++        } else if b < 0xFC {
++            i += 1;
++            (lit, count, back, end) = (((b & 0x1F) << 2) + 4, 0, 0, false);
++        } else {
++            i += 1;
++            (lit, count, back, end) = (b & 3, 0, 0, true);
++        }
++        out.extend_from_slice(src.get(i..i + lit)?);
++        i += lit;
++        if count > 0 {
++            let from = out.len().checked_sub(back)?;
++            for k in 0..count {
++                let v = out[from + k];
++                out.push(v);
++            }
++        }
++        if end {
++            break;
++        }
++    }
++    Some(())
++}
++
++/// an RGBA8 (PICA format 0) texture.
++fn texture(data: &[u8]) -> Option<Sprite> {
++    let width = u16::from_le_bytes(data.get(0x18..0x1A)?.try_into().ok()?) as usize;
++    let height = u16::from_le_bytes(data.get(0x1A..0x1C)?.try_into().ok()?) as usize;
++    let format = u32::from_le_bytes(data.get(0x20..0x24)?.try_into().ok()?);
++    if format != 0 || width % 8 != 0 || height % 8 != 0 {
++        return None;
++    }
++    let texels = data.get(0x38..0x38 + width * height * 4)?;
++    let mut rgba = vec![0; width * height * 4];
++    let mut at = 0;
++    for tile_y in (0..height).step_by(8) {
++        for tile_x in (0..width).step_by(8) {
++            for i in 0..64 {
++                let (mut x, mut y) = (0, 0);
++                for bit in 0..3 {
++                    x |= ((i >> (2 * bit)) & 1) << bit;
++                    y |= ((i >> (2 * bit + 1)) & 1) << bit;
++                }
++                let [a, b, g, r] = texels[at..at + 4].try_into().ok()?;
++                at += 4;
++                // stored bottom row first
++                let row = height - 1 - (tile_y + y);
++                let to = (row * width + tile_x + x) * 4;
++                rgba[to..to + 4].copy_from_slice(&[r, g, b, a]);
++            }
++        }
++    }
++    Some(Sprite { size: [width, height], rgba })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    /// with ZAKURO_TEST_ROM set to the game: its crosshair reads, and is
++    /// written as raw RGBA to ZAKURO_TEST_OUT when that is set.
++    #[test]
++    fn reads_the_crosshair_from_the_rom() {
++        let Ok(rom) = std::env::var("ZAKURO_TEST_ROM") else { return };
++        let title = Title::load(rom).unwrap();
++        let sprite = crosshair(&title).expect("crosshair");
++        assert_eq!(sprite.size, [64, 64]);
++        if let Ok(out) = std::env::var("ZAKURO_TEST_OUT") {
++            std::fs::write(out, &sprite.rgba).unwrap();
++        }
++    }
++
++    /// literals, then a copy reaching back into them.
++    #[test]
++    fn unpacks_literals_and_copies() {
++        // 0xE0: 4 literals; 0x00 0x03: copy 3 from 4 back, no literals; 0xFC: end
++        let src = [0xE0, b'a', b'b', b'c', b'd', 0x00, 0x03, 0xFC];
++        let mut out = Vec::new();
++        unpack(&src, 100, &mut out).unwrap();
++        assert_eq!(out, b"abcdabc");
++    }
++}
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index e005e96..740fe74 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -7,6 +7,7 @@ mod camera;
+ mod cli;
+ mod gamepad;
+ mod find_rom;
++mod game_sprites;
+ mod gui;
+ mod headless_probe;
+ mod input;
+@@ -131,6 +132,8 @@ pub fn run_with(linked: Option<Linked>, overlay: Option<Box<dyn GameOverlay>>) {
+         audio: None,
+         mouse_down: false,
+         tilting_from: None,
++        cursor_sprite: None,
++        cursor_texture: None,
+         cursor: (0.0, 0.0),
+         last_title_update: Instant::now(),
+         next_frame: Instant::now(),
+@@ -513,6 +516,10 @@ struct App {
+     /// where the pointer was when the right button went down, which tilts
+     /// the console while held.
+     tilting_from: Option<(f32, f32)>,
++    /// map mode's cursor, the game's own crosshair: read from the ROM when
++    /// map mode first opens (None until then), then made a texture.
++    cursor_sprite: Option<Option<game_sprites::Sprite>>,
++    cursor_texture: Option<egui::TextureHandle>,
+     cursor: (f32, f32),
+     last_title_update: Instant,
+     /// when the next frame is due. frames run to a schedule rather than one
+@@ -1735,8 +1742,12 @@ impl App {
+             let (_, bottom) = layout(size.width, size.height, shown, self.top_shape.width(), self.settings.integer_scale);
+             bottom.map(|b| ((b.x + x / 320.0 * b.width) / scale, (b.y + y / 240.0 * b.height) / scale, b.width / 320.0 / scale))
+         });
++        if map_cursor.is_some() && self.cursor_sprite.is_none() {
++            self.cursor_sprite = Some(self.game.as_ref().and_then(|game| game.system.title.as_ref()).and_then(game_sprites::crosshair));
++        }
+         let wheel = self.game.as_ref().and_then(|game| game.taps.wheel_view());
+         let (menus, library, settings, jobs) = (&mut self.menus, &self.library, &mut self.settings, &self.jobs);
++        let (cursor_sprite, cursor_texture) = (&self.cursor_sprite, &mut self.cursor_texture);
+         let mut actions = Vec::new();
+         let overlay = gui.frame(window, |ui| {
+             match &game {
+@@ -1787,9 +1798,25 @@ impl App {
+                 let painter = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("map cursor")));
+                 let centre = egui::pos2(x, y);
+                 let r = 7.0 * pixel;
++                if cursor_texture.is_none() {
++                    if let Some(Some(sprite)) = cursor_sprite {
++                        let image = egui::ColorImage::from_rgba_unmultiplied(sprite.size, &sprite.rgba);
++                        *cursor_texture = Some(ui.ctx().load_texture("map cursor", image, egui::TextureOptions::LINEAR));
++                    }
++                }
+                 let dark = egui::Stroke::new(4.0, egui::Color32::from_black_alpha(200));
+                 let light = egui::Stroke::new(2.0, egui::Color32::WHITE);
+-                for stroke in [dark, light] {
++                // the game's crosshair, CURSOR_SIZE bottom-screen pixels
++                // across; drawn lines when the game has none
++                let strokes: &[egui::Stroke] = if let Some(texture) = cursor_texture.as_ref() {
++                    let half = 0.5 * title_hooks::CURSOR_SIZE * pixel;
++                    let rect = egui::Rect::from_center_size(centre, egui::vec2(2.0 * half, 2.0 * half));
++                    painter.image(texture.id(), rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
++                    &[]
++                } else {
++                    &[dark, light]
++                };
++                for &stroke in strokes {
+                     painter.circle_stroke(centre, r, stroke);
+                     painter.line_segment([egui::pos2(x - 2.0 * r, y), egui::pos2(x - 0.5 * r, y)], stroke);
+                     painter.line_segment([egui::pos2(x + 0.5 * r, y), egui::pos2(x + 2.0 * r, y)], stroke);
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 0881f4b..963e4e9 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -303,6 +303,9 @@ impl Taps {
+ /// bottom-screen pixels the cursor moves a frame with the stick held all
+ /// the way.
+ const CURSOR_SPEED: f32 = 4.0;
++/// how big map mode's cursor (the game's crosshair) is, in bottom-screen
++/// pixels.
++pub const CURSOR_SIZE: f32 = 32.0;
+ 
+ /// map mode, from the controller: D-pad Up while the map shows opens it,
+ /// B or D-pad Up closes it, as does the map going away. While it is open
+-- 
+2.43.0
+
