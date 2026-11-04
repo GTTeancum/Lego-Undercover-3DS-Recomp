@@ -1,0 +1,24 @@
+/* The game's alert box (system messages on the bottom screen at boot:
+ * StreetPass, the HOME Button notice, autosave), told to Zakuro, which
+ * answers the first two by itself and shows the autosave notice filling
+ * the window. See docs/bottom-screen.md.
+ *
+ * f_0020ACA4(line, format, ...) sets a line of the alert's text (the
+ * alert object at [0x00376C84]); the first-boot flow f_001E5868 shows the
+ * StreetPass question (its call returns to 0x001E59B0) and the HOME notice
+ * (0x001E5B9C), f_00319A84 the autosave notice (0x00319B54). Each call is
+ * left for Zakuro at ALERT: "ALR!", the return address, and a count.
+ */
+#include "overrides.h"
+
+#define ALERT 0x005A4FB0u
+
+static uint32_t serial;
+
+RECOMP_OVERRIDE(0x0020ACA4) {
+    uint32_t from = ctx->r[14];
+    CALL(RECOMP_ORIGINAL(0x0020ACA4));
+    mem_write32(ctx, ALERT, 0x21524C41u);   /* "ALR!" */
+    mem_write32(ctx, ALERT + 4, from);
+    mem_write32(ctx, ALERT + 8, ++serial);
+}

@@ -54,9 +54,12 @@ RECOMP_OVERRIDE(0x00235CC4) {
     count(ctx, 3);
 }
 
+void top_text_save_slots(void);  /* tip_text.c */
+
 RECOMP_OVERRIDE(0x002C5988) {
     CALL(RECOMP_ORIGINAL(0x002C5988));
     count(ctx, 4);
+    top_text_save_slots();
 }
 
 RECOMP_OVERRIDE(0x001DC234) {

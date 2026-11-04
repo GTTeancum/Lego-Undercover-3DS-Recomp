@@ -223,6 +223,18 @@ void top_text_seen(Context *ctx, uint32_t return_address, uint32_t text) {
     }
 }
 
+/* the save slot screen's "Select (A)", printed on the top screen's
+ * bottom right while the screen shows (screen_frame_counters.c calls
+ * top_text_save_slots each of its frames) */
+#define SELECT_TEXT "Select <EAST>"
+#define SELECT_X    360.0f
+#define SELECT_Y    224.0f
+static unsigned save_slots_age = 1000;
+
+void top_text_save_slots(void) {
+    save_slots_age = 0;
+}
+
 RECOMP_OVERRIDE(0x0025BE10) {
     uint32_t phase = ctx->r[0];
     CALL(RECOMP_ORIGINAL(0x0025BE10));
@@ -231,4 +243,6 @@ RECOMP_OVERRIDE(0x0025BE10) {
         if (moved[i].age++ > 8) continue;
         print_text(ctx, moved[i].font, moved[i].text, TIP_X, BOTTOM_TEXT_Y);
     }
+    if (save_slots_age++ <= 8)
+        print_text(ctx, mem_read32(ctx, UI_FONT), SELECT_TEXT, SELECT_X, SELECT_Y);
 }

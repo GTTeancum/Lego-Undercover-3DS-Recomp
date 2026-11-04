@@ -1,0 +1,135 @@
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 196d96c..e1f3a54 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -343,7 +343,8 @@ fn shown_layout(layout: Screens, game: Option<&Running>, hide_idle: bool) -> zak
+     if layout == Screens::PictureInPicture && hide_idle && view.is_some_and(|view| view.hide) {
+         zakuro_gpu::ScreenLayout::TopOnly
+     } else if layout == Screens::PictureInPicture
+-        && (view.is_some_and(|view| view.swap) || game.is_some_and(|game| game.taps.map_cursor().is_some()))
++        && (view.is_some_and(|view| view.swap)
++            || game.is_some_and(|game| game.taps.map_cursor().is_some() || game.taps.alert_fullscreen()))
+     {
+         zakuro_gpu::ScreenLayout::BottomOnly
+     } else {
+@@ -355,8 +356,8 @@ fn shown_layout(layout: Screens, game: Option<&Running>, hide_idle: bool) -> zak
+ fn apply_bottom_view(backend: &mut Backend, layout: Screens, game: Option<&Running>, settings: &Settings) {
+     let pip = layout == Screens::PictureInPicture;
+     let mut view = game.map(|game| game.bottom_view.clone()).unwrap_or_default();
+-    if game.is_some_and(|game| game.taps.map_cursor().is_some()) {
+-        // map mode: the map by itself, square
++    if game.is_some_and(|game| game.taps.map_cursor().is_some() || game.taps.alert_fullscreen()) {
++        // map mode or a system message: the bottom screen by itself, square
+         view.round = false;
+         view.pieces.clear();
+     }
+@@ -1446,11 +1447,12 @@ impl App {
+         };
+         // a tap the game's code asked for (a controller button bound to a
+         // touch-screen button), recorded like any touch
++        let was_full = game.taps.alert_fullscreen();
+         title_hooks::tap_input(&mut game.system, &mut game.taps, &mut input);
+         let was_open = game.taps.map_cursor().is_some();
+         title_hooks::map_mode(&game.bottom_view, &mut game.taps, &mut input);
+         title_hooks::button_wheel(&mut game.system, &mut game.taps, &mut input);
+-        let map_changed = was_open != game.taps.map_cursor().is_some();
++        let map_changed = was_open != game.taps.map_cursor().is_some() || was_full != game.taps.alert_fullscreen();
+         game.frame += 1;
+         if let Some(recorder) = &mut game.recorder {
+             recorder.record(input);
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 60fdd9b..272fa0e 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -173,7 +173,7 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch) -> BottomView {
+             pieces: vec![
+                 piece([49.0, 86.0, 225.0, 48.0], 0.5, 0.58, 1.0, PieceShape::Rounded(0.12)),
+                 piece([49.0, 140.0, 225.0, 47.0], 0.5, 0.80, 1.0, PieceShape::Rounded(0.12)),
+-                piece([236.0, 220.0, 84.0, 20.0], 0.87, 0.93, 1.0, PieceShape::Text),
++                // "Select (A)" is printed by the game (overrides/tip_text.c)
+             ],
+             round: false,
+             swap: false,
+@@ -236,8 +236,30 @@ pub struct Taps {
+     /// the one the right stick points at.
+     wheel: Option<(Vec<usize>, Option<usize>)>,
+     wheel_serial: u32,
++    /// the last alert text overrides/system_alerts.c saw set.
++    alert_serial: u32,
++    /// buttons to press for the game: frames to wait, then frames to hold.
++    press: Option<(zakuro_core::services::hid::PadState, u32, u32)>,
++    /// the autosave notice shows: the bottom screen fills the window until
++    /// A answers it.
++    alert_full: bool,
++    alert_a: bool,
+ }
+ 
++/// what overrides/system_alerts.c leaves of the alert box's text set last:
++/// "ALR!", the return address of the call that set it, and a count.
++const ALERT: u32 = 0x005A_4FB0;
++/// the first-boot "Activate StreetPass?" question (answered No) and the
++/// HOME Button notice (Continue), by where they are set from, and the
++/// autosave notice (shown filling the window).
++const ALERT_STREETPASS: u32 = 0x001E_59B0;
++const ALERT_HOME: u32 = 0x001E_5B9C;
++const ALERT_AUTOSAVE: u32 = 0x0031_9B54;
++/// frames a system message shows before it is answered, and the answer
++/// is held.
++const ANSWER_AFTER: u32 = 45;
++const ANSWER_FOR: u32 = 4;
++
+ /// the bottom screen's buttons by wheel index (overrides/map_buttons.c).
+ pub const WHEEL_NAMES: [&str; 8] = ["Scan", "Exit", "Disguise", "Audio", "Red Bricks", "Free Play", "Hint", "Area exit"];
+ /// the character switch's wheel index, LB's when tapped.
+@@ -250,6 +272,11 @@ const BUTTONS_SHOWN: u32 = 0x005A_4F90;
+ const WHEEL_REQUEST: u32 = 0x005A_4FA0;
+ 
+ impl Taps {
++    /// a system message shows that fills the window (the autosave notice).
++    pub fn alert_fullscreen(&self) -> bool {
++        self.alert_full
++    }
++
+     /// the wheel while it is open: each button's name, and which the right
+     /// stick points at.
+     pub fn wheel_view(&self) -> Option<(Vec<&'static str>, Option<usize>)> {
+@@ -320,9 +347,39 @@ pub fn map_mode(view: &BottomView, taps: &mut Taps, input: &mut zakuro_core::ser
+ /// touches the bottom screen where the game asked for a tap, a few frames,
+ /// unless the user is touching it.
+ pub fn tap_input(system: &mut System, taps: &mut Taps, input: &mut zakuro_core::services::hid::InputState) {
++    use zakuro_core::services::hid::PadState;
+     if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
+         return;
+     }
++    // system messages: StreetPass and the HOME notice answered, the
++    // autosave notice filling the window until A
++    if read_u32(system, ALERT) == u32::from_le_bytes(*b"ALR!") {
++        let serial = read_u32(system, ALERT + 8);
++        if serial != taps.alert_serial {
++            taps.alert_serial = serial;
++            match read_u32(system, ALERT + 4) {
++                ALERT_STREETPASS => taps.press = Some((PadState::B, ANSWER_AFTER, ANSWER_FOR)),
++                ALERT_HOME => taps.press = Some((PadState::A, ANSWER_AFTER, ANSWER_FOR)),
++                ALERT_AUTOSAVE => taps.alert_full = true,
++                _ => {}
++            }
++        }
++    }
++    let a = input.buttons.contains(PadState::A);
++    if a && !taps.alert_a {
++        taps.alert_full = false;
++    }
++    taps.alert_a = a;
++    if let Some((buttons, wait, hold)) = taps.press {
++        if wait > 0 {
++            taps.press = Some((buttons, wait - 1, hold));
++        } else if hold > 0 {
++            input.buttons |= buttons;
++            taps.press = Some((buttons, 0, hold - 1));
++        } else {
++            taps.press = None;
++        }
++    }
+     // map mode's navigation point, for overrides: "NAV!", x, y, number
+     if let Some((x, y, serial)) = taps.point {
+         let mut block = Vec::with_capacity(16);
