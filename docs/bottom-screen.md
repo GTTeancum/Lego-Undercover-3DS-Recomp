@@ -188,16 +188,19 @@ headless; clearing on arrival not yet seen.
 Zakuro patches 0016-0020): on foot, while the map shows, Zakuro keeps the
 console's L and R from the game (so the bumpers no longer turn the camera;
 the right stick does) and hands them to the overrides as host bits.
-LB tapped is the character switch (disguises); LB held opens a wheel of
-every button the bottom screen shows (the override reports them: tested by
-the map, not hidden, on screen), the right stick picks one and letting go
-presses it. RB is Scan, L3 the area exit or Exit, D-pad Up map mode. The
+LB tapped is the character switch (disguises); LB held opens the game's
+own Disguise Selector (Zakuro patch 0026, see the catalogue). RB tapped is
+Scan; RB held opens a wheel of every button the bottom screen shows (the
+override reports them: tested by the map, not hidden, on screen), the right
+stick picks one and letting go presses it. L3 is the area exit or Exit,
+D-pad Up map mode. The
 rest of the D-pad is the game's (disguise choice at disguise objects,
 colour codes, the Police Whistle on Down, steering). Elsewhere (scanner,
 binoculars, menus) the bumpers are the game's L and R. The triggers (ZL/ZR,
 which the game never reads) are left free, for driving later; R3 is fast
-forward. Status: LB tap and wheel choice checked headless (each asks for
-the tap on the right button); the wheel's look not yet seen.
+forward. Status: LB tap, the selector and the wheel choice checked
+headless (the wheel's choice on LB, before it moved to RB); the wheel's and
+the selector highlight's look not yet seen.
 
 ### Drawing on a screen from an override
 
