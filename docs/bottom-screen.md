@@ -297,6 +297,60 @@ scenes under `sprites/blend/`, loaded by `f_00217430(path, …)`; sprites are
 | **Boot splash** | `splashscreens/` | `f_00302144` | both | skip by touch: `f_003023B8` via `f_001E7F08` |
 | Touch gestures | none in the archive (`TouchGestures/%s.dat` missing) | `leSGOTouchGestureSystem` vtable `0x00364590` | — | unused in this port |
 
+## Catalogue: every bottom-screen state and its controls
+
+Every state the bottom screen has, how the port shows it (Zakuro's
+`title_hooks::bottom_view` rules, "PiP" = the normal picture-in-picture
+layout) and what replaces the stylus. Status: **seen** = checked in a run
+(headless unless said); **built** = implemented, not yet seen working;
+**buttons (static)** = the page's code reads the game's button/D-pad input
+channels (`0x00376954` manager, D-pad `0x00376958`-`0x00376964`, L/R
+`0x00376988`/`0x0037698C`), so the console's own buttons drive it, not yet
+seen in a run; **open** = not known yet.
+
+| State | Bottom screen on 3DS | Port shows | Stylus did | Controller does | Status |
+|---|---|---|---|---|---|
+| Boot splash / copyright | splash | PiP | skip (`f_003023B8`) | the game also skips on a button (reads `0x0037697C`) | buttons (static) |
+| Language picker (first boot) | language list | PiP | pick | Zakuro answers English (`f_003074E4` counter) | built |
+| StreetPass / HOME notices (first boot) | alert | PiP | answer | Zakuro answers No / Continue (`ALR!`, `f_0020ACA4`) | built |
+| Autosave notice | alert | fills the window until A | — | A | built |
+| Checking save data | spinner | PiP corner | — | — | seen |
+| Save slots | two slots, "Select (A)" | slots over the top screen, "Select [A]" printed by the game | pick slot | D-pad, A | built (prompt), slots seen |
+| Loading screen + tip | badge, tip text | hidden; tip printed on the top screen | — | — | seen |
+| Cutscene video | subtitles | hidden; subtitles along the top screen's bottom | — | — | seen |
+| Hexagon wipe (cutscenes, scripted scenes) | idle badge | hidden; mission name box at the top | — | — | seen |
+| Story dialogue | text box | text printed on the top screen | advance | A | seen |
+| Tutorial tips | notice | printed on the top screen | dismiss | A | seen |
+| Other notices (postcards, challenges) | notice | box, "!" and badge over the middle | dismiss | A | seen |
+| **Map** (free roam) | minimap + buttons + portraits | round minimap (PiP) | buttons, map points, stylus-drag camera | LB tap character/disguise switch; LB hold wheel of the buttons shown (RS picks); RB Scan; L3 area exit / Exit; RS camera (orbit, up to straight down); D-pad Up map mode | built; LB, wheel choice, camera seen |
+| Map mode (ours) | full map | bottom screen fills the window, game's crosshair as cursor | place a waypoint | LS cursor, A sets/clears the nav point, B / Up closes | seen (placing, clearing, edge arrow) |
+| Fast travel / area map | map with area points | as the map | pick area | the game's D-pad menu; L3 area exit | buttons (static) |
+| Scanner (visual, audio, decrypt) | scanner UI (`drc_scanner`) | PiP | — | game's own: left stick looks, A locks on, L/R zoom (hint text); RB opens it from the map | buttons (game) |
+| Observation points (postcards) | — | PiP | — | A, then "move your 3DS": RS turns/tilts the virtual console (gyro) | built |
+| Wiretap | wiretap background | PiP | — | gyro: RS (as above) | built |
+| Safe cracking | dial | PiP corner | turn dial | left stick turns the dial (`safecrack_left_stick.c`) | built |
+| Crane minigame | wiped | hidden | — | D-pad (`f_002D5874`) | buttons (static) |
+| Keypad / colour codes | keypad | PiP | press keys | D-pad | buttons (static) |
+| Disguise choice at disguise objects | — | PiP | — | D-pad | buttons (game) |
+| Pause menu | pause page | PiP | pick | D-pad, A, B, L/R, Select (`f_00300378`) | buttons (static) |
+| Status screen (options, languages, credits) | pages | PiP | pick | D-pad, L/R (`f_0030966C`); credits `f_002F26C8` | buttons (static) |
+| Shops (hub extras, red bricks, codes, gifts, postcards, story clips) | item grids | bottom screen fills the window, stud counter on top | pick, page | D-pad pages, B back, Mainframe menu "Select (A)" (`f_002D8984`) | seen (pages, back); picking an item open (all locked in the test save) |
+| Code entry (A-Z) | letter buttons | as shops | tap letters | D-pad (`f_002F43EC`) | buttons (static) |
+| Character customiser / police lineup | pages | PiP | pick | D-pad, L/R (`f_0030DEEC`, `f_00312FC4`, `f_00313BE8`) | buttons (static) |
+| Character select | portraits | PiP | pick | reads `0x00376968`/`6C`/`7C` (`f_00168110`) | buttons (static) |
+| Break-and-build (Super Build choice) | choice menu | PiP | pick | open: no button reads found in `f_00290B1C` | open |
+| Photo mode | meter | PiP | ? | open (`f_002EA1C0`) | open |
+| Retry / alert pages | page | PiP | pick | open (`f_0026E9D8`) | open |
+| Level select | portraits | PiP | pick | open (class `0x00363A58`, no direct button reads) | open |
+| Award viewer | top screen | PiP | ? | open | open |
+| Touch gestures | — | — | — | unused (no gesture files) | — |
+
+What's left: the five **open** rows need a run that reaches them (or a
+save that has them unlocked) to see whether the game's buttons already
+work; each one that is touch-only gets a mapping like the map's (a tap
+asked of Zakuro, `TAP!`). The **built** rows need a windowed or headless
+run on a fresh save.
+
 ## Safe cracking
 
 Class vtable `0x003633F8`; its update `f_002FD52C` (+0x48) reads the
