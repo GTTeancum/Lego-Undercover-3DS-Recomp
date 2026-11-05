@@ -101,8 +101,10 @@ RECOMP_OVERRIDE(0x00235F30) {
 
 /* 0x005A4F1C: the status screen's language page (Options, Language; flags
  * to tap, class vtable 0x00364A68), its per-frame update f_0031DF40 */
+void bottom_text_language(void);
 RECOMP_OVERRIDE(0x0031DF40) {
     count(ctx, 7);
+    bottom_text_language();
     CALL(RECOMP_ORIGINAL(0x0031DF40));
 }
 

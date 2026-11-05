@@ -248,6 +248,18 @@ void bottom_text_pause(void) {
     pause_age = 0;
 }
 
+/* the pause menu's language page has only "Back (B)" (on the 3DS a flag is
+ * tapped); Zakuro puts its flags on the D-pad and A, so "Select (A)" goes
+ * where the other pause pages have it (screen_frame_counters.c calls
+ * bottom_text_language each of the page's frames) */
+#define LANGUAGE_SELECT_X 258.0f
+#define LANGUAGE_SELECT_Y 228.0f
+static unsigned language_age = 1000;
+
+void bottom_text_language(void) {
+    language_age = 0;
+}
+
 RECOMP_OVERRIDE(0x0025BE10) {
     uint32_t phase = ctx->r[0];
     CALL(RECOMP_ORIGINAL(0x0025BE10));
@@ -255,6 +267,8 @@ RECOMP_OVERRIDE(0x0025BE10) {
     if (mem_read32(ctx, SCREEN) == 1) {
         if (pause_age++ <= 8)
             print_text(ctx, mem_read32(ctx, UI_FONT), PROGRESS_TEXT, PROGRESS_X, PROGRESS_Y);
+        if (language_age++ <= 8)
+            print_text(ctx, mem_read32(ctx, UI_FONT), SELECT_TEXT, LANGUAGE_SELECT_X, LANGUAGE_SELECT_Y);
         return;
     }
     if (mem_read32(ctx, SCREEN) != 0) return;

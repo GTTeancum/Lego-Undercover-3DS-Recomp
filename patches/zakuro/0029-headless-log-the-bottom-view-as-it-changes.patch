@@ -1,0 +1,29 @@
+From 44826c62238011662586a2bd4a847cce0991b595 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 5 Nov 2026 00:07:56 +0000
+Subject: [PATCH] headless: log the bottom view as it changes
+
+---
+ crates/zakuro/src/lib.rs | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/crates/zakuro/src/lib.rs b/crates/zakuro/src/lib.rs
+index 241a122..106a312 100644
+--- a/crates/zakuro/src/lib.rs
++++ b/crates/zakuro/src/lib.rs
+@@ -413,7 +413,11 @@ fn run_headless(system: &mut System, frames: u64) {
+             }
+         });
+         outcome = system.run_frame();
+-        view = title_hooks::bottom_view(system, &mut watch, taps.progress());
++        let next = title_hooks::bottom_view(system, &mut watch, taps.progress());
++        if next != view {
++            eprintln!("frame {frame}: view hide {} round {} swap {} paused {} pieces {:?}", next.hide, next.round, next.swap, next.paused, next.pieces);
++        }
++        view = next;
+         ran += 1;
+         probe.after_frame(system, frame + 1);
+         if outcome != FrameOutcome::Completed {
+-- 
+2.43.0
+

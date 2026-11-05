@@ -14,7 +14,9 @@
  * from 5 degrees to straight down (88). The game hands the frame's camera
  * matrix to f_0022479C, which copies it to the view (0x0052AB80: right, up,
  * forward rows and the eye, row-major 4x4); this rewrites both, only when
- * the eye is this camera's (+0x004), so cutscene cameras are left be.
+ * the eye is the frame's camera's and within 2 units of this camera's
+ * (+0x004; it trails a little while the player moves), so cutscene
+ * cameras are left be.
  *
  * Zakuro leaves the stick in the shared page (memory::config::
  * HOST_RIGHT_STICK): "ZKRS", x, y as f32, -1..1, up +.
@@ -83,8 +85,17 @@ RECOMP_OVERRIDE(0x0022479C) {
     stick_y = 0.0f;
     if (mem_read8(ctx, WIPE_SHUT)) return;
     /* this camera's view? */
-    for (int i = 0; i < 3; i++)
-        if (fabsf(rd(ctx, VIEW + 0x30 + 4 * i) - rd(ctx, CAMERA_EYE + 4 * i)) > 0.01f) return;
+    /* (the view's eye is the frame's camera's, LOOK_AT +0x24; it trails the
+       gameplay camera's own place by a little while the player moves, and
+       a cutscene's camera is nowhere near it) */
+    float near = 0.0f;
+    for (int i = 0; i < 3; i++) {
+        float eye = rd(ctx, VIEW + 0x30 + 4 * i);
+        if (fabsf(eye - rd(ctx, LOOK_AT + 0x24 + 4 * i)) > 0.01f) return;
+        float d = eye - rd(ctx, CAMERA_EYE + 4 * i);
+        near += d * d;
+    }
+    if (near > 2.0f * 2.0f) return;
     float eye[3], at[3], f[3];
     for (int i = 0; i < 3; i++) {
         eye[i] = rd(ctx, VIEW + 0x30 + 4 * i);
