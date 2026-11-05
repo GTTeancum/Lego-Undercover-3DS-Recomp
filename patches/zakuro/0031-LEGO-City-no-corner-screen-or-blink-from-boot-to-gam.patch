@@ -1,0 +1,256 @@
+From b9e24bab818fc1ffda11a5310ff45d070c88e041 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 5 Nov 2026 03:03:27 +0000
+Subject: [PATCH] LEGO City: no corner screen or blink from boot to gameplay
+
+System notices (their cyan bar) fill the window, the boot splash hides
+the bottom screen (copyright text), the frontend's bare backdrops are
+hidden (no corner before the map has shown), subtitles and the mission
+card need their box on screen, a black top screen counts only after 24
+frames. Every layout change settles: a new one lasts 16 frames before it
+shows, and one that shows stays 24 before the bottom screen hides.
+---
+ crates/zakuro-core/src/lib.rs    |  28 +++++++
+ crates/zakuro/src/title_hooks.rs | 130 +++++++++++++++++++++++++++++--
+ 2 files changed, 152 insertions(+), 6 deletions(-)
+
+diff --git a/crates/zakuro-core/src/lib.rs b/crates/zakuro-core/src/lib.rs
+index ad15365..8f9f848 100644
+--- a/crates/zakuro-core/src/lib.rs
++++ b/crates/zakuro-core/src/lib.rs
+@@ -1266,6 +1266,34 @@ impl System {
+         true
+     }
+ 
++    /// some of a screen's pixels, RGBA, at (x, y) in its pixels.
++    pub fn screen_pixels(&mut self, screen: zakuro_common::Screen, points: &[(u32, u32)]) -> Vec<[u8; 4]> {
++        let index = match screen {
++            zakuro_common::Screen::Top => 0,
++            zakuro_common::Screen::Bottom => 1,
++        };
++        let config = self.gpu.framebuffers[index];
++        let address = config.address_left();
++        if self.lcd_force_black || address == 0 {
++            return vec![[0, 0, 0, 255]; points.len()];
++        }
++        let (width, height) = (screen.width(), screen.height());
++        let format = config.color_format();
++        let bpp = format.bytes_per_pixel() as u32;
++        let stride = if config.stride == 0 { height * bpp } else { config.stride };
++        let base = services::gsp::physical_to_virtual(self, address);
++        self.sync_gpu(base, stride * width);
++        let mut pixel = vec![0u8; bpp as usize];
++        points
++            .iter()
++            .map(|&(x, y)| {
++                let (x, y) = (x.min(width - 1), y.min(height - 1));
++                self.memory.read_bytes(base + x * stride + (height - 1 - y) * bpp, &mut pixel);
++                format.decode(&pixel)
++            })
++            .collect()
++    }
++
+     /// a one-line summary for the window title and the log.
+     pub fn status_line(&self) -> String {
+         let mut line = format!(
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 44956a4..9084ba9 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -63,6 +63,19 @@ pub struct Watch {
+     dark_top: u32,
+     dark_bottom: u32,
+     frame: u64,
++    /// samples in a row the bottom screen had the notices' look, and
++    /// frames since it last showed a subtitle box.
++    notice: u32,
++    subtitle: u32,
++    subtitle_seen: bool,
++    /// the map has shown since the game started: before that (the boot,
++    /// its menus) the bottom screen is never a corner.
++    map_seen: bool,
++    /// the layout shown, frames it has been, and one waiting to (SETTLE)
++    /// with its frames.
++    shown: BottomView,
++    shown_for: u32,
++    pending: Option<(BottomView, u32)>,
+ }
+ 
+ /// the game runs its logic at 30 frames a second or slower, so a function
+@@ -76,12 +89,49 @@ const WIPE_OPENING: u32 = 40;
+ const VIDEO_GRACE: u32 = 60;
+ /// the loading screen draws less often still while the disc is read.
+ const LOADING_GRACE: u32 = 30;
+-/// a screen counts as blank after this many dark samples in a row, one
++/// a screen counts as blank after this many dark samples in a row (24
++/// frames: longer than a fade from black), one
+ /// every DARK_EVERY frames (boot screens, alerts and the language picker
+ /// draw only on the bottom screen, with the top one black).
+ const DARK_EVERY: u64 = 4;
+-const DARK_SAMPLES: u32 = 2;
++const DARK_SAMPLES: u32 = 6;
+ const DARK_LEVEL: u8 = 24;
++/// frames a new layout has to last before it shows, unless it hides the
++/// bottom screen (at once): the game's screens come and go in between for
++/// a frame or a few (fades, a notice closing, the map fading in).
++const SETTLE: u32 = 16;
++/// the mission card's box on the wipe: its left and right edges at x 100
++/// and 218 (y 30) and its bottom at y 52, pale cyan; the bare wipe there is
++/// dark navy or mid blue.
++const MISSION_CARD_BORDER: [(u32, u32); 4] = [(100, 30), (218, 30), (130, 52), (190, 52)];
++
++fn mission_card_look(system: &mut System) -> bool {
++    let pixels = system.screen_pixels(zakuro_common::Screen::Bottom, &MISSION_CARD_BORDER);
++    pixels.iter().all(|&[r, g, b, _]| r > 110 && g > 170 && b > 200)
++}
++/// and once a layout that shows something is up, it stays at least this
++/// many frames before the bottom screen hides (no blink at its end).
++const MIN_SHOW: u32 = 24;
++/// the system notices' look (Checking save data, Saving Game, Preparing
++/// save data, StreetPass, the HOME Button, autosave): a cyan bar across
++/// the bottom screen at y 34-36 with the gold police badge at its left.
++const NOTICE_BAR: [(u32, u32); 4] = [(100, 35), (160, 35), (220, 35), (280, 35)];
++
++fn notice_look(system: &mut System) -> bool {
++    // the bar alone: it is there before the badge and text come in
++    let pixels = system.screen_pixels(zakuro_common::Screen::Bottom, &NOTICE_BAR);
++    // pale cyan, its core near white: bright and bluer than red
++    pixels.iter().all(|&[r, g, b, _]| b > 200 && g > 160 && b > r.saturating_add(20))
++}
++
++/// a video's subtitles: a box with a bright border, its top edge at y
++/// 14-15, its left at x 6-7 (its bottom moves with the lines of text).
++const SUBTITLE_BORDER: [(u32, u32); 4] = [(80, 15), (160, 15), (240, 15), (7, 30)];
++
++fn subtitle_look(system: &mut System) -> bool {
++    let pixels = system.screen_pixels(zakuro_common::Screen::Bottom, &SUBTITLE_BORDER);
++    pixels.iter().all(|&[r, g, b, _]| r.min(g).min(b) > 150)
++}
+ 
+ const MAP: usize = 0;
+ const VIDEO: usize = 1;
+@@ -92,7 +142,8 @@ const MISSION_CARD: usize = 5;
+ const SHOP: usize = 6;
+ const LANGUAGE_PAGE: usize = 7;
+ const PAUSE: usize = 8;
+-const COUNTED: usize = 9;
++const SPLASH: usize = 9;
++const COUNTED: usize = 10;
+ /// the return address of the call that showed the notice up
+ /// (overrides/screen_frame_counters.c): the ShowTipTextOnce and
+ /// ShowTipTextTimed script commands' calls are tutorial tips, anything else
+@@ -141,6 +192,42 @@ fn read_u32(system: &mut System, address: u32) -> u32 {
+ 
+ /// what the bottom screen shows this frame, as far as the game says.
+ pub fn bottom_view(system: &mut System, watch: &mut Watch, progress: bool) -> BottomView {
++    let raw = raw_view(system, watch, progress);
++    // a change that hides the bottom screen, and the pause menu's own
++    // (Y), show at once; any other has to last SETTLE frames first, the
++    // layout shown till then staying
++    watch.shown_for = watch.shown_for.saturating_add(1);
++    let showing = !(watch.shown.hide && watch.shown.pieces.is_empty());
++    if raw == watch.shown {
++        watch.pending = None;
++    } else if raw.paused || watch.shown.paused {
++        watch.shown = raw;
++        watch.shown_for = 0;
++        watch.pending = None;
++    } else if raw.hide && raw.pieces.is_empty() {
++        if !showing || watch.shown_for >= MIN_SHOW {
++            watch.shown = raw;
++            watch.shown_for = 0;
++            watch.pending = None;
++        }
++    } else {
++        let frames = match &watch.pending {
++            Some((view, frames)) if *view == raw => frames + 1,
++            _ => 1,
++        };
++        if frames >= SETTLE {
++            watch.shown = raw;
++            watch.shown_for = 0;
++            watch.pending = None;
++        } else {
++            watch.pending = Some((raw, frames));
++        }
++    }
++    watch.shown.clone()
++}
++
++fn raw_view(system: &mut System, watch: &mut Watch, progress: bool) -> BottomView {
++    watch.frame += 1;
+     if system.title.as_ref().map(|title| title.program_id()) != Some(LEGO_CITY_CHASE_BEGINS) {
+         return BottomView::default();
+     }
+@@ -165,11 +252,33 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch, progress: bool) -> Bo
+     // taken inside its border); just
+     // their text goes along the bottom of the top screen
+     if ran_video(VIDEO) {
+-        let pieces = if ran_video(TEXT) { vec![piece([12.0, 18.0, 295.0, 64.0], 0.5, 0.87, 0.85, PieceShape::Text)] } else { Vec::new() };
++        // (a short video plays as the hexagon wipe closes: no subtitles,
++        // the bottom screen shows the wipe)
++        let wiped = watch.since_wipe <= WIPE_OPENING;
++        // (the box seen lately: it goes between lines)
++        if watch.frame % DARK_EVERY == 0 && subtitle_look(system) {
++            watch.subtitle = 0;
++            watch.subtitle_seen = true;
++        } else {
++            watch.subtitle = watch.subtitle.saturating_add(1);
++        }
++        let pieces = if ran_video(TEXT) && !wiped && watch.subtitle_seen && watch.subtitle <= VIDEO_GRACE { vec![piece([12.0, 18.0, 295.0, 64.0], 0.5, 0.87, 0.85, PieceShape::Text)] } else { Vec::new() };
+         return BottomView { hide: pieces.is_empty(), pieces, round: false, swap: false, paused: false };
+     }
+     // the loading screen: overrides/tip_text.c has the game print its tip
+     // on the top screen, so nothing of the bottom one is needed
++    // the boot splash: the publisher logos on top, the copyright text on
++    // the bottom one, which is left out
++    if ran(SPLASH) {
++        return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false, paused: false };
++    }
++    // a system notice (Checking save data, Saving Game...) fills the window
++    if watch.frame % DARK_EVERY == 0 {
++        watch.notice = if notice_look(system) { watch.notice.saturating_add(1) } else { 0 };
++    }
++    if watch.notice >= 1 {
++        return BottomView { hide: false, pieces: Vec::new(), round: false, swap: true, paused: false };
++    }
+     if watch.quiet[LOADING] <= LOADING_GRACE {
+         return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false, paused: false };
+     }
+@@ -211,7 +320,9 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch, progress: bool) -> Bo
+     // it shows the mission's name (box x 100-219, y 6-53), that box goes to
+     // the top middle of the top screen
+     if watch.since_wipe <= WIPE_OPENING {
+-        if shut[0] != 0 && ran(MISSION_CARD) {
++        // (the card's function also runs on the loading screen and as the
++        // wipe shuts with nothing to show: the card's box has to be there)
++        if shut[0] != 0 && ran(MISSION_CARD) && mission_card_look(system) {
+             return BottomView { hide: false, pieces: vec![piece([98.0, 4.0, 124.0, 52.0], 0.5, 0.13, 1.0, PieceShape::Rounded(0.25))], round: false, swap: false, paused: false };
+         }
+         return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false, paused: false };
+@@ -229,7 +340,6 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch, progress: bool) -> Bo
+     // a screen only drawn on the bottom (boot, its alerts and questions,
+     // the language picker), the top one black: the bottom fills the window;
+     // both black, neither is worth a corner
+-    watch.frame += 1;
+     if watch.frame % DARK_EVERY == 0 {
+         use zakuro_common::Screen;
+         watch.dark_top = if system.screen_dark(Screen::Top, DARK_LEVEL) { watch.dark_top.saturating_add(1) } else { 0 };
+@@ -249,6 +359,14 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch, progress: bool) -> Bo
+     // the Disguise Selector's portraits spread past the round minimap: the
+     // bottom screen shows whole while it is open
+     let selector = selector_open(system);
++    if ran(MAP) {
++        watch.map_seen = true;
++    }
++    // before the game is under way, a bottom screen nothing above took is
++    // the frontend between its screens: not a corner
++    if !watch.map_seen {
++        return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false, paused: false };
++    }
+     BottomView { hide: false, pieces: Vec::new(), round: ran(MAP) && faded_in && !selector, swap: false, paused: false }
+ }
+ 
+-- 
+2.43.0
+

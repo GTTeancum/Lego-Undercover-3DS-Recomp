@@ -14,6 +14,7 @@
  *                           runs on the loading screen)
  *   0x005A4F1C  f_0031DF40  the language page (Options, Language)
  *   0x005A4F20  f_00300378  the pause menu
+ *   0x005A4F24  f_003023B8  the boot splash (logos, copyright text)
  *   0x005A4F18  f_002D8768  the shop mode's renderer (red bricks, extras; class
  *                           vtable 0x00361CC0, it draws UI_Shop_Topscreen)
  * and at 0x005A4F40 whether the notice shown last (f_00235F30) came from a
@@ -116,4 +117,12 @@ RECOMP_OVERRIDE(0x00300378) {
     count(ctx, 8);
     bottom_text_pause();
     CALL(RECOMP_ORIGINAL(0x00300378));
+}
+
+/* 0x005A4F24: the boot splash (the publisher logos, and the copyright text
+ * on the bottom screen; f_00302144 sets it up), its per-frame update
+ * f_003023B8, which skips it on a touch; Zakuro hides the bottom screen */
+RECOMP_OVERRIDE(0x003023B8) {
+    count(ctx, 9);
+    CALL(RECOMP_ORIGINAL(0x003023B8));
 }
