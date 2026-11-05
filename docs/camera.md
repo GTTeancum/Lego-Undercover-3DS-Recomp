@@ -83,3 +83,25 @@ stick. Status: the sensor model is unit-tested (a turn reads on the
 gyroscope's upright axis, gravity unchanged); not yet seen at an
 observation point or the wiretap, so the direction of each axis may need
 flipping (`MOTION_SPEED` sign, `input.tilt[1] -=`).
+
+## Draw distance (doubled)
+
+`overrides/draw_distance.c` scales three things by `DRAW_DISTANCE_SCALE`
+(2.0):
+
+- **Far clip.** A level's camera settings give `ZFarClip` (default 70,
+  capped at 600 by `f_002F67FC`; the hub uses 260). The cap applied, it goes
+  to the top screen's camera (`f_0023F168(camera, near, far)`, called from
+  0x002F711C) and to the gameplay camera (`f_002E08DC`); both are scaled.
+  The gameplay camera hands its far plane on to `f_0023F168` each frame,
+  which is left alone (scaling it there too made it 4x), as are the other
+  cameras (the map's, 2D ones).
+- **Fog.** `FogStart`, `FogEnd`, `DS_FogStart`, `DS_FogEnd` as the settings
+  getter `f_00241280` returns them (`f_001A293C` reads them); values of 0 or
+  below (no fog, markers) are left alone. Hub: 220-260 becomes 440-520.
+- **Model detail.** Each object's LOD switch distances, passed in pairs to
+  `f_002282B8`.
+
+Seen headless: the hub's far street, buildings and traffic draw past where
+they stopped, with less haze. Streaming (what the game has loaded) is not
+changed, so beyond what it keeps loaded there is nothing more to draw.

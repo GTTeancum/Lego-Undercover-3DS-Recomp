@@ -1,0 +1,129 @@
+From d44f4dec4a79ed490a54ae934ea5208355881763 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 5 Nov 2026 00:39:07 +0000
+Subject: [PATCH] LEGO City: blank screens decide the layout; longer graces for
+ videos and loading
+
+A top screen dark for two samples (one each 4 frames, 16 x 12 pixels)
+means a screen drawn only on the bottom (boot, its alerts, the language
+picker): the bottom fills the window. A dark bottom screen is hidden.
+Videos keep their subtitle layout through 60 quiet frames, the loading
+screen through 30, so the corner screen no longer flashes between lines.
+---
+ crates/zakuro-core/src/lib.rs    | 34 ++++++++++++++++++++++++++++++++
+ crates/zakuro/src/title_hooks.rs | 33 +++++++++++++++++++++++++++++--
+ 2 files changed, 65 insertions(+), 2 deletions(-)
+
+diff --git a/crates/zakuro-core/src/lib.rs b/crates/zakuro-core/src/lib.rs
+index f16c150..ad15365 100644
+--- a/crates/zakuro-core/src/lib.rs
++++ b/crates/zakuro-core/src/lib.rs
+@@ -1232,6 +1232,40 @@ impl System {
+         out
+     }
+ 
++    /// whether a screen shows (next to) nothing: none of a grid of its
++    /// pixels brighter than `threshold` (0-255, any channel). Cheaper than
++    /// read_screen: 16 x 12 samples.
++    pub fn screen_dark(&mut self, screen: zakuro_common::Screen, threshold: u8) -> bool {
++        let index = match screen {
++            zakuro_common::Screen::Top => 0,
++            zakuro_common::Screen::Bottom => 1,
++        };
++        let config = self.gpu.framebuffers[index];
++        let address = config.address_left();
++        if self.lcd_force_black || address == 0 {
++            return true;
++        }
++        let (width, height) = (screen.width(), screen.height());
++        let format = config.color_format();
++        let bpp = format.bytes_per_pixel() as u32;
++        let stride = if config.stride == 0 { height * bpp } else { config.stride };
++        let base = services::gsp::physical_to_virtual(self, address);
++        self.sync_gpu(base, stride * width);
++        let mut pixel = vec![0u8; bpp as usize];
++        for i in 0..16 {
++            for j in 0..12 {
++                let x = (2 * i + 1) * width / 32;
++                let y = (2 * j + 1) * height / 24;
++                self.memory.read_bytes(base + x * stride + (height - 1 - y) * bpp, &mut pixel);
++                let rgba = format.decode(&pixel);
++                if rgba[..3].iter().any(|&c| c > threshold) {
++                    return false;
++                }
++            }
++        }
++        true
++    }
++
+     /// a one-line summary for the window title and the log.
+     pub fn status_line(&self) -> String {
+         let mut line = format!(
+diff --git a/crates/zakuro/src/title_hooks.rs b/crates/zakuro/src/title_hooks.rs
+index 4855f53..44956a4 100644
+--- a/crates/zakuro/src/title_hooks.rs
++++ b/crates/zakuro/src/title_hooks.rs
+@@ -59,6 +59,10 @@ pub struct Watch {
+     quiet: [u32; COUNTED],
+     /// frames since the wipe last was shut.
+     since_wipe: u32,
++    /// dark samples in a row, top and bottom screens, and frames seen.
++    dark_top: u32,
++    dark_bottom: u32,
++    frame: u64,
+ }
+ 
+ /// the game runs its logic at 30 frames a second or slower, so a function
+@@ -69,7 +73,15 @@ const PAUSE_GRACE: u32 = 20;
+ /// the wipe's opening animation, after it stops counting as shut.
+ const WIPE_OPENING: u32 = 40;
+ /// a video's frames come at 15-20 a second.
+-const VIDEO_GRACE: u32 = 12;
++const VIDEO_GRACE: u32 = 60;
++/// the loading screen draws less often still while the disc is read.
++const LOADING_GRACE: u32 = 30;
++/// a screen counts as blank after this many dark samples in a row, one
++/// every DARK_EVERY frames (boot screens, alerts and the language picker
++/// draw only on the bottom screen, with the top one black).
++const DARK_EVERY: u64 = 4;
++const DARK_SAMPLES: u32 = 2;
++const DARK_LEVEL: u8 = 24;
+ 
+ const MAP: usize = 0;
+ const VIDEO: usize = 1;
+@@ -158,7 +170,7 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch, progress: bool) -> Bo
+     }
+     // the loading screen: overrides/tip_text.c has the game print its tip
+     // on the top screen, so nothing of the bottom one is needed
+-    if ran(LOADING) {
++    if watch.quiet[LOADING] <= LOADING_GRACE {
+         return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false, paused: false };
+     }
+     // the pause menu: its menu (the bottom screen) fills the window; Y
+@@ -214,6 +226,23 @@ pub fn bottom_view(system: &mut System, watch: &mut Watch, progress: bool) -> Bo
+         }
+         return BottomView { hide: false, pieces: notice_pieces(0.5, 0.5, 0.8), round: false, swap: false, paused: false };
+     }
++    // a screen only drawn on the bottom (boot, its alerts and questions,
++    // the language picker), the top one black: the bottom fills the window;
++    // both black, neither is worth a corner
++    watch.frame += 1;
++    if watch.frame % DARK_EVERY == 0 {
++        use zakuro_common::Screen;
++        watch.dark_top = if system.screen_dark(Screen::Top, DARK_LEVEL) { watch.dark_top.saturating_add(1) } else { 0 };
++        watch.dark_bottom = if system.screen_dark(Screen::Bottom, DARK_LEVEL) { watch.dark_bottom.saturating_add(1) } else { 0 };
++    }
++    // (and a black bottom screen is no corner worth showing, whatever the
++    // top one shows: logos, fades)
++    if watch.dark_bottom >= DARK_SAMPLES {
++        return BottomView { hide: true, pieces: Vec::new(), round: false, swap: false, paused: false };
++    }
++    if watch.dark_top >= DARK_SAMPLES {
++        return BottomView { hide: false, pieces: Vec::new(), round: false, swap: true, paused: false };
++    }
+     let mut word = [0u8; 4];
+     system.memory.read_bytes(DRC_MAP_FADE, &mut word);
+     let faded_in = f32::from_le_bytes(word) > 0.99;
+-- 
+2.43.0
+
